@@ -86,10 +86,11 @@ class GazeStepperTest {
     }
 
     @Test
-    fun `holding a look steps once and does not move the rest`() {
+    fun `holding a look steps once and coming back does not step`() {
         look(500)
         assertEquals(listOf(GazeStep.Previous), look(4_000, y = -0.7f))
-        // Back at the old rest: nothing, because the rest did not move to the held look.
+        // Back at the old rest: nothing. After 2.5 s the held look became the rest, and coming
+        // back to the old one restores it without a step.
         assertEquals(emptyList<GazeStep>(), look(1_000))
     }
 
@@ -229,5 +230,24 @@ class GazeStepperTest {
         val steps = look(200, y = 0.9f) + look(1_500, y = 0.3f)
         assertEquals(emptyList<GazeStep>(), steps)
         assertEquals(listOf(GazeStep.Previous), look(600, y = -0.3f))
+    }
+
+    @Test
+    fun `a look left over from before a pause in readings does not step`() {
+        look(500)
+        look(200, y = -0.7f)
+        // No readings for 2 s, as while the phone speaks; the eyes now rest higher.
+        time += 2_000
+        assertEquals(emptyList<GazeStep>(), look(2_000, y = -0.7f))
+        assertEquals(listOf(GazeStep.Next), look(600, y = -0.2f))
+    }
+
+    @Test
+    fun `eyes resting somewhere new become the rest`() {
+        look(500)
+        // Phone 02:39:24: the resting gaze moved and looks up kept firing on their own.
+        val steps = look(6_000, y = -0.7f) + look(400, y = -0.6f) + look(400, y = -0.8f)
+        assertEquals(listOf(GazeStep.Previous), steps)
+        assertEquals(listOf(GazeStep.Previous), look(1_000, y = -1.4f))
     }
 }

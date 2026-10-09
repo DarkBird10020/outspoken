@@ -341,6 +341,16 @@ private fun TuningSliders(tuning: Tuning, onChange: (Tuning) -> Unit, onReset: (
         Switch(checked = tuning.moveByEyes, onCheckedChange = { onChange(tuning.copy(moveByEyes = it)) })
     }
     if (tuning.moveByEyes) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (tuning.winks) "Winks move too (left wink down, right wink up)" else "Winks do nothing",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.weight(1f),
+            )
+            Switch(checked = tuning.winks, onCheckedChange = { onChange(tuning.copy(winks = it)) })
+        }
+    }
+    if (tuning.moveByEyes) {
         LabeledSlider("Look up distance: ${tuning.gaze.lookStrength.formatOpen()}", tuning.gaze.lookStrength, 0.1f..0.9f) {
             onChange(tuning.copy(gaze = tuning.gaze.copy(lookStrength = it)))
         }

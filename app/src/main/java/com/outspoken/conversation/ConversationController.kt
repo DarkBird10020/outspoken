@@ -48,6 +48,9 @@ class ConversationController(
             moveCursor(0, clockMs)
         }
 
+    /** Left wink moves down, right wink up. Off unless turned on in the settings. */
+    var winks = false
+
     // Eye mode: position in board.cards, and the one before the last move, so a blink that
     // began just before a move still picks the card that was lit when the eyes shut.
     private var cursor = 0
@@ -101,7 +104,7 @@ class ConversationController(
         if (moveByEyes && !speaking && !waiting && detector.tracking) {
             // Only shut eyes stop a look; half-lowered lids still count as open here.
             // Owner request: left wink moves down, right wink moves up; both eyes shut chooses.
-            val winked = wink.onSample(sample, detector.settings)
+            val winked = wink.onSample(sample, detector.settings)?.takeIf { winks }
             if (winked != null) {
                 // The eye starting to close shifts the gaze reading, so a look can fire just
                 // before the wink does (phone 02:29:49). Take that look back.

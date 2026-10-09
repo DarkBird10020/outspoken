@@ -9,7 +9,10 @@ import org.junit.Test
 class EyeModeTest {
 
     private val said = mutableListOf<String>()
-    private val controller = ConversationController(speak = { said += it }).apply { moveByEyes = true }
+    private val controller = ConversationController(speak = { said += it }).apply {
+        moveByEyes = true
+        winks = true
+    }
     private var time = 10_000L
 
     /** One frame per 33 ms. Up is negative gaze y. */
@@ -181,7 +184,10 @@ class EyeModeTest {
         val detector = com.outspoken.blink.BlinkDetector(
             com.outspoken.blink.BlinkSettings(closedBelow = 0.6f, openAbove = 0.75f, shapeClosedBelow = 0.10f, shapeOpenAbove = 0.14f),
         )
-        val c = ConversationController(speak = {}, detector = detector, gaze = stepper).apply { moveByEyes = true }
+        val c = ConversationController(speak = {}, detector = detector, gaze = stepper).apply {
+            moveByEyes = true
+            winks = true
+        }
         var t = 10_000L
         fun frame(left: Float, right: Float, leftGap: Float, gazeY: Float) {
             val dots = com.outspoken.eye.FaceDots(emptyList(), emptyList(), 0.75f, leftGap, 0.30f)
@@ -262,5 +268,14 @@ class EyeModeTest {
         eyes(500, 0.95f, 0.70f, gazeY = 0.5f)
         eyes(1_100, 0.95f, 0.70f)
         assertEquals(1, highlighted)
+    }
+
+    @Test
+    fun `winks do nothing while the setting is off`() {
+        controller.winks = false
+        frames(500)
+        wink(left = 0.05f, right = 0.95f)
+        wink(left = 0.95f, right = 0.05f)
+        assertEquals(0, highlighted)
     }
 }

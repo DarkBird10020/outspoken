@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: winks no longer move up and down: looks stop while one eye reads lower than the other (and 0.8 s after), and a look just before a wink is taken back. Waiting for the phone test.
+Latest: winks are off unless switched on (eye check screen). The highlight no longer moves by itself after speaking or after you shift position. Waiting for the phone test.
 
 ## Phone test history
 
@@ -27,6 +27,12 @@ The app now launches with an interactive practice round on first use, teaches th
 - [x] **Stale preferences guard.** `TuningStore` upgrades hyper-sensitive legacy values (`minBlinkMs < 350` or `lookStrength < 0.35`) to recommended stable defaults. Code: `setup/Tuning.kt`.
 - [x] **Live transcript mirrored to laptop via Office Kit (PRD S2).** High-contrast, large-font full-screen transcript view accessible via top bar icon button. Renders real-time visitor speech (22sp) and speaker eye-blink replies (26sp pink card), live listening status pill, and session sentence counters. Zero internet used. Code: `ui/TranscriptScreen.kt`, `conversation/ConversationController.kt`, `MainActivity.kt`.
 - [x] **Frequent phrases in-session learning (PRD S3).** Dynamically learns sentences chosen by the speaker and prioritizes them to earlier phrase-bank pages and LLM top-up/fallback candidates, reducing eye movements required for habitual needs. Code: `conversation/Board.kt`, `conversation/ConversationController.kt`, `suggest/ModelSuggestionEngine.kt`.
+
+## Moving on its own, and winks behind a switch (owner report)
+
+- [ ] **Winks are off unless switched on.** Eye check screen: "Winks move too (left wink down, right wink up)". Saved on the phone. Off by default, owner decision. Code: `setup/Tuning.kt` (`winks`), `conversation/ConversationController.kt`, `ui/EyeCheckScreen.kt`. Test: `EyeModeTest` "winks do nothing while the setting is off".
+- [ ] **No moves right after a pause in readings.** Phone 02:38:48, 02:38:54, 02:39:37, 02:39:45, 02:39:52: a "look up" fired 0.4 s after every spoken phrase, because the look from before the speech was still remembered. Coming back from Practice fired a "look down held 10474 ms" (02:39:30). Now after 0.4 s with no readings, nothing moves for 1 s while the resting point is learned again. Code: `scan/GazeStepper.kt` (`STALE_AFTER_MS`). Test: `GazeStepperTest` "a look left over from before a pause in readings does not step".
+- [ ] **Eyes away from rest for 2.5 s become the new rest.** Phone 02:39:24: the resting gaze moved from 0.6 to -0.1 and looks up kept firing on their own (02:39:32 to 02:39:52). Coming back to the old rest within 6 s restores it without a step. The log says "new resting point" and "back at the old resting point". Code: `scan/GazeStepper.kt` (`RECENTRE_AFTER_MS`). Tests: `GazeStepperTest` "eyes resting somewhere new become the rest", "holding a look steps once and coming back does not step" (renamed on purpose: the held look now becomes the rest after 2.5 s, and coming back restores the old one).
 
 ## Winks moving up and down (owner report)
 
