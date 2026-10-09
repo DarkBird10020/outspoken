@@ -1,0 +1,68 @@
+package com.outspoken.conversation
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+
+class BoardTest {
+
+    private val board = Board()
+
+    @Test
+    fun `first page leads with water`() {
+        assertEquals("I need water", board.replies.first())
+        assertEquals(4, board.replies.size)
+        assertEquals(listOf(0, 1, 2, 3, Board.MORE_OPTIONS, Board.YES_NO), board.cards)
+    }
+
+    @Test
+    fun `phrase bank covers the PRD list`() {
+        val all = PhraseBank.phrases + PhraseBank.yesNo
+        listOf("Yes", "No", "pain", "water", "toilet", "too hot", "too cold", "nurse", "Thank you").forEach { word ->
+            assert(all.any { it.contains(word) }) { "missing $word" }
+        }
+    }
+
+    @Test
+    fun `choosing a reply returns its sentence`() {
+        assertEquals("I need water", board.choose(0))
+        assertEquals("Please call the nurse", board.choose(2))
+    }
+
+    @Test
+    fun `more options pages through and wraps`() {
+        assertNull(board.choose(Board.MORE_OPTIONS))
+        assertEquals(listOf("I am too hot", "I am too cold", "Thank you"), board.replies)
+        assertEquals(listOf(0, 1, 2, Board.MORE_OPTIONS, Board.YES_NO), board.cards)
+        board.choose(Board.MORE_OPTIONS)
+        assertEquals("I need water", board.replies.first())
+    }
+
+    @Test
+    fun `yes no card shows yes and no`() {
+        assertNull(board.choose(Board.YES_NO))
+        assertEquals(listOf("Yes", "No"), board.replies)
+        assertEquals("No", board.choose(1))
+    }
+
+    @Test
+    fun `more options from yes no goes back to the first page`() {
+        board.choose(Board.MORE_OPTIONS)
+        board.choose(Board.YES_NO)
+        board.choose(Board.MORE_OPTIONS)
+        assertEquals("I need water", board.replies.first())
+    }
+
+    @Test
+    fun `missing reply card says nothing`() {
+        board.choose(Board.YES_NO)
+        assertNull(board.choose(3))
+    }
+
+    @Test
+    fun `home returns to the first page`() {
+        board.choose(Board.MORE_OPTIONS)
+        board.home()
+        assertEquals("I need water", board.replies.first())
+    }
+}
