@@ -51,6 +51,14 @@ class LiteRtLmModel(private val modelPath: String, private val cacheDir: String)
         }
     }
 
+    /** Frees the model, after any reply being written finishes. */
+    suspend fun close() = withContext(Dispatchers.IO) {
+        lock.withLock {
+            engine?.close()
+            engine = null
+        }
+    }
+
     private fun start(backend: Backend): Engine {
         val engine = Engine(EngineConfig(modelPath = modelPath, backend = backend, cacheDir = cacheDir))
         try {

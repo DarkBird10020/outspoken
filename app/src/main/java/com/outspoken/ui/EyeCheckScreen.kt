@@ -47,6 +47,7 @@ import com.outspoken.eye.Dot
 import com.outspoken.eye.EyeSample
 import com.outspoken.listen.QuickTopics
 import com.outspoken.scan.GazeSettings
+import com.outspoken.setup.ModelChoice
 import com.outspoken.setup.Tuning
 import java.util.Locale
 import kotlin.math.abs
@@ -58,6 +59,14 @@ data class SetupStatus(
     val offlineVoice: Boolean?,
     val lastReplyLine: String = "none yet",
     val listenLine: String = "off",
+)
+
+/** One model in the Models list: [status] in plain words, as shown. */
+data class ModelRow(
+    val choice: ModelChoice,
+    val status: String,
+    val downloaded: Boolean,
+    val inUse: Boolean,
 )
 
 private const val GRAPH_MS = 5_000L
@@ -95,6 +104,11 @@ fun EyeCheckScreen(
     steadyIris: Float?,
     onChooseModel: () -> Unit,
     onSaveLogs: () -> Unit,
+    models: List<ModelRow> = emptyList(),
+    canSeeDownloads: Boolean = true,
+    onAllowDownloads: () -> Unit = {},
+    onDownloadModel: (ModelChoice) -> Unit = {},
+    onUseModel: (ModelChoice) -> Unit = {},
     onCalibrate: () -> Unit,
     onAsk: (String) -> Unit,
     onBack: () -> Unit = {},
@@ -156,6 +170,7 @@ fun EyeCheckScreen(
                 Button(onClick = onCalibrate, modifier = Modifier.padding(top = 12.dp)) { Text("Calibrate my eyes (30 s)") }
                 TuningSliders(tuning, onTuningChange, onTuningReset)
                 Text("Model: ${setup.modelLine}", style = MaterialTheme.typography.bodySmall)
+                ModelList(models, canSeeDownloads, onAllowDownloads, onDownloadModel, onUseModel)
                 Button(onClick = onChooseModel) { Text("Choose model file") }
                 Button(onClick = onSaveLogs) { Text("Save logs") }
                 Text("Last replies: ${setup.lastReplyLine}", style = MaterialTheme.typography.bodySmall)
@@ -446,6 +461,41 @@ private fun AskBox(listenLine: String, onAsk: (String) -> Unit) {
     Row(Modifier.horizontalScroll(rememberScrollState())) {
         QuickTopics.all.forEach { (label, question) ->
             AssistChip(onClick = { onAsk(question) }, label = { Text(label) }, modifier = Modifier.padding(end = 8.dp))
+        }
+    }
+}
+
+/**
+ * The models the app offers. Download opens the file in the phone's browser (the app itself has no
+ * internet); the app picks the finished file up from Downloads and loads it.
+ */
+@Composable
+private fun ModelList(
+    models: List<ModelRow>,
+    canSeeDownloads: Boolean,
+    onAllowDownloads: () -> Unit,
+    onDownload: (ModelChoice) -> Unit,
+    onUse: (ModelChoice) -> Unit,
+) {
+    Text("Models", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 12.dp))
+    if (!canSeeDownloads) {
+        Text(
+            "To load a downloaded model by itself, the app needs to see the Downloads folder.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Button(onClick = onAllowDownloads) { Text("Allow access to Downloads") }
+    }
+    models.forEach { row ->
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text("${row.choice.title}, ${row.choice.sizeGb}: ${row.choice.note}", style = MaterialTheme.typography.bodyMedium)
+                Text(row.status, style = MaterialTheme.typography.bodySmall)
+            }
+            when {
+                row.inUse -> Unit
+                row.downloaded -> Button(onClick = { onUse(row.choice) }) { Text("Use") }
+                else -> Button(onClick = { onDownload(row.choice) }) { Text("Download") }
+            }
         }
     }
 }

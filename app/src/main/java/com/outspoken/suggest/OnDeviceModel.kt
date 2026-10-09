@@ -27,6 +27,25 @@ object OnDeviceModel {
     fun load(file: File?, cacheDir: File) {
         val current = _state.value
         if (file == null || current is ModelState.Loading || current is ModelState.Ready) return
+        start(file, cacheDir)
+    }
+
+    /**
+     * Loads [file] in place of the model in use, freeing that one first: two Gemma models at once
+     * would not fit in memory. Does nothing while a model is still loading.
+     */
+    fun switchTo(file: File, cacheDir: File) {
+        val current = _state.value
+        if (current is ModelState.Loading) return
+        if (current is ModelState.Ready && current.name == file.name) return
+        _state.value = ModelState.Loading(file.name)
+        scope.launch {
+            if (current is ModelState.Ready) current.model.close()
+            start(file, cacheDir)
+        }
+    }
+
+    private fun start(file: File, cacheDir: File) {
         _state.value = ModelState.Loading(file.name)
         scope.launch {
             val model = LiteRtLmModel(file.path, cacheDir.path)

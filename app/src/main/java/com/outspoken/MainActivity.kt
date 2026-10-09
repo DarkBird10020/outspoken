@@ -41,7 +41,10 @@ import com.outspoken.setup.Calibration
 import com.outspoken.setup.Tuning
 import com.outspoken.setup.TuningStore
 import com.outspoken.setup.checkOfflineVoice
-import com.outspoken.setup.findModelFile
+import com.outspoken.setup.ModelCatalog
+import com.outspoken.setup.ModelChoice
+import com.outspoken.setup.ModelShelf
+import com.outspoken.ui.ModelRow
 import com.outspoken.speech.Speaker
 import com.outspoken.practice.PracticeController
 import com.outspoken.stats.PitStats
@@ -125,6 +128,10 @@ class MainActivity : ComponentActivity() {
     private var lastReplyLine by mutableStateOf("none yet")
     private var importLine by mutableStateOf<String?>(null)
     private var suggestionEngine: SuggestionEngine? = null
+    private var engineModel: Any? = null
+    private lateinit var modelShelf: ModelShelf
+    private var modelRows by mutableStateOf<List<ModelRow>>(emptyList())
+    private var canSeeDownloads by mutableStateOf(false)
     private var replyJob: Job? = null
 
     private val logSaver =
@@ -209,13 +216,20 @@ class MainActivity : ComponentActivity() {
             AppLog.write("app", "offline voice ${if (it) "ready" else "missing"}")
             offlineVoice = it
         }
-        OnDeviceModel.load(findModelFile(getExternalFilesDir(null)), cacheDir)
+        modelShelf = ModelShelf(this)
+        OnDeviceModel.load(modelShelf.fileToLoad(), cacheDir)
         lifecycleScope.launch {
             OnDeviceModel.state.collect { state ->
                 AppLog.write("model", modelLine(state))
-                if (state is ModelState.Ready && suggestionEngine == null) {
+                refreshModelRows()
+                // A new engine for each model loaded, so switching models takes effect at once.
+                if (state is ModelState.Ready && engineModel !== state.model) {
+                    engineModel = state.model
                     suggestionEngine = ModelSuggestionEngine(state.model, frequentPhrases = { controller.frequentPhrases }, clockMs = ::now)
                     controller.refreshReplies()
+                } else if (state !is ModelState.Ready) {
+                    engineModel = null
+                    suggestionEngine = null
                 }
             }
         }
@@ -302,6 +316,11 @@ class MainActivity : ComponentActivity() {
                         steadyGaze = gazeStepper.smoothedGaze,
                         steadyIris = gazeStepper.smoothedIrisDrop,
                         onChooseModel = { modelPicker.launch(arrayOf("*/*")) },
+                        models = modelRows,
+                        canSeeDownloads = canSeeDownloads,
+                        onAllowDownloads = modelShelf::askToSeeDownloads,
+                        onDownloadModel = ::downloadModel,
+                        onUseModel = ::useModel,
                         onSaveLogs = { logSaver.launch("outspoken-logs.txt") },
                         onCalibrate = ::startCalibration,
                         onAsk = { question ->
@@ -425,6 +444,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         AppLog.write("app", "resumed")
         visible = true
+        watchDownloads()
         updateListening()
     }
 
@@ -561,6 +581,68 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private var downloadWatch: Job? = null
+
+    /**
+     * While the app is open, checks Downloads every few seconds for a finished model, moves it in
+     * and loads it if it is the one asked for (or no model is loaded yet).
+     */
+    private fun watchDownloads() {
+        downloadWatch?.cancel()
+        downloadWatch = lifecycleScope.launch {
+            while (visible) {
+                canSeeDownloads = modelShelf.canSeeDownloads()
+                try {
+                    val moved = modelShelf.collectDownloads { importLine = "moving ${it.title} into the app" }
+                    for (choice in moved) {
+                        AppLog.write("model", "downloaded ${choice.title}, moved into the app")
+                        importLine = null
+                        val loaded = OnDeviceModel.state.value is ModelState.Ready
+                        if (modelShelf.waitingFor == choice || !loaded) {
+                            modelShelf.waitingFor = null
+                            useModel(choice)
+                        }
+                    }
+                } catch (e: Exception) {
+                    AppLog.write("model", "could not pick up the download: ${e.message}")
+                    importLine = "could not pick up the download: ${e.message}"
+                }
+                refreshModelRows()
+                delay(DOWNLOAD_CHECK_MS)
+            }
+        }
+    }
+
+    private fun downloadModel(choice: ModelChoice) {
+        AppLog.write("model", "download ${choice.title} in the browser")
+        if (!modelShelf.download(choice)) importLine = "no browser on this phone to download with"
+        refreshModelRows()
+    }
+
+    private fun useModel(choice: ModelChoice) {
+        val file = modelShelf.installed(choice) ?: return
+        modelShelf.chosen = choice
+        AppLog.write("model", "switching to ${choice.title}")
+        OnDeviceModel.switchTo(file, cacheDir)
+        refreshModelRows()
+    }
+
+    private fun refreshModelRows() {
+        val state = OnDeviceModel.state.value
+        val waiting = modelShelf.waitingFor
+        modelRows = ModelCatalog.all.map { choice ->
+            val here = modelShelf.installed(choice) != null
+            val status = when {
+                state is ModelState.Ready && state.name == choice.fileName -> "in use, on ${state.backend}"
+                state is ModelState.Loading && state.name == choice.fileName -> "loading"
+                here -> "downloaded"
+                waiting == choice -> "downloading in the browser, loads by itself when done"
+                else -> "not downloaded"
+            }
+            ModelRow(choice, status, downloaded = here, inUse = status.startsWith("in use") || status == "loading")
+        }
+    }
+
     private fun importModel(uri: Uri) {
         importLine = "copying"
         lifecycleScope.launch {
@@ -571,11 +653,8 @@ class MainActivity : ComponentActivity() {
                 }
                 AppLog.write("model", "imported ${file.name} (${file.length() / 1_000_000} MB)")
                 importLine = null
-                if (OnDeviceModel.state.value is ModelState.Ready) {
-                    importLine = "saved ${file.name}; close and reopen the app to switch to it"
-                } else {
-                    OnDeviceModel.load(file, cacheDir)
-                }
+                ModelCatalog.byFileName(file.name)?.let { modelShelf.chosen = it }
+                OnDeviceModel.switchTo(file, cacheDir)
             } catch (e: Exception) {
                 AppLog.write("model", "import failed: ${e.message}")
                 importLine = "could not import: ${e.message}"
@@ -584,19 +663,20 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun modelLine(state: ModelState): String = when (state) {
-        ModelState.Missing -> "missing. Download a Gemma .litertlm file on this phone, then tap Choose model file"
+        ModelState.Missing -> "missing. Tap Download next to a model below"
         is ModelState.Loading -> "${state.name}, loading"
         is ModelState.Ready -> "${state.name}, ready on ${state.backend}, ${modelSize()}"
         is ModelState.Failed -> "${state.name}, failed to load: ${state.reason}"
     }
 
     private fun modelSize(): String {
-        val gb = (findModelFile(getExternalFilesDir(null))?.length() ?: 0) / 1_000_000_000.0
+        val gb = (modelShelf.fileToLoad()?.length() ?: 0) / 1_000_000_000.0
         return "%.2f GB".format(Locale.US, gb)
     }
 
     private companion object {
         const val STATS_REFRESH_MS = 1_000L
+        const val DOWNLOAD_CHECK_MS = 3_000L
         const val CUE_MS = 200
         const val CUE_VOLUME = 80
         const val TICK_MS = 50L
