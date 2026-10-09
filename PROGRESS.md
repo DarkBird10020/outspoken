@@ -246,6 +246,7 @@ Unit tests:
 ## Calibration uses the deeper close
 
 - [ ] **One weak close no longer sets the lines.** Calibration took the shallower of the two "Close your eyes" steps. In the 00:13 phone run that was closed 0.54 against open 0.88 and a lid gap of 0.22 against 0.31, so the shut lines landed at 0.71 and 0.25, next to open, and normal looking chose "I need water" by itself four times. It now takes the deeper close. Code: `setup/Calibration.kt`. Test: `CalibrationTest` "one weak close does not set the lines".
+- [ ] **The lid gap line comes from the held close, not one squeezed frame.** Calibration set the gap line just above the deepest single frame of the "Close your eyes" steps, and a hard squeeze reads 0.00 to 0.03 for a frame or two. On the phone the line came out anywhere from 0.045 to 0.21 within one hour. In the 05:04 run it was 0.09 while held closes read 0.10 to 0.15: at 05:05:15 both eyes read 0.27/0.30 (as deep as the calibrated close) and did not count, and a help hold at 05:06:37 only counted from 1.2 s in, so it never reached 2 s. Now each close step gives its typical (median) gap, and the deeper of the two sets the line. Code: `setup/Calibration.kt`. Tests: `CalibrationTest` "a squeezed frame or two does not set the lid gap line" (fails on the old code).
 
 ## Gaze box centred on the resting gaze (owner report)
 
