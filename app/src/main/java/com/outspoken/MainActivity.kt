@@ -16,9 +16,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.outspoken.blink.BlinkDetector
 import com.outspoken.conversation.ConversationController
 import com.outspoken.eye.EyeReader
 import com.outspoken.eye.FrontCamera
+import com.outspoken.log.AppLog
 import com.outspoken.setup.checkOfflineVoice
 import com.outspoken.setup.findModelFile
 import com.outspoken.speech.Speaker
@@ -36,7 +38,11 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var speaker: Speaker
     private lateinit var camera: FrontCamera
-    private val controller = ConversationController(speak = { speaker.speak(it) })
+    private val controller = ConversationController(
+        speak = { speaker.speak(it) },
+        detector = BlinkDetector(log = AppLog),
+        log = AppLog,
+    )
     private val eyeReader = EyeReader(onSample = { controller.onSample(it) })
     private val analyzerExecutor = Executors.newSingleThreadExecutor()
 
@@ -47,6 +53,7 @@ class MainActivity : ComponentActivity() {
     private val cameraPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             cameraGranted = granted
+            AppLog.write("app", "camera permission ${if (granted) "granted" else "denied"}")
             if (granted) camera.start(eyeReader, analyzerExecutor)
         }
 
@@ -59,14 +66,19 @@ class MainActivity : ComponentActivity() {
         camera = FrontCamera(this, this)
         cameraGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
+        AppLog.write("app", "camera permission ${if (cameraGranted) "already granted" else "requested"}")
         if (cameraGranted) {
             camera.start(eyeReader, analyzerExecutor)
         } else {
             cameraPermission.launch(Manifest.permission.CAMERA)
         }
 
-        checkOfflineVoice(this) { offlineVoice = it }
+        checkOfflineVoice(this) {
+            AppLog.write("app", "offline voice ${if (it) "ready" else "missing"}")
+            offlineVoice = it
+        }
         val modelLine = modelStatusLine()
+        AppLog.write("app", "model $modelLine")
 
         setContent {
             LaunchedEffect(Unit) {
@@ -76,7 +88,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
             if (!cameraGranted || screen == Screen.EyeCheck) {
-                BackHandler(enabled = screen == Screen.EyeCheck) { screen = Screen.Conversation }
+                BackHandler(enabled = screen == Screen.EyeCheck) { show(Screen.Conversation) }
                 val sample by eyeReader.samples.collectAsStateWithLifecycle()
                 val fps by eyeReader.fps.collectAsStateWithLifecycle()
                 MaterialTheme {
@@ -96,7 +108,7 @@ class MainActivity : ComponentActivity() {
                     ConversationScreen(
                         ui = conversation,
                         // The practice round arrives in M3; until then this shows the live eye numbers.
-                        onPractice = { screen = Screen.EyeCheck },
+                        onPractice = { show(Screen.EyeCheck) },
                         onStats = {},
                         onSelect = { controller.onTap(it, now()) },
                     )
@@ -105,14 +117,30 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        AppLog.write("app", "resumed")
+    }
+
+    override fun onPause() {
+        super.onPause()
+        AppLog.write("app", "paused")
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        AppLog.write("app", "closed")
         speaker.shutdown()
         eyeReader.close()
         analyzerExecutor.shutdown()
     }
 
     private fun now() = SystemClock.elapsedRealtime()
+
+    private fun show(next: Screen) {
+        AppLog.write("ui", "screen $next")
+        screen = next
+    }
 
     private fun modelStatusLine(): String {
         val dir = getExternalFilesDir(null)

@@ -8,6 +8,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
+import com.outspoken.log.AppLog
 import java.util.concurrent.Executor
 
 /** Front camera that always feeds the analyzer, with a preview only while a view asks for one. */
@@ -27,6 +28,7 @@ class FrontCamera(private val context: Context, private val owner: LifecycleOwne
                 .also { it.setAnalyzer(analyzerExecutor, analyzer) }
             provider.unbindAll()
             provider.bindToLifecycle(owner, CameraSelector.DEFAULT_FRONT_CAMERA, analysis)
+            AppLog.write("camera", "front camera started")
             previewView?.let { bindPreview(provider, it) }
         }, ContextCompat.getMainExecutor(context))
     }
