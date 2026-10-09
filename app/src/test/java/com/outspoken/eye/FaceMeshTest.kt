@@ -38,4 +38,25 @@ class FaceMeshTest {
         assertEquals(16, FaceMesh.RIGHT_EYE.size)
         assertEquals(10, (FaceMesh.IRIS_CENTRES + FaceMesh.IRIS_RIMS).distinct().size)
     }
+
+    @Test
+    fun `iris below the corner line reads as looking down`() {
+        assertEquals(0.1f, FaceMesh.irisDrop(Dot(0f, 0f), Dot(10f, 0f), Dot(5f, 1f))!!, 0.0001f)
+        assertEquals(-0.05f, FaceMesh.irisDrop(Dot(10f, 0f), Dot(0f, 0f), Dot(5f, -0.5f))!!, 0.0001f)
+    }
+
+    @Test
+    fun `a head tilt alone is not an iris drop`() {
+        // Corners tilted 45 degrees with the iris on the corner line.
+        assertEquals(0f, FaceMesh.irisDrop(Dot(0f, 0f), Dot(10f, 10f), Dot(5f, 5f))!!, 0.0001f)
+    }
+
+    @Test
+    fun `both eyes are averaged whichever iris number belongs to which eye`() {
+        val points = mapOf(
+            33 to Dot(0f, 0f), 133 to Dot(10f, 0f), 263 to Dot(30f, 0f), 362 to Dot(20f, 0f),
+            468 to Dot(25f, 2f), 473 to Dot(5f, 1f),
+        )
+        assertEquals(0.15f, FaceMesh.irisDrop { points.getValue(it) }!!, 0.0001f)
+    }
 }

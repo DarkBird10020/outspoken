@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: interactive practice tutorial screen (PRD F6); gaze box centred on resting gaze; one-call Gemma replies with quick topics on main page; faster choosing while eyes shut; bidirectional gaze stepping with reading glance boundary; asymmetric eyelid and lid gap blink detection; spoken calibration, visitor listening (F7), help alarm (F8), and session stats (S1) merged.
+Latest: interactive practice tutorial screen (PRD F6); iris-based look down with rebound guard (0.7 s); gaze box centred on resting gaze; one-call Gemma replies with quick topics on main page; faster choosing while eyes shut; arm64 APK build; spoken calibration, visitor listening (F7), help alarm (F8), and session stats (S1) merged.
 
 ## Phone test history
 
@@ -25,6 +25,39 @@ The app now launches with an interactive practice round on first use, teaches th
 - [x] **Yaw jitter tolerance during eye closure.** When eyes shut, MediaPipe facial mesh points contract and yaw temporarily jumps up to -50°. In-progress closures are no longer cancelled by transient yaw spikes while the face remains detected. Code: `blink/BlinkDetector.kt`.
 - [x] **Reading glance isolation in GazeStepper.** Gaze stepping now requires eyes to look towards or above the top bezel (`gaze.y < 0.20f`) in addition to `-dy >= lookStrength`, preventing glances between cards on the screen from triggering unintended card jumps. Code: `scan/GazeStepper.kt`.
 - [x] **Stale preferences guard.** `TuningStore` upgrades hyper-sensitive legacy values (`minBlinkMs < 350` or `lookStrength < 0.35`) to recommended stable defaults. Code: `setup/Tuning.kt`.
+
+## Looking down never switched off
+
+- [ ] **Iris look down is on by default (0.012).** On the phone a new install wipes the saved settings, and calibration at start failed with no face in view ("Face not seen while looking at the screen"); the defaults had the iris look down off, so looking down stopped working. Calibrated runs gave 0.008 to 0.011. Code: `setup/Tuning.kt`.
+- [ ] **A frame without an iris reading falls back to the blendshape look down** instead of doing nothing. Code: `scan/GazeStepper.kt`. Test: `GazeStepperTest` "with the iris line set but no iris reading, the blendshape look down still works".
+
+## Steadier looks (owner report: "too fast up and down")
+
+- [ ] **The way back from a look is not a look.** In the 00:31 phone run every look down was followed by an "up" 0.4 to 0.8 s later (00:31:56 down, 00:31:56.6 up, 00:31:57.3 down, 00:31:57.7 up...): the eyes passing rest on the way back. For 0.7 s after a step, a look the other way is ignored. Code: `scan/GazeStepper.kt` (`REBOUND_MS`).
+- [ ] **Holding a look no longer moves the resting point.** After 3 s of looking one way the rest jumped there ("new resting gaze 0.75", then "-0.19"), so normal gaze afterwards read as a look the other way. The rest now only follows slowly while the eyes are near it.
+- [ ] **A look must last 0.35 s** (was 0.25 s), so quick glances do not step.
+
+Unit tests:
+- `GazeStepperTest`: holding a look steps once and does not move the rest; coming back from a look is not a look the other way; a real opposite look after the rebound time still steps. The old test "holding one way for long becomes the new rest" was replaced on purpose.
+- `EyeModeTest`: helpers pause 0.8 s between looks, longer than the rebound guard.
+
+## Look down read from the iris (owner report)
+
+- [ ] **Looking down moves the highlight with a small eye movement, like looking up.** The owner found up responsive and down dead. Phone run at 00:21: resting gaze 0.52 to 0.71 down, the furthest look down 0.78, so the "look down" blendshape had about 0.1 of room, the same as its wobble at rest, and calibration turned looking down off (reach 0.09). The lids also drop when looking down (eye-open 0.45/0.52, lid gap 0.14 at 00:21:25), close to a real close. Now looking down is measured from where the iris centre sits between the two eye corners (`FaceMesh.irisDrop`): the corners do not move with the lids, the iris does move with the eye. Calibration measures the iris drop when looking down and the line is half of it, like up. Up is unchanged. Code: `eye/FaceMesh.kt`, `eye/EyeReader.kt`, `scan/GazeStepper.kt`, `setup/Calibration.kt`.
+- [ ] **Looking down needs less movement than looking up.** The owner had to take the eyes nearly to the bottom: people look down as far as they can when calibration asks, so half of that was still most of the way. The look down line is now 35% of the measured look down (up stays at half), and a "Look down (iris)" slider on the eye check screen tunes it live. Code: `setup/Calibration.kt` (`DOWN_SHARE`), `ui/EyeCheckScreen.kt`.
+- [ ] **A look down is not a close.** While the iris clearly points down, dropping lids do not start a close, so looking down cannot choose a card. Code: `blink/BlinkDetector.kt` (`lookingDown`), `conversation/ConversationController.kt`.
+- [ ] **Gaze box shows both directions in line units**: the dashed lines are where up and down move the highlight; down follows the iris when that is in use. The iris drop is in the per-second log line and the calibration line.
+- [ ] **APK for arm64 only**: native libraries for every chip type made it 140 MB and over 20 minutes to reach the phone.
+
+Unit tests:
+- `FaceMeshTest`: iris below the corner line reads down, a head tilt alone does not, both eyes averaged.
+- `GazeStepperTest`: look down read from the iris even with lids drooping; a small iris movement does nothing.
+- `BlinkDetectorTest`: dropping lids while the iris looks down do not start a close.
+- `CalibrationTest`: iris look down line is half the measured iris drop.
+
+## Calibration uses the deeper close
+
+- [ ] **One weak close no longer sets the lines.** Calibration took the shallower of the two "Close your eyes" steps. In the 00:13 phone run that was closed 0.54 against open 0.88 and a lid gap of 0.22 against 0.31, so the shut lines landed at 0.71 and 0.25, next to open, and normal looking chose "I need water" by itself four times. It now takes the deeper close. Code: `setup/Calibration.kt`. Test: `CalibrationTest` "one weak close does not set the lines".
 
 ## Gaze box centred on the resting gaze (owner report)
 

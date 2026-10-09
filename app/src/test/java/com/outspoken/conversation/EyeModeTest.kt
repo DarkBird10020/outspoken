@@ -21,14 +21,15 @@ class EyeModeTest {
         }
     }
 
+    /** A look, then a pause at rest longer than the rebound guard. */
     private fun lookDown() {
         frames(500, gazeY = 0.5f)
-        frames(300)
+        frames(800)
     }
 
     private fun lookUp() {
         frames(500, gazeY = -0.7f)
-        frames(300)
+        frames(800)
     }
 
     private fun blink() {

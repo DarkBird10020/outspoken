@@ -62,6 +62,9 @@ data class SetupStatus(
 
 private const val GRAPH_MS = 5_000L
 private const val GAZE_SCALE = 1.6f
+
+/** The gaze box spans this many "line units" each way, so both look lines sit inside it. */
+private const val BOX_LINE_UNITS = 1.5f
 private val LeftColor = Color(0xFF1E88E5)
 private val RightColor = Color(0xFFF4511E)
 private val OpenColor = Color(0xFF43A047)
@@ -87,6 +90,7 @@ fun EyeCheckScreen(
     onPreviewReady: (PreviewView) -> Unit,
     onPreviewGone: (PreviewView) -> Unit,
     restGaze: Float?,
+    restIris: Float?,
     onChooseModel: () -> Unit,
     onSaveLogs: () -> Unit,
     onCalibrate: () -> Unit,
@@ -135,7 +139,7 @@ fun EyeCheckScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) { EyeNumbers(sample, fps, settings) }
                     Spacer(Modifier.width(8.dp))
-                    GazeBox(sample?.gaze, restGaze, tuning.gaze, Modifier.size(88.dp))
+                    GazeBox(sample?.gaze, restGaze, sample?.irisY, restIris, tuning.gaze, Modifier.size(88.dp))
                 }
                 recentLines.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
                 AskBox(setup.listenLine, onAsk)
@@ -259,35 +263,40 @@ private fun EyeGraph(history: List<EyeSample>, settings: BlinkSettings, modifier
  * phone below eye level the resting gaze already reads about 0.5 down.)
  */
 @Composable
-private fun GazeBox(gaze: Dot?, restGaze: Float?, settings: GazeSettings, modifier: Modifier) {
-    val up = settings.lookStrength
-    val down = settings.downStrength
-    // The box spans one and a half times the larger line each way, so both lines fit inside.
-    val span = maxOf(up, down ?: 0f) * 1.5f
+private fun GazeBox(gaze: Dot?, restGaze: Float?, irisY: Float?, restIris: Float?, settings: GazeSettings, modifier: Modifier) {
+    // Both directions in "line units": 1 is exactly on the line that moves the highlight.
     val dy = if (gaze != null && restGaze != null) gaze.y - restGaze else null
+    val upProgress = dy?.let { -it / settings.lookStrength } ?: 0f
+    val irisLine = settings.irisDownStrength
+    val downLine = settings.downStrength
+    val downProgress = when {
+        irisLine != null && irisY != null && restIris != null -> (irisY - restIris) / irisLine
+        irisLine == null && downLine != null && dy != null -> dy / downLine
+        else -> 0f
+    }
+    val value = if (upProgress > downProgress) -upProgress else downProgress
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         val outline = MaterialTheme.colorScheme.outline
         val dot = MaterialTheme.colorScheme.primary
         Canvas(modifier.border(1.dp, outline)) {
-            fun yOf(value: Float) = size.height * (1 + (value / span).coerceIn(-1f, 1f)) / 2
+            fun yOf(units: Float) = size.height * (1 + (units / BOX_LINE_UNITS).coerceIn(-1f, 1f)) / 2
             val dash = PathEffect.dashPathEffect(floatArrayOf(6f, 6f))
             drawLine(outline, Offset(size.width / 2, 0f), Offset(size.width / 2, size.height))
             drawLine(outline, Offset(0f, size.height / 2), Offset(size.width, size.height / 2))
-            drawLine(OpenColor, Offset(0f, yOf(-up)), Offset(size.width, yOf(-up)), pathEffect = dash)
-            if (down != null) drawLine(OpenColor, Offset(0f, yOf(down)), Offset(size.width, yOf(down)), pathEffect = dash)
-            if (gaze == null || dy == null) return@Canvas
+            drawLine(OpenColor, Offset(0f, yOf(-1f)), Offset(size.width, yOf(-1f)), pathEffect = dash)
+            if (irisLine != null || downLine != null) drawLine(OpenColor, Offset(0f, yOf(1f)), Offset(size.width, yOf(1f)), pathEffect = dash)
+            if (gaze == null) return@Canvas
             val x = (gaze.x * GAZE_SCALE).coerceIn(-1f, 1f)
-            drawCircle(dot, radius = 6.dp.toPx(), center = Offset(size.width * (1 + x) / 2, yOf(dy)))
+            drawCircle(dot, radius = 6.dp.toPx(), center = Offset(size.width * (1 + x) / 2, yOf(value)))
         }
-        Text(gazeWords(dy, up, down), style = MaterialTheme.typography.bodySmall)
+        Text(gazeWords(value, irisLine != null), style = MaterialTheme.typography.bodySmall)
     }
 }
 
-private fun gazeWords(dy: Float?, up: Float, down: Float?): String = when {
-    dy == null -> "-"
-    -dy >= up -> "up: move up"
-    down != null && dy >= down -> "down: move down"
-    else -> "at rest " + String.format(Locale.US, "%+.2f", dy)
+private fun gazeWords(value: Float, iris: Boolean): String = when {
+    value <= -1f -> "up: move up"
+    value >= 1f -> "down: move down"
+    else -> "at rest" + if (iris) " (down by iris)" else ""
 }
 
 @Composable
@@ -332,6 +341,11 @@ private fun TuningSliders(tuning: Tuning, onChange: (Tuning) -> Unit, onReset: (
     if (tuning.moveByEyes) {
         LabeledSlider("Look up distance: ${tuning.gaze.lookStrength.formatOpen()}", tuning.gaze.lookStrength, 0.1f..0.9f) {
             onChange(tuning.copy(gaze = tuning.gaze.copy(lookStrength = it)))
+        }
+        tuning.gaze.irisDownStrength?.let { iris ->
+            LabeledSlider("Look down (iris): ${String.format(Locale.US, "%.3f", iris)} - lower is more sensitive", iris, 0.005f..0.08f) {
+                onChange(tuning.copy(gaze = tuning.gaze.copy(irisDownStrength = it)))
+            }
         }
         val down = tuning.gaze.downStrength
         LabeledSlider("Look down distance: ${down?.formatOpen() ?: "off"}", down ?: 0f, 0f..0.9f) {
