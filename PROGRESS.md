@@ -21,6 +21,7 @@ Latest: steady gaze: readings are averaged over a few frames before a look is ju
 - [ ] **Steps are at least 0.6 s apart.** Code: `scan/GazeStepper.kt` (`MIN_STEP_GAP_MS`).
 - [ ] **The gaze box dot is steady:** it draws the same averaged gaze and iris values the steps use, not each raw frame. Code: `ui/EyeCheckScreen.kt`, `MainActivity.kt`.
 - Test: `GazeStepperTest` "single frame wobble across the line does not step".
+- [ ] **Looking down takes a smaller share of its own, smaller range.** Owner: there is much less room to push the eyes down than up. Phone runs: iris drop about 0.03 down, gaze 0.5 to 0.6 up. The 0.02 floor needed two thirds of the downward range; now the look down line is 30% of the measured look down with a 0.01 floor (default 0.012). Code: `setup/Calibration.kt` (`DOWN_SHARE`, `MIN_IRIS_DOWN_LINE`), `setup/Tuning.kt`.
 
 ## No more moving on its own (owner report)
 

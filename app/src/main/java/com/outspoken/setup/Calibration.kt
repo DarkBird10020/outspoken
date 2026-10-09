@@ -154,18 +154,22 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
         /** Iris drop as a share of the eye width; a deliberate look down moves it several times this. */
         const val MIN_IRIS_DOWN_REACH = 0.02f
 
-        /** The resting iris drifts about 0.04; a line under 0.02 let resting eyes step down. */
-        const val MIN_IRIS_DOWN_LINE = 0.02f
+        /**
+         * Floor for the iris look down line. 0.02 was two thirds of the owner's whole downward
+         * range; with the rest point following drift and the readings smoothed, 0.01 is enough.
+         */
+        const val MIN_IRIS_DOWN_LINE = 0.01f
         const val MIN_CLOSE_RANGE = 0.12f
 
         /** A look counts at half of the smaller of the two measured looks up. */
         const val LOOK_SHARE = 0.5f
 
         /**
-         * A look down counts at 35% of the measured one. People look down as far as they can when
-         * asked, so half of that still needed the eyes nearly at the bottom (owner report).
+         * A look down counts at 30% of the measured one. The eyes have much less room to move down
+         * than up (owner: "less area to push it down"; phone runs: iris drop about 0.03 down
+         * against gaze 0.5 to 0.6 up), so down takes a smaller share of its own range than up.
          */
-        const val DOWN_SHARE = 0.35f
+        const val DOWN_SHARE = 0.3f
 
         /** Shut line halfway between closed and open; open line three quarters of the way up. */
         const val SHUT_SHARE = 0.5f
