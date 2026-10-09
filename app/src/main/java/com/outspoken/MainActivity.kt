@@ -277,6 +277,9 @@ class MainActivity : ComponentActivity() {
                         onPreviewGone = camera::hidePreview,
                         restGaze = gazeStepper.restGaze,
                         restIris = gazeStepper.restIrisDrop,
+                        // The same smoothed values the steps use, so the dot is steady.
+                        steadyGaze = gazeStepper.smoothedGaze,
+                        steadyIris = gazeStepper.smoothedIrisDrop,
                         onChooseModel = { modelPicker.launch(arrayOf("*/*")) },
                         onSaveLogs = { logSaver.launch("outspoken-logs.txt") },
                         onCalibrate = ::startCalibration,

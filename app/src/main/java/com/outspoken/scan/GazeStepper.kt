@@ -41,6 +41,13 @@ class GazeStepper(
     private var looking: GazeStep? = null
     private var lookingSinceMs = 0L
     private var stepped = false
+    private var smoothX: Float? = null
+    private var smoothY: Float? = null
+    private var smoothIris: Float? = null
+
+    /** The smoothed gaze and iris drop the steps are decided on, for drawing a steady dot. */
+    val smoothedGaze: Dot? get() = smoothY?.let { Dot(smoothX ?: 0f, it) }
+    val smoothedIrisDrop: Float? get() = smoothIris
     private var lastStep: GazeStep? = null
     private var lastStepMs = Long.MIN_VALUE / 2
 
@@ -77,16 +84,22 @@ class GazeStepper(
      * blinks step down. The lid gap check already keeps a look down from reading as shut (looks
      * down 0.15 to 0.24, closes 0.07 to 0.10).
      */
-    fun onSample(gaze: Dot?, eyesOpen: Boolean, timeMs: Long, irisY: Float? = null): GazeStep? {
+    fun onSample(gaze: Dot?, eyesOpen: Boolean, timeMs: Long, rawIrisY: Float? = null): GazeStep? {
         val irisLine = settings.irisDownStrength
+        // Running averages of both readings: on the phone single-frame wobble kept crossing the
+        // up line (0.30 to 0.34 against 0.28, a step every few seconds). About 0.1 s of lag.
+        val irisY = rawIrisY?.let { smooth(smoothIris, it).also { v -> smoothIris = v } }
+        val gazeY = gaze?.y?.let { smooth(smoothY, it).also { v -> smoothY = v } }
+        gaze?.x?.let { smoothX = smooth(smoothX, it) }
         if (irisY != null && restIris == null) restIris = irisY
         val irisDown = irisLooksDown(irisY)
         if (gaze == null || !eyesOpen) {
             looking = null
             return null
         }
-        val centre = restY ?: gaze.y.also { restY = it }
-        val dy = gaze.y - centre
+        val y = gazeY ?: return null
+        val centre = restY ?: y.also { restY = it }
+        val dy = y - centre
         val down = settings.downStrength
         val direction = when {
             -dy >= settings.lookStrength -> GazeStep.Previous
@@ -111,7 +124,7 @@ class GazeStepper(
         }
         // The eyes coming back from a look pass rest and read as a short look the other way; on the
         // phone every look down was undone by an "up" about half a second later.
-        if (direction != lastStep && timeMs - lastStepMs < REBOUND_MS) {
+        if (timeMs - lastStepMs < MIN_STEP_GAP_MS || (direction != lastStep && timeMs - lastStepMs < REBOUND_MS)) {
             looking = null
             return null
         }
@@ -141,6 +154,8 @@ class GazeStepper(
         return direction
     }
 
+    private fun smooth(previous: Float?, value: Float) = previous?.let { it + SMOOTHING * (value - it) } ?: value
+
     /** Gaze this close to rest counts as resting and slowly moves the rest point. */
     private fun restBand() = minOf(settings.lookStrength, settings.downStrength ?: settings.lookStrength) / 2
 
@@ -152,6 +167,12 @@ class GazeStepper(
 
         /** After a step, a look the other way this soon is the eyes coming back, not a new look. */
         const val REBOUND_MS = 700L
+
+        /** Weight of the newest frame in the running average of the gaze readings. */
+        const val SMOOTHING = 0.35f
+
+        /** No two steps closer than this, so the highlight never jitters. */
+        const val MIN_STEP_GAP_MS = 600L
 
         /** Share of the way the iris rest creeps toward the eyes per frame during a look down. */
         const val LOOK_CREEP = 0.01f

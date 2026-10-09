@@ -91,6 +91,8 @@ fun EyeCheckScreen(
     onPreviewGone: (PreviewView) -> Unit,
     restGaze: Float?,
     restIris: Float?,
+    steadyGaze: Dot?,
+    steadyIris: Float?,
     onChooseModel: () -> Unit,
     onSaveLogs: () -> Unit,
     onCalibrate: () -> Unit,
@@ -139,7 +141,7 @@ fun EyeCheckScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) { EyeNumbers(sample, fps, settings) }
                     Spacer(Modifier.width(8.dp))
-                    GazeBox(sample?.gaze, restGaze, sample?.irisY, restIris, tuning.gaze, Modifier.size(88.dp))
+                    GazeBox(steadyGaze ?: sample?.gaze, restGaze, steadyIris ?: sample?.irisY, restIris, tuning.gaze, Modifier.size(88.dp))
                 }
                 recentLines.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
                 AskBox(setup.listenLine, onAsk)
