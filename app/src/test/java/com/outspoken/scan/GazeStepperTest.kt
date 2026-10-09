@@ -2,6 +2,7 @@ package com.outspoken.scan
 
 import com.outspoken.eye.Dot
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -141,5 +142,17 @@ class GazeStepperTest {
         stepper.settings = stepper.settings.copy(irisDownStrength = 0.012f)
         look(500)
         assertEquals(listOf(GazeStep.Next), look(1_000, y = 0.4f))
+    }
+
+    @Test
+    fun `shut eyes read as a huge iris drop are not a look down`() {
+        stepper.settings = stepper.settings.copy(irisDownStrength = 0.012f)
+        repeat(10) { stepper.onSample(Dot(0f, 0.6f), true, time, irisY = -0.03f); time += 50 }
+        // Phone log: eyes closed read an iris drop of about 0.31.
+        assertFalse(stepper.irisLooksDown(0.31f))
+        val steps = mutableListOf<GazeStep>()
+        repeat(10) { stepper.onSample(Dot(0f, 0.97f), false, time, irisY = 0.31f)?.let(steps::add); time += 50 }
+        assertEquals(emptyList<GazeStep>(), steps)
+        assertTrue(stepper.irisLooksDown(0.0f))
     }
 }

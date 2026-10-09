@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: iris look down is on by default, so a failed calibration or reinstall no longer turns looking down off. Waiting for the phone test.
+Latest: blinks work again with the iris look down: shut eyes read as a huge iris drop and were taken for a look down. Waiting for the phone test.
 
 ## Phone test history
 
@@ -14,6 +14,10 @@ Latest: iris look down is on by default, so a failed calibration or reinstall no
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
+
+## Blinks blocked by the iris look down (owner report)
+
+- [ ] **Shut eyes are not a look down.** With the eyes closed the iris reads far below any real look (phone log 00:42:18: 0.31, against 0.01 to 0.08 for looks down). The rule "a clear look down is not a close" therefore treated every close as a look down and no blink started. A look down is now an iris drop from the look-down line up to 0.15; beyond that is shut eyes. Code: `scan/GazeStepper.kt` (`irisLooksDown`, `IRIS_SHUT_ABOVE`). Tests: `GazeStepperTest` "shut eyes read as a huge iris drop are not a look down", `EyeModeTest` "a blink still chooses when the iris look down is on".
 
 ## Looking down never switched off
 
