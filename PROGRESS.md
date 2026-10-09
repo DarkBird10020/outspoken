@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: interactive practice tutorial screen (PRD F6); iris-based look down with rebound guard (0.7 s); gaze box centred on resting gaze; one-call Gemma replies with quick topics on main page; faster choosing while eyes shut; arm64 APK build; spoken calibration, visitor listening (F7), help alarm (F8), and session stats (S1) merged.
+Latest: blinks restored from eyelid gap; shut eyes never step; Office Kit live transcript view (S2); in-session frequent phrases learning (S3); interactive practice tutorial screen (F6); iris look down with rebound guard (0.7 s); arm64 APK.
 
 ## Phone test history
 
@@ -25,6 +25,18 @@ The app now launches with an interactive practice round on first use, teaches th
 - [x] **Yaw jitter tolerance during eye closure.** When eyes shut, MediaPipe facial mesh points contract and yaw temporarily jumps up to -50°. In-progress closures are no longer cancelled by transient yaw spikes while the face remains detected. Code: `blink/BlinkDetector.kt`.
 - [x] **Reading glance isolation in GazeStepper.** Gaze stepping now requires eyes to look towards or above the top bezel (`gaze.y < 0.20f`) in addition to `-dy >= lookStrength`, preventing glances between cards on the screen from triggering unintended card jumps. Code: `scan/GazeStepper.kt`.
 - [x] **Stale preferences guard.** `TuningStore` upgrades hyper-sensitive legacy values (`minBlinkMs < 350` or `lookStrength < 0.35`) to recommended stable defaults. Code: `setup/Tuning.kt`.
+- [x] **Live transcript mirrored to laptop via Office Kit (PRD S2).** High-contrast, large-font full-screen transcript view accessible via top bar icon button. Renders real-time visitor speech (22sp) and speaker eye-blink replies (26sp pink card), live listening status pill, and session sentence counters. Zero internet used. Code: `ui/TranscriptScreen.kt`, `conversation/ConversationController.kt`, `MainActivity.kt`.
+- [x] **Frequent phrases in-session learning (PRD S3).** Dynamically learns sentences chosen by the speaker and prioritizes them to earlier phrase-bank pages and LLM top-up/fallback candidates, reducing eye movements required for habitual needs. Code: `conversation/Board.kt`, `conversation/ConversationController.kt`, `suggest/ModelSuggestionEngine.kt`.
+
+## Blinks restored: the iris no longer blocks a close (owner report)
+
+- [ ] **Removed "a clear look down is not a close".** After the 0.15 cap, closes still did not start: in the 00:46 phone run a real close (eye-open 0.39/0.42, lid gap 0.07/0.10) read an iris drop of only +0.039 from rest, inside the look down range, so it was still taken for a look. The lid gap check alone separates them in the same run: looks down 0.15 to 0.24, closes 0.07 to 0.10, gap shut line 0.13. Whether the eyes are shut is now the eye-open value plus the lid gap only, as in the builds where blinking worked. Code: `blink/BlinkDetector.kt`, `conversation/ConversationController.kt`.
+- [ ] **Shut eyes never move the highlight**, whatever the iris reads, so a blink cannot also step down. Code: `scan/GazeStepper.kt`.
+- Tests: `EyeModeTest` "a blink chooses when shut eyes read inside the iris look down range" (the 00:46:18 numbers); `GazeStepperTest` "shut eyes never step even when the iris reads in the look down range". The BlinkDetector test for the removed rule was deleted on purpose.
+
+## Blinks blocked by the iris look down (owner report)
+
+- [ ] **Shut eyes are not a look down.** With the eyes closed the iris reads far below any real look (phone log 00:42:18: 0.31, against 0.01 to 0.08 for looks down). The rule "a clear look down is not a close" therefore treated every close as a look down and no blink started. A look down is now an iris drop from the look-down line up to 0.15; beyond that is shut eyes. Code: `scan/GazeStepper.kt` (`irisLooksDown`, `IRIS_SHUT_ABOVE`). Tests: `GazeStepperTest` "shut eyes read as a huge iris drop are not a look down", `EyeModeTest` "a blink still chooses when the iris look down is on".
 
 ## Looking down never switched off
 

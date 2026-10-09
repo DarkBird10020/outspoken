@@ -58,22 +58,30 @@ class GazeStepper(
         stepped = false
     }
 
-    /** True when the iris points down far enough to be a look down rather than anything else. */
+    /**
+     * True when the iris points down far enough to be a look down, but not so far that the eyes
+     * are shut: with the lids closed the iris reads far below any real look (phone log 00:42:18:
+     * 0.31 against 0.01 to 0.08 for looks down), and counting that as a look blocked every blink.
+     */
     fun irisLooksDown(irisY: Float?): Boolean {
         val line = settings.irisDownStrength ?: return false
         val rest = restIris ?: return false
-        return irisY != null && irisY - rest >= line
+        if (irisY == null) return false
+        val drop = irisY - rest
+        return drop >= line && drop < IRIS_SHUT_ABOVE
     }
 
     /**
-     * [irisY] is [FaceMesh.irisDrop]. In iris mode a look down counts even while the lids read as
-     * shut, since looking down drops them; the blink detector is told not to start a close then.
+     * [irisY] is [FaceMesh.irisDrop]. Shut eyes never step: on the phone a real close read an iris
+     * drop of 0.01 to 0.03, inside the look down range, so letting the iris override "shut" made
+     * blinks step down. The lid gap check already keeps a look down from reading as shut (looks
+     * down 0.15 to 0.24, closes 0.07 to 0.10).
      */
     fun onSample(gaze: Dot?, eyesOpen: Boolean, timeMs: Long, irisY: Float? = null): GazeStep? {
         val irisLine = settings.irisDownStrength
         if (irisY != null && restIris == null) restIris = irisY
         val irisDown = irisLooksDown(irisY)
-        if (gaze == null || (!eyesOpen && !irisDown)) {
+        if (gaze == null || !eyesOpen) {
             looking = null
             return null
         }
@@ -81,7 +89,7 @@ class GazeStepper(
         val dy = gaze.y - centre
         val down = settings.downStrength
         val direction = when {
-            eyesOpen && -dy >= settings.lookStrength && gaze.y < LOOK_UP_MAX_Y -> GazeStep.Previous
+            -dy >= settings.lookStrength && gaze.y < LOOK_UP_MAX_Y -> GazeStep.Previous
             // Iris when it is read; the blendshape look down only when this frame has no iris.
             irisLine != null && irisY != null -> if (irisDown) GazeStep.Next else null
             down != null && dy >= down -> GazeStep.Next
@@ -137,5 +145,7 @@ class GazeStepper(
 
         /** Eyes must look toward or above the top bezel, not just glance within the screen cards. */
         const val LOOK_UP_MAX_Y = 0.20f
+        /** Iris drop beyond this is shut eyes, not a look down. */
+        const val IRIS_SHUT_ABOVE = 0.15f
     }
 }

@@ -97,4 +97,39 @@ class EyeModeTest {
         controller.onSpeechDone(time)
         assertEquals(0, highlighted)
     }
+
+    @Test
+    fun `a blink still chooses when the iris look down is on`() {
+        val said = mutableListOf<String>()
+        val stepper = com.outspoken.scan.GazeStepper(com.outspoken.scan.GazeSettings(irisDownStrength = 0.012f))
+        val c = ConversationController(speak = { said += it }, gaze = stepper).apply { moveByEyes = true }
+        var t = 10_000L
+        fun frame(open: Float, iris: Float) {
+            c.onSample(EyeSample(t, true, open, open, gaze = Dot(0f, 0.6f), irisY = iris))
+            t += 33
+        }
+        repeat(20) { frame(0.95f, -0.03f) }
+        // Eyes shut: the iris reads far down, as on the phone.
+        repeat(16) { frame(0.05f, 0.31f) }
+        repeat(4) { frame(0.95f, -0.03f) }
+        assertEquals(listOf("I need water"), said)
+    }
+
+    @Test
+    fun `a blink chooses when shut eyes read inside the iris look down range`() {
+        val said = mutableListOf<String>()
+        val stepper = com.outspoken.scan.GazeStepper(com.outspoken.scan.GazeSettings(irisDownStrength = 0.017f))
+        val c = ConversationController(speak = { said += it }, gaze = stepper).apply { moveByEyes = true }
+        var t = 10_000L
+        fun frame(open: Float, iris: Float) {
+            c.onSample(EyeSample(t, true, open, open, gaze = Dot(0f, 0.5f), irisY = iris))
+            t += 33
+        }
+        repeat(20) { frame(0.95f, -0.03f) }
+        // Phone log 00:46:18: eyes shut read an iris drop of +0.039 from rest.
+        repeat(16) { frame(0.05f, 0.009f) }
+        repeat(4) { frame(0.95f, -0.03f) }
+        assertEquals(listOf("I need water"), said)
+        assertEquals(0, c.ui.value.highlighted.coerceAtLeast(0))
+    }
 }
