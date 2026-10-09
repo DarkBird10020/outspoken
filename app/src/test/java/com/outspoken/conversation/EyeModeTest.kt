@@ -174,4 +174,24 @@ class EyeModeTest {
         frames(800)
         assertEquals(1, highlighted)
     }
+
+    @Test
+    fun `a calibrated wink with a shallow lid gap moves once`() {
+        val stepper = com.outspoken.scan.GazeStepper(com.outspoken.scan.GazeSettings())
+        val detector = com.outspoken.blink.BlinkDetector(
+            com.outspoken.blink.BlinkSettings(closedBelow = 0.6f, openAbove = 0.75f, shapeClosedBelow = 0.10f, shapeOpenAbove = 0.14f),
+        )
+        val c = ConversationController(speak = {}, detector = detector, gaze = stepper).apply { moveByEyes = true }
+        var t = 10_000L
+        fun frame(left: Float, right: Float, leftGap: Float, gazeY: Float) {
+            val dots = com.outspoken.eye.FaceDots(emptyList(), emptyList(), 0.75f, leftGap, 0.30f)
+            c.onSample(EyeSample(t, true, left, right, gaze = Dot(0f, gazeY), dots = dots))
+            t += 33
+        }
+        repeat(20) { frame(0.95f, 0.95f, 0.30f, 0f) }
+        // Phone run 01:56:48: left eye 0.33 with gap 0.18, right 0.98; the wink also pushes the gaze.
+        repeat(16) { frame(0.33f, 0.98f, 0.18f, 0.6f) }
+        repeat(30) { frame(0.95f, 0.95f, 0.30f, 0f) }
+        assertEquals(1, c.ui.value.highlighted)
+    }
 }
