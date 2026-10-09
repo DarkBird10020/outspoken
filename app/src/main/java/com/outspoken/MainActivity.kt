@@ -137,9 +137,6 @@ class MainActivity : ComponentActivity() {
     private var canSeeDownloads by mutableStateOf(false)
     private var replyJob: Job? = null
 
-    /** The last cards the model wrote, so the next request can ask for different ones. */
-    private var lastModelReplies: List<String> = emptyList()
-
     private val logSaver =
         registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri -> uri?.let(::saveLogs) }
 
@@ -573,8 +570,7 @@ class MainActivity : ComponentActivity() {
         val engine = suggestionEngine ?: return false
         replyJob?.cancel()
         replyJob = lifecycleScope.launch {
-            val suggestions = engine.suggest(SuggestionRequest(turns, LocalTime.now().hour, lastModelReplies))
-            if (suggestions.fromModel) lastModelReplies = suggestions.replies
+            val suggestions = engine.suggest(SuggestionRequest(turns, LocalTime.now().hour))
             lastReplyLine = describeReplies(suggestions.elapsedMs, suggestions.fromModel, suggestions.tokensPerSecond)
             pitStats.onReplies(suggestions.elapsedMs, suggestions.fromModel, suggestions.tokensPerSecond)
             AppLog.write(

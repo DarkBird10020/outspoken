@@ -47,17 +47,12 @@ class PromptTest {
     }
 
     @Test
-    fun `replies offered and passed over are listed, not the one picked`() {
-        val turns = listOf(Turn(false, "I am in pain"))
-        val offered = listOf("I am in pain", "What is happening now?", "I need rest")
-        val prompt = buildPrompt(SuggestionRequest(turns, hourOfDay = 14, offered = offered))
-        assertTrue(prompt.contains("Offered just before and not picked, so try others: What is happening now?; I need rest\n"))
-        assertTrue(prompt.endsWith("Answer:"))
-    }
-
-    @Test
-    fun `nothing offered before adds no line`() {
-        assertFalse(buildPrompt(SuggestionRequest(emptyList(), hourOfDay = 14)).contains("Offered just before"))
+    fun `earlier cards are not put in the prompt`() {
+        // Listing them made the model copy them back five times in a row (04:53 to 04:54 run).
+        val turns = listOf(Turn(false, "Need water, yes?"), Turn(true, "In pain"))
+        val prompt = buildPrompt(SuggestionRequest(turns, hourOfDay = 4))
+        assertFalse(prompt.contains("Offered"))
+        assertTrue(prompt.endsWith("Visitor: In pain\nAnswer:"))
     }
 
     @Test
