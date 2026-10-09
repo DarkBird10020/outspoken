@@ -104,7 +104,7 @@ class GazeStepperTest {
     @Test
     fun `a real look the other way after the rebound time still steps`() {
         look(500)
-        val steps = look(400, y = 0.5f) + look(800) + look(500, y = -0.7f)
+        val steps = look(400, y = 0.5f) + look(1_000) + look(500, y = -0.7f)
         assertEquals(listOf(GazeStep.Next, GazeStep.Previous), steps)
     }
 
@@ -219,5 +219,15 @@ class GazeStepperTest {
         // Drop wobbling between 0.9 and 1.3 of the line for three seconds.
         repeat(60) { n -> stepper.onSample(Dot(0f, 0.5f), true, time, irisY = if (n % 4 < 2) -0.004f else -0.012f)?.let(steps::add); time += 50 }
         assertEquals(listOf(GazeStep.Next), steps)
+    }
+
+    @Test
+    fun `just after the face comes back nothing steps while the rest is learned`() {
+        look(500)
+        stepper.forgetRest()
+        // First frames after the face is found are still moving; the eyes then settle at 0.3.
+        val steps = look(200, y = 0.9f) + look(1_500, y = 0.3f)
+        assertEquals(emptyList<GazeStep>(), steps)
+        assertEquals(listOf(GazeStep.Previous), look(600, y = -0.3f))
     }
 }

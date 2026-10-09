@@ -102,8 +102,14 @@ class ConversationController(
             // Only shut eyes stop a look; half-lowered lids still count as open here.
             // Owner request: left wink moves down, right wink moves up; both eyes shut chooses.
             when (wink.onSample(sample, detector.settings)) {
-                Wink.Left -> moveCursor(cursor + 1, nowMs)
-                Wink.Right -> moveCursor(cursor - 1, nowMs)
+                Wink.Left -> {
+                    moveCursor(cursor + 1, nowMs)
+                    gaze.pauseUntil(nowMs + AFTER_WINK_MS)
+                }
+                Wink.Right -> {
+                    moveCursor(cursor - 1, nowMs)
+                    gaze.pauseUntil(nowMs + AFTER_WINK_MS)
+                }
                 null -> Unit
             }
             // Either eye shut pauses looks: closing one eye for a wink shifts the gaze and iris
@@ -284,5 +290,10 @@ class ConversationController(
         Board.MORE_OPTIONS -> "More options"
         Board.YES_NO -> "Yes / No"
         else -> "\"${board.replies.getOrNull(card)}\""
+    }
+
+    private companion object {
+        /** Looks are ignored this long after a wink, while the winking eye reopens. */
+        const val AFTER_WINK_MS = 1_000L
     }
 }

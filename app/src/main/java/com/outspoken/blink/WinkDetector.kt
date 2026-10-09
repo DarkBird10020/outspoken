@@ -24,6 +24,9 @@ class WinkDetector(
     private var winking: Wink? = null
     private var sinceMs = 0L
     private var fired = false
+    private var lastFiredMs = Long.MIN_VALUE / 2
+    private var armed = true
+    private var bothOpenSinceMs: Long? = null
 
     /** One eye is held shut right now, whether or not the wink has fired yet. */
     val active: Boolean get() = winking != null
@@ -42,6 +45,14 @@ class WinkDetector(
             winks(right, left) -> Wink.Right
             else -> null
         }
+        // Hysteresis: after a wink both eyes must be open together for a moment before the next
+        // one counts, so an eye flickering open mid-wink does not count twice.
+        if (left > settings.openAbove && right > settings.openAbove) {
+            val since = bothOpenSinceMs ?: sample.timeMs.also { bothOpenSinceMs = it }
+            if (sample.timeMs - since >= REARM_MS) armed = true
+        } else {
+            bothOpenSinceMs = null
+        }
         if (current != winking) {
             winking = current
             sinceMs = sample.timeMs
@@ -49,7 +60,10 @@ class WinkDetector(
             return null
         }
         if (current == null || fired || sample.timeMs - sinceMs < holdMs) return null
+        if (!armed || sample.timeMs - lastFiredMs < MIN_GAP_MS) return null
         fired = true
+        armed = false
+        lastFiredMs = sample.timeMs
         log.write("blink", "${current.name.lowercase()} wink ${sample.timeMs - sinceMs} ms")
         return current
     }
@@ -57,5 +71,11 @@ class WinkDetector(
     private companion object {
         /** How much more open the open eye must read than the winking one. */
         const val MIN_DIFFERENCE = 0.35f
+
+        /** Both eyes open this long re-arms the next wink. */
+        const val REARM_MS = 200L
+
+        /** No two winks closer than this. */
+        const val MIN_GAP_MS = 600L
     }
 }

@@ -48,11 +48,27 @@ class GazeStepper(
     /** The smoothed gaze and iris drop the steps are decided on, for drawing a steady dot. */
     val smoothedGaze: Dot? get() = smoothY?.let { Dot(smoothX ?: 0f, it) }
     val smoothedIrisDrop: Float? get() = smoothIris
+    private var settleUntilMs: Long? = null
     private var lastStep: GazeStep? = null
     private var lastStepMs = Long.MIN_VALUE / 2
 
     /** Where the eyes rest up and down, the centre that looks are measured from; null until seen. */
     val restGaze: Float? get() = restY
+
+    private var pausedUntilMs = Long.MIN_VALUE
+
+    /**
+     * No looks until [untilMs]. After a wink the reopening eye jumps the gaze reading, and on the
+     * phone each wink down was followed by a "look up" about 0.45 s later (02:23:51).
+     */
+    fun pauseUntil(untilMs: Long) {
+        pausedUntilMs = maxOf(pausedUntilMs, untilMs)
+        looking = null
+        stepped = false
+        smoothX = null
+        smoothY = null
+        smoothIris = null
+    }
 
     /** Where the iris rests between the eye corners; null until seen. */
     val restIrisDrop: Float? get() = restIris
@@ -63,6 +79,8 @@ class GazeStepper(
      * made looks fire on their own or never reach the line.
      */
     fun forgetRest() {
+        // Settle only when there was a rest before, i.e. the face is coming back.
+        if (restY != null) settleUntilMs = SETTLE_PENDING
         restY = null
         restIris = null
         looking = null
@@ -101,6 +119,7 @@ class GazeStepper(
      */
     fun onSample(gaze: Dot?, eyesOpen: Boolean, timeMs: Long, irisY: Float? = null): GazeStep? {
         val irisLine = settings.irisDownStrength
+        if (timeMs < pausedUntilMs) return null
         if (gaze == null || !eyesOpen) {
             // Start the averages afresh when the eyes open again: a wink or blink shifts the
             // readings, and averaging back from them read as a look the other way.
@@ -117,6 +136,18 @@ class GazeStepper(
         smoothX = smooth(smoothX, gaze.x)
         if (iris != null && restIris == null) restIris = iris
         val y = gazeY
+        // Just after the face comes back the eyes may still be moving; for a moment only learn
+        // where they rest (phone 02:23:31: a "look up" 0.5 s after the face was found).
+        if (settleUntilMs == SETTLE_PENDING) settleUntilMs = timeMs + SETTLE_MS
+        val settle = settleUntilMs
+        if (settle != null) {
+            if (timeMs < settle) {
+                restY = restY?.let { it + (y - it) * SETTLE_FOLLOW } ?: y
+                if (iris != null) restIris = restIris?.let { it + (iris - it) * SETTLE_FOLLOW } ?: iris
+                return null
+            }
+            settleUntilMs = null
+        }
         val centre = restY ?: y.also { restY = it }
         val dy = y - centre
         val down = settings.downStrength
@@ -189,8 +220,16 @@ class GazeStepper(
         /** Both scores under this share of their line count as back at rest, which re-arms a look. */
         const val REARM = 0.5f
 
-        /** After a step, a look the other way this soon is the eyes coming back, not a new look. */
-        const val REBOUND_MS = 700L
+        /**
+         * After a step, a look the other way this soon is the eyes coming back, not a new look.
+         * 0.7 s was too short: on the phone a return 1.3 s after a look down read as a look up.
+         */
+        const val REBOUND_MS = 1_000L
+
+        /** After the face comes back, this long only learns the resting gaze, quickly. */
+        const val SETTLE_MS = 1_000L
+        const val SETTLE_FOLLOW = 0.3f
+        const val SETTLE_PENDING = Long.MIN_VALUE
 
         /** Weight of the newest frame in the running average of the gaze readings. */
         const val SMOOTHING = 0.35f
