@@ -112,6 +112,8 @@ class Listener(
 
         override fun onError(error: Int) {
             listening = false
+            // Stopping the recogniser while the phone speaks reports an error too; that one is ours.
+            if (paused || !wanted) return
             when (error) {
                 SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> listenAfter(RESTART_MS)
                 SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> {
@@ -120,8 +122,15 @@ class Listener(
                 }
                 SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED,
                 SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE,
-                SpeechRecognizer.ERROR_CLIENT,
                 -> switchAway(error)
+                // On the phone this followed every pause for speech, while the on-device
+                // recogniser itself was working ("Hello hello" heard just before). Start it afresh.
+                SpeechRecognizer.ERROR_CLIENT -> {
+                    AppLog.write("listen", "recogniser reset after error $error")
+                    recognizer?.destroy()
+                    recognizer = null
+                    listenAfter(RESTART_MS)
+                }
                 else -> {
                     if (error == SpeechRecognizer.ERROR_NETWORK || error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT ||
                         error == SpeechRecognizer.ERROR_SERVER
