@@ -80,4 +80,11 @@ class WinkDetectorTest {
         repeat(30) { detector.onSample(EyeSample(time, true, 0.55f, 0.78f), calibrated)?.let(winks::add); time += 33 }
         assertEquals(emptyList<Wink>(), winks)
     }
+
+    @Test
+    fun `an eye flickering open mid wink counts once`() {
+        hold(300, 0.95f, 0.95f)
+        val winks = hold(400, 0.05f, 0.95f) + hold(66, 0.95f, 0.95f) + hold(400, 0.05f, 0.95f)
+        assertEquals(listOf(Wink.Left), winks)
+    }
 }

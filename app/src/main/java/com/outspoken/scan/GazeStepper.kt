@@ -55,6 +55,21 @@ class GazeStepper(
     /** Where the eyes rest up and down, the centre that looks are measured from; null until seen. */
     val restGaze: Float? get() = restY
 
+    private var pausedUntilMs = Long.MIN_VALUE
+
+    /**
+     * No looks until [untilMs]. After a wink the reopening eye jumps the gaze reading, and on the
+     * phone each wink down was followed by a "look up" about 0.45 s later (02:23:51).
+     */
+    fun pauseUntil(untilMs: Long) {
+        pausedUntilMs = maxOf(pausedUntilMs, untilMs)
+        looking = null
+        stepped = false
+        smoothX = null
+        smoothY = null
+        smoothIris = null
+    }
+
     /** Where the iris rests between the eye corners; null until seen. */
     val restIrisDrop: Float? get() = restIris
 
@@ -104,6 +119,7 @@ class GazeStepper(
      */
     fun onSample(gaze: Dot?, eyesOpen: Boolean, timeMs: Long, irisY: Float? = null): GazeStep? {
         val irisLine = settings.irisDownStrength
+        if (timeMs < pausedUntilMs) return null
         if (gaze == null || !eyesOpen) {
             // Start the averages afresh when the eyes open again: a wink or blink shifts the
             // readings, and averaging back from them read as a look the other way.

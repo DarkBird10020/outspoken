@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: no false looks up when coming back from a look down (1 s window) or when the face returns (1 s settle). Waiting for the phone test.
+Latest: winks are steady too: looks pause for 1 s after a wink, and winks need both eyes open again (0.2 s) and 0.6 s apart. Waiting for the phone test.
 
 ## Phone test history
 
@@ -27,6 +27,11 @@ The app now launches with an interactive practice round on first use, teaches th
 - [x] **Stale preferences guard.** `TuningStore` upgrades hyper-sensitive legacy values (`minBlinkMs < 350` or `lookStrength < 0.35`) to recommended stable defaults. Code: `setup/Tuning.kt`.
 - [x] **Live transcript mirrored to laptop via Office Kit (PRD S2).** High-contrast, large-font full-screen transcript view accessible via top bar icon button. Renders real-time visitor speech (22sp) and speaker eye-blink replies (26sp pink card), live listening status pill, and session sentence counters. Zero internet used. Code: `ui/TranscriptScreen.kt`, `conversation/ConversationController.kt`, `MainActivity.kt`.
 - [x] **Frequent phrases in-session learning (PRD S3).** Dynamically learns sentences chosen by the speaker and prioritizes them to earlier phrase-bank pages and LLM top-up/fallback candidates, reducing eye movements required for habitual needs. Code: `conversation/Board.kt`, `conversation/ConversationController.kt`, `suggest/ModelSuggestionEngine.kt`.
+
+## Winks: same fixes (owner report)
+
+- [ ] **Looks pause for 1 s after a wink.** Phone 02:23:51: each left wink was followed about 0.45 s later by a "look up" as the eye reopened, undoing it. Code: `scan/GazeStepper.kt` (`pauseUntil`), `conversation/ConversationController.kt` (`AFTER_WINK_MS`). Test: `EyeModeTest` "the eye reopening after a wink is not a look up".
+- [ ] **Wink hysteresis:** after a wink, both eyes must be open together for 0.2 s before the next counts, and winks are at least 0.6 s apart, so an eye flickering open mid-wink counts once. Code: `blink/WinkDetector.kt`. Test: `WinkDetectorTest` "an eye flickering open mid wink counts once".
 
 ## Looks up: same fixes (owner report)
 

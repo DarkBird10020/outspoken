@@ -211,4 +211,19 @@ class EyeModeTest {
         frames(800, gazeY = 0.5f)
         assertEquals(1, highlighted)
     }
+
+    @Test
+    fun `the eye reopening after a wink is not a look up`() {
+        frames(500)
+        // Left wink, then as the eye reopens the gaze reading jumps up for half a second.
+        val end = time + 450
+        while (time < end) {
+            controller.onSample(EyeSample(time, true, 0.05f, 0.95f, gaze = Dot(0f, 0f)))
+            time += 33
+        }
+        frames(500, gazeY = -0.7f)
+        frames(800)
+        // Phone 02:23:51: wink down, then "look up" 0.45 s later. Now only the wink moves.
+        assertEquals(1, highlighted)
+    }
 }
