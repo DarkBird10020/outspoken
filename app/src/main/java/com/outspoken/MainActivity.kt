@@ -448,7 +448,8 @@ class MainActivity : ComponentActivity() {
     /** Which code this APK came from, so two phones can be checked for the same build. */
     private val buildLine =
         "${BuildConfig.COMMIT}${if (BuildConfig.CHANGED) " with uncommitted edits" else ""}, " +
-            if (BuildConfig.FROM_CI) "CI APK" else "built on a laptop"
+            (if (BuildConfig.FROM_CI) "CI APK" else "built on a laptop") +
+            if (BuildConfig.SHARED_KEY) ", shared key" else ", this laptop's own key: will not install over a CI APK"
 
     private fun fmt(value: Float) = String.format(Locale.US, "%.2f", value)
 

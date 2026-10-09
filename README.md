@@ -21,7 +21,7 @@ Every push builds a debug APK on GitHub Actions. Download `outspoken-debug-apk` 
 
 Stand the phone on a table or holder at arm's length, front camera facing the speaker.
 
-To run exactly the same app on two phones, install the CI APK (`outspoken-debug-apk`) on both: it is signed with one shared key. The eye check page shows "Build:" with the commit, so the two can be compared.
+To run exactly the same app on two phones, install the CI APK (`outspoken-debug-apk`) on both: it is signed with one shared key. To build on a laptop with that same key, save the team's shared debug keystore (ask the owner; it is never in the repo) as `~/.android/outspoken-debug.keystore`. Then every APK installs over the last one and the phone keeps its settings and models. Models stay in Downloads, so even an uninstall does not delete them. The eye check page shows "Build:" with the commit, so the two can be compared.
 
 ## Using it
 

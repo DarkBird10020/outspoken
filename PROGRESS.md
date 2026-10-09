@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: models stay in Downloads and load from there, so a restart or reinstall never loses them; the chosen model stays loaded until another is picked. Waiting for the phone test.
+Latest: laptop builds can sign with the shared key (`~/.android/outspoken-debug.keystore`), so any APK installs over the last one and nothing is uninstalled; a model picked with "Choose model file" is found at every start. Models stay in Downloads across reinstalls. Waiting for the phone test.
 
 ## Phone test history
 
@@ -39,6 +39,17 @@ How to test on the phone:
   - Built from different commits, or with uncommitted edits. The "Build:" line shows it.
   - Settings are saved on each phone: shortest blink, look lines, winks, look down, mode, scan speed. A new APK keeps them. "Reset to defaults" on the eye check page, then calibrate, puts both phones on the same start.
   - Each laptop signs its own build with its own debug key, so one person's APK cannot install over the other's without uninstalling, which also deletes the downloaded model. The CI APK (`outspoken-debug-apk`) is signed with the shared key: install that on both phones for exactly the same app.
+
+## Reinstalls keep everything (owner report: the model had to be downloaded again after each reinstall)
+
+- Models already stay in Downloads and are loaded from there (#45), so an uninstall no longer deletes them. What was left: an uninstall still clears the app's settings, logs and "All files access", and Android asks for that access again after every uninstall.
+- [ ] **Laptop builds can sign with the shared key.** Each laptop signed with its own debug key (this laptop: `DA:3B:78...`, CI: `51:17:6F...`), so a laptop APK would not install over a CI APK or the other laptop's APK, and the only way was to uninstall. When `~/.android/outspoken-debug.keystore` exists, debug builds sign with it. The "Build:" line says "shared key" or "this laptop's own key". Code: `app/build.gradle.kts` (`sharedDebugKey`, `SHARED_KEY`), `MainActivity.kt`.
+- Setup, once per laptop: the owner sends the shared debug keystore privately (the one in the CI secret `DEBUG_KEYSTORE_B64`), saved as `~/.android/outspoken-debug.keystore`. Never commit it.
+- [ ] **A model picked with "Choose model file" is found at every start.** Its copy goes to Downloads under its own name, but the start only looked for E2B and E4B there, so another model (for example Gemma 3 1B) went missing at the next start. Downloads is now searched for any model file after those two. Code: `setup/ModelShelf.kt` (`fileToLoad`), `setup/ModelFile.kt`. Tests: `ModelFileTest`.
+
+How to test on the phone:
+1. With the shared key in place on both laptops, install one person's APK, then the other's, then the CI APK, each over the last one. None should ask to uninstall.
+2. After each install, the model is "ready" on the eye check page without downloading, the tuning sliders keep their values, and "Build:" says "shared key".
 
 ## Models in the app
 

@@ -76,9 +76,15 @@ class ModelShelf(private val context: Context) {
         return appDir?.let { File(it, choice.fileName) }?.takeIf { it.length() == choice.sizeBytes }
     }
 
-    /** The file to load: the chosen model if it is here, then E2B, then any model file. */
+    /**
+     * The file to load: the chosen model if it is here, then E2B, then any other model file. Files
+     * picked with "Choose model file" are copied to Downloads under their own name, so Downloads is
+     * searched too; before, a model that was not E2B or E4B was not found at the next start.
+     */
     fun fileToLoad(): File? =
-        ModelCatalog.atStart(chosen) { installed(it) != null }?.let(::installed) ?: findModelFile(appDir)
+        ModelCatalog.atStart(chosen) { installed(it) != null }?.let(::installed)
+            ?: findModelFile(appDir)
+            ?: if (canSeeDownloads()) findModelFile(downloadsDir) else null
 
     private fun start(intent: Intent): Boolean = try {
         context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
