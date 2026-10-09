@@ -187,16 +187,4 @@ class BlinkDetectorTest {
         assertTrue((hold(500) { eyes(0.05f) } + hold(300) { eyes(0.95f) }).single() is BlinkEvent.Blink)
     }
 
-    @Test
-    fun `dropping lids while the iris looks down do not start a close`() {
-        hold(500) { eyes(0.95f) }
-        val events = mutableListOf<BlinkEvent>()
-        val end = time + 600
-        while (time < end) {
-            detector.onSample(eyes(0.05f), lookingDown = true)?.let(events::add)
-            time += 33
-        }
-        events += hold(300) { eyes(0.95f) }
-        assertEquals(emptyList<BlinkEvent>(), events)
-    }
 }

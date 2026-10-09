@@ -118,12 +118,12 @@ class GazeStepperTest {
     }
 
     @Test
-    fun `with the iris line set, a look down is read from the iris even with lids drooping`() {
+    fun `with the iris line set, a look down is read from the iris`() {
         stepper.settings = stepper.settings.copy(irisDownStrength = 0.04f)
         val steps = mutableListOf<GazeStep>()
         repeat(10) { stepper.onSample(Dot(0f, 0.6f), true, time, irisY = 0.10f); time += 50 }
-        // Looking down: blendshape barely moves, lids read as shut, iris drops 0.06.
-        repeat(10) { stepper.onSample(Dot(0f, 0.65f), false, time, irisY = 0.16f)?.let(steps::add); time += 50 }
+        // Looking down: blendshape barely moves, iris drops 0.06; the lid gap keeps it "open".
+        repeat(10) { stepper.onSample(Dot(0f, 0.65f), true, time, irisY = 0.16f)?.let(steps::add); time += 50 }
         assertEquals(listOf(GazeStep.Next), steps)
         assertTrue(stepper.irisLooksDown(0.16f))
     }
@@ -154,5 +154,15 @@ class GazeStepperTest {
         repeat(10) { stepper.onSample(Dot(0f, 0.97f), false, time, irisY = 0.31f)?.let(steps::add); time += 50 }
         assertEquals(emptyList<GazeStep>(), steps)
         assertTrue(stepper.irisLooksDown(0.0f))
+    }
+
+    @Test
+    fun `shut eyes never step even when the iris reads in the look down range`() {
+        stepper.settings = stepper.settings.copy(irisDownStrength = 0.017f)
+        repeat(10) { stepper.onSample(Dot(0f, 0.5f), true, time, irisY = -0.03f); time += 50 }
+        // Phone log 00:46:18: a real close read an iris drop of +0.039 from rest.
+        val steps = mutableListOf<GazeStep>()
+        repeat(12) { stepper.onSample(Dot(0f, 0.7f), false, time, irisY = 0.009f)?.let(steps::add); time += 50 }
+        assertEquals(emptyList<GazeStep>(), steps)
     }
 }
