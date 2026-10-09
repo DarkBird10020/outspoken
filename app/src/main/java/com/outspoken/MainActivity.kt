@@ -294,6 +294,7 @@ class MainActivity : ComponentActivity() {
                         onRequestCamera = { cameraPermission.launch(Manifest.permission.CAMERA) },
                         onPreviewReady = camera::showPreview,
                         onPreviewGone = camera::hidePreview,
+                        restGaze = gazeStepper.restGaze,
                         onChooseModel = { modelPicker.launch(arrayOf("*/*")) },
                         onSaveLogs = { logSaver.launch("outspoken-logs.txt") },
                         onCalibrate = ::startCalibration,
@@ -328,6 +329,10 @@ class MainActivity : ComponentActivity() {
                         onStats = { show(Screen.Stats) },
                         onSelect = { controller.onTap(it, now()) },
                         eyeHint = if (tuning.moveByEyes) "Look down or up: move.  Close eyes: choose." else "Close your eyes when your choice lights up.",
+                        onAsk = { question ->
+                            AppLog.write("listen", "quick topic \"$question\"")
+                            controller.onHeard(question, now())
+                        },
                         eyeView = { modifier ->
                             val sample by eyeReader.samples.collectAsStateWithLifecycle()
                             EyeMonitor(sample, tuning.blink, camera::showPreview, camera::hidePreview, modifier)
@@ -363,6 +368,7 @@ class MainActivity : ComponentActivity() {
             is Calibration.Result.Ok -> {
                 applyTuning(result.tuning)
                 tuningStore.save(result.tuning)
+                gazeStepper.restAt(result.measured.restGaze)
                 val m = result.measured
                 AppLog.write(
                     "calibration",

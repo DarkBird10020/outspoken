@@ -36,6 +36,11 @@ data class BlinkSettings(
      * felt slow on the phone. [maxBlinkMs] then no longer applies.
      */
     val chooseWhileShut: Boolean = false,
+    /**
+     * Weight of the newest frame in a running average of the eye-open values (1 = no smoothing).
+     * Evens out single-frame jitter; at 0.65 and 25 fps it adds about 15 ms.
+     */
+    val smoothing: Float = 1f,
 )
 
 sealed interface BlinkEvent {
@@ -62,31 +67,37 @@ class BlinkDetector(
 
     /** This close already chose a card, so its reopen must not choose again. */
     private var chosen = false
+    private var smoothLeft: Float? = null
+    private var smoothRight: Float? = null
 
     /** When the eyes shut, while they are still shut; null while they are open. */
     val shutSinceMs: Long? get() = closedSinceMs
 
     fun onSample(sample: EyeSample): BlinkEvent? {
-        val left = sample.leftOpen
-        val right = sample.rightOpen
+        val rawLeft = sample.leftOpen
+        val rawRight = sample.rightOpen
         val facing = facingCamera(sample)
         // Eyelid closure deforms the face mesh landmarks, causing transient yaw jumps.
         // If a closure is already in progress, tolerate this deformation while the face is still found.
         val inClosure = closedSinceMs != null
         val acceptableOrientation = facing || (inClosure && sample.faceFound && abs(sample.yawDeg) <= 60f)
 
-        if (!sample.faceFound || left == null || right == null || !acceptableOrientation) {
+        if (!sample.faceFound || rawLeft == null || rawRight == null || !acceptableOrientation) {
             val missingSince = missingSinceMs ?: sample.timeMs.also { missingSinceMs = it }
             if (!tracking || sample.timeMs - missingSince < settings.faceLostAfterMs) return null
             if (closedSinceMs != null) log.write("blink", "closure cancelled, face lost")
             closedSinceMs = null
             chosen = false
+            smoothLeft = null
+            smoothRight = null
             tracking = false
             log.write("blink", "face lost: ${lostReason(sample)}")
             return BlinkEvent.FaceLost
         }
 
         missingSinceMs = null
+        val left = smooth(smoothLeft, rawLeft).also { smoothLeft = it }
+        val right = smooth(smoothRight, rawRight).also { smoothRight = it }
         val wasTracking = tracking
         tracking = true
         if (!wasTracking) log.write("blink", "face found")
@@ -127,6 +138,9 @@ class BlinkDetector(
         }
         return if (wasTracking) null else BlinkEvent.FaceFound
     }
+
+    private fun smooth(previous: Float?, value: Float) =
+        previous?.let { it + settings.smoothing * (value - it) } ?: value
 
     /** Whether this frame reads as eyes shut: both eye-open values and both lid gaps below the lines. */
     fun eyesShut(sample: EyeSample): Boolean {

@@ -46,6 +46,7 @@ import com.outspoken.blink.BlinkSettings
 import com.outspoken.eye.Dot
 import com.outspoken.eye.EyeSample
 import com.outspoken.listen.QuickTopics
+import com.outspoken.scan.GazeSettings
 import com.outspoken.setup.Tuning
 import java.util.Locale
 import kotlin.math.abs
@@ -61,7 +62,6 @@ data class SetupStatus(
 
 private const val GRAPH_MS = 5_000L
 private const val GAZE_SCALE = 1.6f
-private const val GAZE_SHOWN_ABOVE = 0.15f
 private val LeftColor = Color(0xFF1E88E5)
 private val RightColor = Color(0xFFF4511E)
 private val OpenColor = Color(0xFF43A047)
@@ -86,6 +86,7 @@ fun EyeCheckScreen(
     onRequestCamera: () -> Unit,
     onPreviewReady: (PreviewView) -> Unit,
     onPreviewGone: (PreviewView) -> Unit,
+    restGaze: Float?,
     onChooseModel: () -> Unit,
     onSaveLogs: () -> Unit,
     onCalibrate: () -> Unit,
@@ -134,7 +135,7 @@ fun EyeCheckScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) { EyeNumbers(sample, fps, settings) }
                     Spacer(Modifier.width(8.dp))
-                    GazeBox(sample?.gaze, Modifier.size(88.dp))
+                    GazeBox(sample?.gaze, restGaze, tuning.gaze, Modifier.size(88.dp))
                 }
                 recentLines.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
                 AskBox(setup.listenLine, onAsk)
@@ -251,37 +252,42 @@ private fun EyeGraph(history: List<EyeSample>, settings: BlinkSettings, modifier
     }
 }
 
-/** A box with a dot where the eyes look, as seen in the mirrored preview. */
+/**
+ * Where the eyes look, measured the way the highlight uses it: up and down from the resting gaze,
+ * so still eyes sit in the middle. The dashed lines are the look up and look down lines; crossing
+ * one moves the highlight. (Drawing the raw gaze pinned the dot to the bottom, since with the
+ * phone below eye level the resting gaze already reads about 0.5 down.)
+ */
 @Composable
-private fun GazeBox(gaze: Dot?, modifier: Modifier) {
+private fun GazeBox(gaze: Dot?, restGaze: Float?, settings: GazeSettings, modifier: Modifier) {
+    val up = settings.lookStrength
+    val down = settings.downStrength
+    // The box spans one and a half times the larger line each way, so both lines fit inside.
+    val span = maxOf(up, down ?: 0f) * 1.5f
+    val dy = if (gaze != null && restGaze != null) gaze.y - restGaze else null
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         val outline = MaterialTheme.colorScheme.outline
         val dot = MaterialTheme.colorScheme.primary
         Canvas(modifier.border(1.dp, outline)) {
+            fun yOf(value: Float) = size.height * (1 + (value / span).coerceIn(-1f, 1f)) / 2
+            val dash = PathEffect.dashPathEffect(floatArrayOf(6f, 6f))
             drawLine(outline, Offset(size.width / 2, 0f), Offset(size.width / 2, size.height))
             drawLine(outline, Offset(0f, size.height / 2), Offset(size.width, size.height / 2))
-            if (gaze == null) return@Canvas
+            drawLine(OpenColor, Offset(0f, yOf(-up)), Offset(size.width, yOf(-up)), pathEffect = dash)
+            if (down != null) drawLine(OpenColor, Offset(0f, yOf(down)), Offset(size.width, yOf(down)), pathEffect = dash)
+            if (gaze == null || dy == null) return@Canvas
             val x = (gaze.x * GAZE_SCALE).coerceIn(-1f, 1f)
-            val y = (gaze.y * GAZE_SCALE).coerceIn(-1f, 1f)
-            drawCircle(dot, radius = 6.dp.toPx(), center = Offset(size.width * (1 + x) / 2, size.height * (1 + y) / 2))
+            drawCircle(dot, radius = 6.dp.toPx(), center = Offset(size.width * (1 + x) / 2, yOf(dy)))
         }
-        Text(gazeWords(gaze), style = MaterialTheme.typography.bodySmall)
+        Text(gazeWords(dy, up, down), style = MaterialTheme.typography.bodySmall)
     }
 }
 
-private fun gazeWords(gaze: Dot?): String {
-    if (gaze == null) return "-"
-    val across = when {
-        gaze.x > GAZE_SHOWN_ABOVE -> "right"
-        gaze.x < -GAZE_SHOWN_ABOVE -> "left"
-        else -> null
-    }
-    val upDown = when {
-        gaze.y > GAZE_SHOWN_ABOVE -> "down"
-        gaze.y < -GAZE_SHOWN_ABOVE -> "up"
-        else -> null
-    }
-    return listOfNotNull(upDown, across).joinToString(" ").ifEmpty { "centre" }
+private fun gazeWords(dy: Float?, up: Float, down: Float?): String = when {
+    dy == null -> "-"
+    -dy >= up -> "up: move up"
+    down != null && dy >= down -> "down: move down"
+    else -> "at rest " + String.format(Locale.US, "%+.2f", dy)
 }
 
 @Composable

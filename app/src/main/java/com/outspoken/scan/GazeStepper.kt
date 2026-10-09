@@ -35,6 +35,16 @@ class GazeStepper(
     private var lookingSinceMs = 0L
     private var stepped = false
 
+    /** Where the eyes rest up and down, the centre that looks are measured from; null until seen. */
+    val restGaze: Float? get() = restY
+
+    /** Starts from a measured resting gaze, for example the one calibration found. */
+    fun restAt(y: Float) {
+        restY = y
+        looking = null
+        stepped = false
+    }
+
     fun onSample(gaze: Dot?, eyesOpen: Boolean, timeMs: Long): GazeStep? {
         if (gaze == null || !eyesOpen) {
             looking = null

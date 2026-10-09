@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: interactive practice tutorial screen (PRD F6); faster choosing while eyes are still shut with 640x480 analysis; bidirectional gaze stepping with reading glance boundary; asymmetric eyelid and lid gap blink detection; spoken calibration, Gemma replies, visitor listening (F7), help alarm (F8), and session stats (S1) merged.
+Latest: interactive practice tutorial screen (PRD F6); gaze box centred on resting gaze; one-call Gemma replies with quick topics on main page; faster choosing while eyes shut; bidirectional gaze stepping with reading glance boundary; asymmetric eyelid and lid gap blink detection; spoken calibration, visitor listening (F7), help alarm (F8), and session stats (S1) merged.
 
 ## Phone test history
 
@@ -25,6 +25,32 @@ The app now launches with an interactive practice round on first use, teaches th
 - [x] **Yaw jitter tolerance during eye closure.** When eyes shut, MediaPipe facial mesh points contract and yaw temporarily jumps up to -50°. In-progress closures are no longer cancelled by transient yaw spikes while the face remains detected. Code: `blink/BlinkDetector.kt`.
 - [x] **Reading glance isolation in GazeStepper.** Gaze stepping now requires eyes to look towards or above the top bezel (`gaze.y < 0.20f`) in addition to `-dy >= lookStrength`, preventing glances between cards on the screen from triggering unintended card jumps. Code: `scan/GazeStepper.kt`.
 - [x] **Stale preferences guard.** `TuningStore` upgrades hyper-sensitive legacy values (`minBlinkMs < 350` or `lookStrength < 0.35`) to recommended stable defaults. Code: `setup/Tuning.kt`.
+
+## Gaze box centred on the resting gaze (owner report)
+
+- [ ] **Still eyes sit in the middle of the gaze box.** The owner saw the dot pinned to the bottom with the eyes still: the box drew the raw gaze, and with the phone below eye level the resting gaze reads about 0.5 down. It now draws the gaze up and down from the resting gaze, the same measure the highlight uses, with the look up and look down lines dashed; crossing a line moves the highlight. The word under it says "up: move up", "down: move down" or "at rest" with the distance. Code: `ui/EyeCheckScreen.kt` (`GazeBox`), `scan/GazeStepper.kt` (`restGaze`).
+- [ ] **Calibration sets the resting gaze directly**, so looks are measured from the right centre from the first frame instead of re-learning it. Code: `scan/GazeStepper.kt` (`restAt`), `MainActivity.kt`.
+
+Unit tests:
+- `GazeStepperTest`: a measured rest is the centre from the first frame.
+
+## Reply speed and accuracy brief
+
+- [ ] **Gemma answers in one call, under the 2 s target.** Temperature 0.8 to 0.3 so small models keep the four-item JSON shape; one worked example in the prompt, which ends on "Answer:". A badly formatted answer used to get a second generation, doubling the reply time; now `extractReplies` takes what it can (JSON list, quoted strings, numbered or bulleted lines), drops long and repeated replies, and the phrase bank fills the rest. Nothing usable or a model error gives the phrase bank. Code: `suggest/LiteRtLmModel.kt`, `suggest/Prompt.kt`, `suggest/ReplyParser.kt`, `suggest/ModelSuggestionEngine.kt`. The tests "bad format is retried once" and "two bad answers fall back to the phrase bank" were replaced on purpose: there is no retry any more.
+- [ ] **Quick topics on the main page** (PRD F7 fallback): one-tap questions under the cards for when the room is too loud for the microphone. Code: `ui/ConversationScreen.kt`, `listen/QuickTopics.kt`.
+- [ ] **Blink smoothing.** A running average of the eye-open values (newest frame weighted 0.65) evens out single-frame jitter; it adds about 15 ms. The shut and open lines already give the hysteresis. Code: `blink/BlinkDetector.kt` (`smoothing`), `setup/Tuning.kt`.
+- Not done from the brief, with the reason from the phone logs:
+  - Subtracting a share of the downward gaze from the blink score: real closes also read gaze down 0.73 to 0.76, the same as looking down (0.60 to 0.81), so it shifts both and separates neither.
+  - Averaging the lid gap (40%) into the eye-open value: the lid gap is already used as a second check that must also say shut, which is stricter than an average where one reading can cover for the other.
+- Already in place: the on-device offline speech recognizer (`listen/Listener.kt`: `createOnDeviceSpeechRecognizer`, `EXTRA_PREFER_OFFLINE`, free form, one result) and `RECORD_AUDIO`; no INTERNET permission (CI checks it).
+
+Unit tests:
+- `ReplyParserTest`: lenient extraction keeps a short list, pulls quoted strings and numbered or bulleted lines, drops long and repeated replies, empty when nothing usable.
+- `ModelSuggestionEngineTest`: a near miss is used and topped up with one model call, an unusable answer falls back with one call, top up skips phrases already given.
+- `PromptTest`: one worked example, ends on "Answer:".
+- `BlinkDetectorTest`: smoothing ignores a single jittery frame, a real close still counts.
+
+Design gaps: quick-topic chips on the main page use the glass surface and a 15 pt label.
 
 ## Faster choosing (owner request)
 
