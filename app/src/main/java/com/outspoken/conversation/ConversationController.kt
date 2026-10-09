@@ -36,6 +36,7 @@ class ConversationController(
     private var speakingSinceMs: Long? = null
     private var waitUntilMs: Long? = null
     private var lastHighlighted = -1
+    private var clockMs = Long.MIN_VALUE
 
     /** The conversation this session, oldest first. */
     val history: List<Turn> get() = turns
@@ -47,17 +48,19 @@ class ConversationController(
     private val scanning get() = detector.tracking && !speaking && waitUntilMs == null
 
     fun onSample(sample: EyeSample) {
+        val nowMs = advance(sample.timeMs)
         when (val event = detector.onSample(sample)) {
-            is BlinkEvent.Blink -> onBlink(event, sample.timeMs)
+            is BlinkEvent.Blink -> onBlink(event, nowMs)
             is BlinkEvent.Rejected, BlinkEvent.FaceFound, BlinkEvent.FaceLost, null -> Unit
         }
-        publish(sample.timeMs)
+        publish(nowMs)
     }
 
-    fun onTick(nowMs: Long) = publish(nowMs)
+    fun onTick(nowMs: Long) = publish(advance(nowMs))
 
     /** A tap on a card, for the person at the bedside. */
-    fun onTap(card: Int, nowMs: Long) {
+    fun onTap(card: Int, timeMs: Long) {
+        val nowMs = advance(timeMs)
         if (speaking) {
             log.write("scan", "tap on ${label(card)} ignored while speaking")
         } else {
@@ -75,16 +78,18 @@ class ConversationController(
 
     fun onReplies(requestId: Int, replies: List<String>, fromModel: Boolean, nowMs: Long) {
         if (requestId != latestRequest) return
+        val now = advance(nowMs)
         log.write("scan", "new cards from ${if (fromModel) "the model" else "the phrase bank"}: $replies")
         repliesPending = false
         waitUntilMs = null
         board.showSuggestions(if (fromModel) replies else null)
-        scanner.restart(board.cards, nowMs)
-        publish(nowMs)
+        scanner.restart(board.cards, now)
+        publish(now)
     }
 
-    fun onSpeechDone(nowMs: Long) {
+    fun onSpeechDone(timeMs: Long) {
         if (!speaking) return
+        val nowMs = advance(timeMs)
         speakingSinceMs = null
         if (repliesPending) {
             waitUntilMs = nowMs + replyWaitMs
@@ -94,6 +99,16 @@ class ConversationController(
         }
         scanner.restart(board.cards, nowMs)
         publish(nowMs)
+    }
+
+    /**
+     * Camera frames are stamped before face detection runs, so they arrive a little behind the
+     * screen ticks. The highlight only ever moves forward on the newest time seen; otherwise it
+     * flickers back to the previous card at every step.
+     */
+    private fun advance(timeMs: Long): Long {
+        clockMs = maxOf(clockMs, timeMs)
+        return clockMs
     }
 
     private fun onBlink(blink: BlinkEvent.Blink, nowMs: Long) {
