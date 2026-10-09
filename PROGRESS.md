@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: the main page shows the live camera with the eye dots above the cards; look up for the next card, close your eyes to choose; app locked to portrait. Gemma writes the next four replies after each sentence (M2), the model file is picked in the app, and "Save logs" on the eye check screen puts all run logs in one file you can send. Waiting for the next phone test and its logs.
+Latest: merged main's look-up-only stepping, crash fix, portrait lock and live eye view on the main page with the cloud branch's Gemma replies, model picker and Save logs. Waiting for the phone test.
 
 ## Phone test history
 
@@ -13,6 +13,7 @@ Latest: the main page shows the live camera with the eye dots above the cards; l
 | 2026-10-09 | M0 to M2 | Not working properly, picks felt random | Blink rules rebuilt, run logs added |
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
+| 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
 
 ## Eyes move the highlight (owner decision)
 
@@ -160,7 +161,7 @@ Status: not passed yet.
 How to test on the phone:
 1. On the phone's browser, open huggingface.co/litert-community/Gemma3-1B-IT, sign in, accept the Gemma licence, and download the `.litertlm` file (about 0.5 GB).
 2. Open the eye check screen (eye button), tap "Choose model file" and pick the downloaded file. It copies, then loads: wait for "Model: ... ready on GPU" (or CPU). Back.
-3. Look down to "I am in pain" and blink. The phrase bank shows while it thinks, then four new cards should be about the pain.
+3. Look up once to move to "I am in pain", then close your eyes for about half a second. The phrase bank shows while it thinks, then four new cards should be about the pain.
 4. Open the eye check screen again and read "Last replies". It should say under 2 s from the model.
 5. If it says phrase bank, the model failed or answered badly twice. Send the log.
 
