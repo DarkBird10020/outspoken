@@ -166,6 +166,8 @@ class CalibrationTest {
         val result = calibration.result(Tuning()) as Calibration.Result.Ok
         assertEquals(0.06f, result.measured.irisDownReach!!, 0.0001f)
         assertEquals(0.021f, result.tuning.gaze.irisDownStrength!!, 0.0001f)
+        // A small measured look down never puts the line under the resting drift.
+        assertTrue(result.tuning.gaze.irisDownStrength!! >= Calibration.MIN_IRIS_DOWN_LINE)
         // The blendshape look down barely moved, so it stays off.
         assertEquals(null, result.tuning.gaze.downStrength)
     }
