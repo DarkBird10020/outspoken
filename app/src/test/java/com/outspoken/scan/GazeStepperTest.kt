@@ -187,4 +187,37 @@ class GazeStepperTest {
         repeat(40) { n -> stepper.onSample(Dot(0f, if (n % 3 == 0) -0.5f else -0.05f), true, time)?.let(steps::add); time += 50 }
         assertEquals(emptyList<GazeStep>(), steps)
     }
+
+    @Test
+    fun `many looks down in a row all register`() {
+        stepper.settings = stepper.settings.copy(irisDownStrength = 0.02f)
+        repeat(10) { stepper.onSample(Dot(0f, 0.5f), true, time, irisY = -0.03f); time += 50 }
+        val steps = mutableListOf<GazeStep>()
+        repeat(8) {
+            // Look down (iris 0.035 below rest) for 0.8 s, back to centre for 0.8 s.
+            repeat(16) { stepper.onSample(Dot(0f, 0.55f), true, time, irisY = 0.005f)?.let(steps::add); time += 50 }
+            repeat(16) { stepper.onSample(Dot(0f, 0.5f), true, time, irisY = -0.03f)?.let(steps::add); time += 50 }
+        }
+        assertEquals(List(8) { GazeStep.Next }, steps)
+    }
+
+    @Test
+    fun `a wobble under the line during a look down does not stop it registering`() {
+        stepper.settings = stepper.settings.copy(irisDownStrength = 0.02f)
+        repeat(10) { stepper.onSample(Dot(0f, 0.5f), true, time, irisY = -0.03f); time += 50 }
+        val steps = mutableListOf<GazeStep>()
+        // Looking down, but every other frame dips back under the line (above half of it).
+        repeat(20) { n -> stepper.onSample(Dot(0f, 0.5f), true, time, irisY = if (n % 2 == 0) 0f else -0.018f)?.let(steps::add); time += 50 }
+        assertEquals(listOf(GazeStep.Next), steps)
+    }
+
+    @Test
+    fun `hovering around the line steps only once`() {
+        stepper.settings = stepper.settings.copy(irisDownStrength = 0.02f)
+        repeat(10) { stepper.onSample(Dot(0f, 0.5f), true, time, irisY = -0.03f); time += 50 }
+        val steps = mutableListOf<GazeStep>()
+        // Drop wobbling between 0.9 and 1.3 of the line for three seconds.
+        repeat(60) { n -> stepper.onSample(Dot(0f, 0.5f), true, time, irisY = if (n % 4 < 2) -0.004f else -0.012f)?.let(steps::add); time += 50 }
+        assertEquals(listOf(GazeStep.Next), steps)
+    }
 }
