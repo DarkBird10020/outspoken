@@ -308,6 +308,7 @@ class MainActivity : ComponentActivity() {
                             controller.onHeard(question, now())
                             show(Screen.Conversation)
                         },
+                        onBack = { show(Screen.Conversation) },
                     )
                 }
             } else if (screen == Screen.Practice) {
@@ -341,9 +342,10 @@ class MainActivity : ComponentActivity() {
                             show(Screen.Practice)
                         },
                         onStats = { show(Screen.Stats) },
+                        onEyeCheck = { show(Screen.EyeCheck) },
                         onTranscript = { show(Screen.Transcript) },
                         onSelect = { controller.onTap(it, now()) },
-                        eyeHint = if (tuning.moveByEyes && tuning.winks) "Look or wink to move (left wink down, right wink up).  Close both eyes: choose." else if (tuning.moveByEyes) "Look down or up to move.  Close both eyes: choose." else "Close your eyes when your choice lights up.",
+                        eyeHint = eyeHint(tuning),
                         onAsk = { question ->
                             AppLog.write("listen", "quick topic \"$question\"")
                             controller.onHeard(question, now())
@@ -393,7 +395,7 @@ class MainActivity : ComponentActivity() {
                         "lid gap open ${m.restGap?.let { fmt(it) }} closed ${m.closedGap?.let { fmt(it) }} -> gap shut line " +
                         "${result.tuning.blink.shapeClosedBelow?.let { fmt(it) }}, gap open line ${result.tuning.blink.shapeOpenAbove?.let { fmt(it) }}",
                 )
-                calibrationOutcome = "Done. Look down or up to move, close your eyes to choose."
+                calibrationOutcome = "Done. ${eyeHint(tuning)}"
                 say("Done")
                 lifecycleScope.launch {
                     delay(CALIBRATION_DONE_MS)
@@ -407,6 +409,14 @@ class MainActivity : ComponentActivity() {
                 say(result.reason)
             }
         }
+    }
+
+    private fun eyeHint(tuning: Tuning) = when {
+        !tuning.moveByEyes -> "Close your eyes when your choice lights up."
+        tuning.lookDown && tuning.winks -> "Look up or down, or wink, to move.  Close both eyes: choose."
+        tuning.lookDown -> "Look up or down to move.  Close both eyes: choose."
+        tuning.winks -> "Look up or wink to move (left wink down, right wink up).  Close both eyes: choose."
+        else -> "Look up to move to the next card.  Close both eyes: choose."
     }
 
     private fun fmt(value: Float) = String.format(Locale.US, "%.2f", value)
@@ -444,7 +454,8 @@ class MainActivity : ComponentActivity() {
         tuning = next
         blinkDetector.settings = next.blink
         scanner.intervalMs = next.scanMs
-        gazeStepper.settings = next.gaze
+        gazeStepper.settings = next.activeGaze
+        controller.upMovesNext = !next.lookDown
         if (controller.moveByEyes != next.moveByEyes) controller.moveByEyes = next.moveByEyes
         controller.winks = next.winks
     }
@@ -456,8 +467,7 @@ class MainActivity : ComponentActivity() {
         phoneTempCelsius = phoneTemperature(),
         modelName = (model as? ModelState.Ready)?.name?.removeSuffix(".litertlm") ?: "No model loaded",
         runtime = "LiteRT-LM" + ((model as? ModelState.Ready)?.let { " on ${it.backend}" } ?: ""),
-        // The practice round that measures this is not rebuilt yet.
-        blinkAccuracyPercent = null,
+        blinkAccuracyPercent = practiceController.accuracyPercent,
         sessionMillis = pitStats.sessionMillis(nowMs),
         sentencesSpoken = controller.history.size,
     )

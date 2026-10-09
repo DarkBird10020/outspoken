@@ -48,6 +48,12 @@ class ConversationController(
             moveCursor(0, clockMs)
         }
 
+    /**
+     * True when looking down is off: a look up is then the only look and moves to the next card,
+     * wrapping round, so every card can be reached with it alone.
+     */
+    var upMovesNext = false
+
     /** Left wink moves down, right wink up. Off unless turned on in the settings. */
     var winks = false
 
@@ -125,7 +131,8 @@ class ConversationController(
             if (step != null) {
                 beforeLook = cursor
                 lastLookMs = nowMs
-                moveCursor(if (step == GazeStep.Next) cursor + 1 else cursor - 1, nowMs)
+                val forward = step == GazeStep.Next || upMovesNext
+                moveCursor(if (forward) cursor + 1 else cursor - 1, nowMs)
             }
         }
         publish(nowMs)

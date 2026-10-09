@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: winks are off unless switched on (eye check screen). The highlight no longer moves by itself after speaking or after you shift position. Waiting for the phone test.
+Latest: synced with main. Look down is off by default (look up = next card), winks are off unless switched on, blink only mode on a timer, the eye graph is one tap from the main page, a 0.6 s blink length saved by the old practice round is cleared, and the highlight no longer moves by itself after speaking or after a shift in position. Waiting for the phone test.
 
 ## Phone test history
 
@@ -15,6 +15,25 @@ Latest: winks are off unless switched on (eye check screen). The highlight no lo
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
 | 2026-10-09 | Reading options / accuracy test | Jitter when reading options, accidental selection blinks, no tutorial | Practice round tutorial screen wired up, asymmetric eyelid detection, yaw jitter tolerance, upward gaze boundary |
+
+## Choosing reliably (goal: "I need water" ten times in a row, no wrong card, no missed blink)
+
+- [ ] **Look down is off by default.** It failed about eight phone runs in a row. With it off, a look up moves to the next card and wraps round, so every card can still be reached. It stays as a switch on the eye check page ("Looking down also moves"); the look down sliders show only when it is on. Calibration still measures it. Code: `setup/Tuning.kt` (`lookDown`, `activeGaze`), `conversation/ConversationController.kt` (`upMovesNext`), `MainActivity.kt`. Test: `EyeModeTest` "with looking down off a look up moves to the next card and wraps round".
+- [ ] **Two modes, switch on the eye check page.** Eyes (default): look up or wink to move, close both eyes to choose. Blink only: the highlight moves on a timer and a blink chooses; "Scan speed" sets the timer (0.6 to 3 s per card). Code: `ui/EyeCheckScreen.kt` (`TuningSliders`), `scan/Scanner.kt`.
+- [ ] **Old 0.6 s shortest blink cleared.** The practice round saved 85% of a practice blink as the shortest blink, up to 600 ms, and the saved value beat the 0.2 s default. Phone log, this iQOO, 01:13 run: `01:30:06.667 blink ignored 595 ms, shorter than 600 ms` (13 closes ignored in that run). Settings saved before this build with a shortest blink over 400 ms go back to the default once. The practice round now sets half the practice blink, 200 to 400 ms. Code: `setup/Tuning.kt` (`TuningStore.load`, `VERSION`), `practice/PracticeController.kt`. Test: `PracticeControllerTest` "a long practice blink never sets the shortest blink above 400 ms".
+- [ ] **Blink accuracy on the stats screen** (PRD S1) comes from the practice round: stars caught out of tries. A try is any close of 150 ms or more (normal blinks are about 100 to 150 ms); one that ends without catching a star is a miss and is logged ("practice: missed try"). Shows "-" before the practice round. Code: `practice/PracticeController.kt` (`accuracyPercent`), `MainActivity.kt`. Tests: `PracticeControllerTest` "accuracy counts caught stars against missed tries", "normal quick blinks are not counted as missed tries".
+- Not changed: double blink stays on as merged (`doubleBlink = true`). No other line or timing changed.
+
+How to test on the phone (each mode):
+1. Open the app, let calibration finish. Tap the eye button (top right), check the mode switch, tap "Back to talking".
+2. Eyes mode: with "I need water" lit, close both eyes about half a second. After it is spoken, the highlight returns to the first card. Repeat ten times; count wrong cards and missed blinks.
+3. Blink only mode: switch it on the eye check page; set scan speed (1.5 s is a good start). Blink when "I need water" lights. Ten times.
+4. Tap "Save logs" on the eye check page after each mode and send the file.
+
+## Eye graph for the demo
+
+- [ ] **One tap from the main page.** The eye button in the top bar opens the eye check page; the practice round moved to the star button. "Back to talking" returns. Code: `ui/ConversationScreen.kt`, `MainActivity.kt`.
+- [ ] **Readable from two metres.** Large OPEN / SHUT / BETWEEN word in the line colours, a 200 dp graph of both eyes with thick shut and open lines, a 140 dp gaze box, and the last four blink, look and choose decisions in large type. Looks now show in the on-screen lines too. Code: `ui/EyeCheckScreen.kt` (`EyeState`, `Decisions`), `log/EventLog.kt`.
 
 ## Tutorial onboarding and accuracy fixes
 
@@ -370,7 +389,7 @@ Status: in progress. Calibration is in its own section above; listening is built
 - [ ] **Does not hear itself.** Listening pauses while the phone speaks (replies and calibration prompts), drops anything heard in the 1.5 s after, and drops text that matches what the phone just said. Code: `listen/HeardFilter.kt`.
 - [ ] **Typed question and topic buttons** (F7 fallback). On the eye check page: type the visitor's question and tap Ask, or tap a topic (Pain, Comfort, Food and drink, Feelings, Family). Either goes to the conversation like a spoken question. Code: `ui/EyeCheckScreen.kt` (`AskBox`), `listen/QuickTopics.kt`.
 - [ ] **Microphone permission** asked once after the camera. The eye check page shows what the listener is doing ("listening on the phone", "no microphone permission", "wants the internet: download the offline English speech pack").
-- [ ] **Practice round** (F6). Not rebuilt yet on the new eye reader.
+- [ ] **Practice round** (F6). Built: see "Tutorial onboarding and accuracy fixes" and "Choosing reliably" above. Opened with the star button.
 
 How to test on the phone:
 1. Turn on airplane mode. Open the app and allow the microphone.
@@ -392,7 +411,7 @@ Status: in progress. The help alarm and the stats screen are built; the laptop v
 
 - [ ] **Help alarm** (F8). Eyes held shut for 2 s: a beep says the hold is done. Open the eyes and blink once within 5 s: the phone's alarm sound plays on the alarm channel, looping, at full volume, and the designed help screen fills the display with the last thing said. "I am here" (or back) stops it and returns to the cards; the speaker button silences it. The confirm blink never picks a card, and the hold itself never counts as a blink. Works even while the phone is speaking. Code: `help/HelpTrigger.kt`, `help/HelpAlarm.kt`, `conversation/ConversationController.kt`, `ui/HelpAlertScreen.kt`.
 - Why two steps: a person resting with their eyes closed should not set it off alone.
-- [ ] **Stats screen** (S1). The designed screen, opened with the stats button (bar chart). Average reply time and model speed (tokens per second) over this session's model answers, replies written, the phone's temperature (battery sensor), model name and runtime, session length, sentences spoken. Updates every second. Blink accuracy shows "-" until the practice round is rebuilt. Code: `stats/PitStats.kt`, `ui/StatsScreen.kt`, `MainActivity.kt`.
+- [ ] **Stats screen** (S1). The designed screen, opened with the stats button (bar chart). Average reply time and model speed (tokens per second) over this session's model answers, replies written, the phone's temperature (battery sensor), model name and runtime, session length, sentences spoken. Updates every second. Blink accuracy comes from the practice round ("-" before it). Code: `stats/PitStats.kt`, `ui/StatsScreen.kt`, `MainActivity.kt`.
 
 How to test on the phone:
 1. On the conversation page, close your eyes and keep them closed until the beep (2 s).
@@ -432,6 +451,7 @@ Design gaps, for the teammate to decide. Each uses the closest existing style fo
 - Help alert glass blur is left out; the background behind it is a smooth gradient, so it looks the same.
 - No control to change scan speed (the practice round only shows it).
 - While the phone is speaking, no card is lit.
+- Main page top bar: a fourth round button (eye icon) opens the eye check page; the practice round uses the star icon.
 
 ## CI checks
 
@@ -445,4 +465,6 @@ Run on every push and pull request (`.github/workflows/ci.yml`). The `main` rule
 
 ## Next
 
-M2: Gemma writes the four replies, with the phrase bank as fallback. Starts after M1 passes on the phone.
+1. Owner runs "I need water" ten times in a row in both modes on the iQOO and sends the counts and logs.
+2. Fix what the logs show, then mark M1 and the practice round.
+3. Sentence builder: "Write my own" card, model suggests the next words.

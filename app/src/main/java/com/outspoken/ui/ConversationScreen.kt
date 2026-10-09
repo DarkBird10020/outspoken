@@ -53,6 +53,7 @@ fun ConversationScreen(
     onStats: () -> Unit,
     onSelect: (Int) -> Unit,
     onTranscript: () -> Unit = {},
+    onEyeCheck: () -> Unit = {},
     eyeHint: String? = null,
     eyeView: (@Composable (Modifier) -> Unit)? = null,
     onAsk: ((String) -> Unit)? = null,
@@ -69,7 +70,8 @@ fun ConversationScreen(
                 DotPill("Looking for you", InkFaint)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                CircleIconButton(R.drawable.ic_eye, "Practice round", onPractice)
+                CircleIconButton(R.drawable.ic_star, "Practice round", onPractice)
+                CircleIconButton(R.drawable.ic_eye, "Eye check", onEyeCheck)
                 CircleIconButton(R.drawable.ic_transcript, "Live transcript (Office Kit)", onTranscript)
                 CircleIconButton(R.drawable.ic_stats, "Session stats", onStats)
             }

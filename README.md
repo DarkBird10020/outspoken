@@ -6,7 +6,7 @@ The listener asks a question, an on-device Gemma model suggests four replies, an
 
 ## Status
 
-M2: look up above the phone for the next card and close your eyes for about half a second to say the lit card. After each sentence, Gemma on the phone writes four new replies that follow on; the built-in phrase bank shows while it thinks and whenever it fails.
+Working on M1 to M4 together. Look up above the phone for the next card and close your eyes for about half a second to say the lit card, or switch to blink only mode, where the highlight moves on a timer. The phone listens to the visitor's question, and Gemma on the phone writes four replies that fit; the built-in phrase bank shows while it thinks and whenever it fails. A practice round, a help alarm, a stats screen and a live transcript are built.
 
 ## Setup
 
