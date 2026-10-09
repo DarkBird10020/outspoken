@@ -58,11 +58,17 @@ class GazeStepper(
         stepped = false
     }
 
-    /** True when the iris points down far enough to be a look down rather than anything else. */
+    /**
+     * True when the iris points down far enough to be a look down, but not so far that the eyes
+     * are shut: with the lids closed the iris reads far below any real look (phone log 00:42:18:
+     * 0.31 against 0.01 to 0.08 for looks down), and counting that as a look blocked every blink.
+     */
     fun irisLooksDown(irisY: Float?): Boolean {
         val line = settings.irisDownStrength ?: return false
         val rest = restIris ?: return false
-        return irisY != null && irisY - rest >= line
+        if (irisY == null) return false
+        val drop = irisY - rest
+        return drop >= line && drop < IRIS_SHUT_ABOVE
     }
 
     /**
@@ -135,5 +141,8 @@ class GazeStepper(
 
         /** After a step, a look the other way this soon is the eyes coming back, not a new look. */
         const val REBOUND_MS = 700L
+
+        /** Iris drop beyond this is shut eyes, not a look down. */
+        const val IRIS_SHUT_ABOVE = 0.15f
     }
 }
