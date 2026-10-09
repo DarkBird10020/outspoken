@@ -71,7 +71,9 @@ class LiteRtLmModel(private val modelPath: String, private val cacheDir: String)
             // The drafter can be set up on first use, so a short reply proves it works here.
             if (plan.speculative) write(engine, WARM_UP_PROMPT, WARM_UP_TOKENS)
         } catch (e: Exception) {
-            engine.close()
+            // Closing an engine that never started throws "Engine is not initialized", which
+            // used to replace the real reason the start failed.
+            runCatching { engine.close() }
             throw e
         }
         return engine

@@ -67,13 +67,20 @@ class ModelShelf(private val context: Context) {
         return start(Intent(Intent.ACTION_VIEW, Uri.parse(choice.url)))
     }
 
-    /** The finished model file, in Downloads, or in the app's folder from older builds. */
+    private val check = ModelCheck.at(context.cacheDir)
+
+    /**
+     * The finished model file, in Downloads, or in the app's folder from older builds. A copy found
+     * damaged before is skipped, so a fresh download saved as "name (1)" is used instead.
+     */
     fun installed(choice: ModelChoice): File? {
         if (canSeeDownloads()) {
-            val files = downloadsDir.listFiles()?.map { it.name to it.length() }.orEmpty()
-            ModelCatalog.findDownload(choice, files)?.let { return File(downloadsDir, it) }
+            val files = downloadsDir.listFiles()?.sortedBy { it.name }?.map { it.name to it.length() }.orEmpty()
+            ModelCatalog.findDownloads(choice, files).map { File(downloadsDir, it) }
+                .firstOrNull { !check.knownDamaged(it) }?.let { return it }
         }
-        return appDir?.let { File(it, choice.fileName) }?.takeIf { it.length() == choice.sizeBytes }
+        return appDir?.let { File(it, choice.fileName) }
+            ?.takeIf { it.length() == choice.sizeBytes && !check.knownDamaged(it) }
     }
 
     /**

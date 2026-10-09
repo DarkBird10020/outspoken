@@ -62,4 +62,11 @@ class ModelCatalogTest {
     fun `with neither model on the phone there is no pick`() {
         assertNull(ModelCatalog.atStart(null) { false })
     }
+
+    @Test
+    fun `every finished copy is listed, so a damaged first copy can be skipped`() {
+        val size = ModelCatalog.E2B.sizeBytes
+        val files = listOf("gemma-4-E2B-it.litertlm" to size, "gemma-4-E2B-it (1).litertlm" to size, "gemma-4-E2B-it (2).litertlm" to 10L)
+        assertEquals(listOf("gemma-4-E2B-it.litertlm", "gemma-4-E2B-it (1).litertlm"), ModelCatalog.findDownloads(ModelCatalog.E2B, files))
+    }
 }
