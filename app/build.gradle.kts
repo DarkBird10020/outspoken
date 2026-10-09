@@ -55,4 +55,6 @@ dependencies {
     implementation(libs.androidx.camera.view)
 
     implementation(libs.mlkit.face.detection)
+
+    testImplementation(libs.junit)
 }

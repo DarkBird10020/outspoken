@@ -28,7 +28,7 @@ class EyeReader : ImageAnalysis.Analyzer {
     private val _fps = MutableStateFlow(0f)
     val fps: StateFlow<Float> = _fps.asStateFlow()
 
-    private var lastFrameMs = 0L
+    private val fpsMeter = FpsMeter()
 
     @OptIn(ExperimentalGetImage::class)
     override fun analyze(image: ImageProxy) {
@@ -44,7 +44,7 @@ class EyeReader : ImageAnalysis.Analyzer {
             .addOnSuccessListener { faces ->
                 val face = faces.maxByOrNull { it.boundingBox.width() * it.boundingBox.height() }
                 _samples.value = face?.toSample(timeMs) ?: EyeSample(timeMs, faceFound = false)
-                updateFps(timeMs)
+                _fps.value = fpsMeter.onFrame(timeMs)
             }
             .addOnCompleteListener { image.close() }
     }
@@ -59,12 +59,4 @@ class EyeReader : ImageAnalysis.Analyzer {
         yawDeg = headEulerAngleY,
         pitchDeg = headEulerAngleX,
     )
-
-    private fun updateFps(timeMs: Long) {
-        if (lastFrameMs in 1 until timeMs) {
-            val now = 1000f / (timeMs - lastFrameMs)
-            _fps.value = if (_fps.value == 0f) now else _fps.value * 0.9f + now * 0.1f
-        }
-        lastFrameMs = timeMs
-    }
 }
