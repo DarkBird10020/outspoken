@@ -62,4 +62,33 @@ class ReplyParserTest {
         assertEquals(emptyList<String>(), parseStringList("[ ]"))
         assertNull(parseStringList("[\"a\"] trailing"))
     }
+
+    @Test
+    fun `lenient extraction keeps a list with the wrong count`() {
+        assertEquals(listOf("Yes", "No"), extractReplies("""["Yes", "No"]"""))
+    }
+
+    @Test
+    fun `lenient extraction pulls quoted strings out of chatter`() {
+        assertEquals(listOf("My back hurts", "I need rest"), extractReplies("Sure! \"My back hurts\" or maybe \"I need rest\"."))
+    }
+
+    @Test
+    fun `lenient extraction reads numbered and bulleted lines`() {
+        assertEquals(listOf("Yes please", "Not now"), extractReplies("1. Yes please
+2) Not now"))
+        assertEquals(listOf("Water", "Juice"), extractReplies("- Water
+* Juice"))
+    }
+
+    @Test
+    fun `lenient extraction drops long and repeated replies`() {
+        val long = (1..12).joinToString(" ") { "word" }
+        assertEquals(listOf("Yes"), extractReplies("""["Yes", "yes", "$long"]"""))
+    }
+
+    @Test
+    fun `nothing usable gives an empty list`() {
+        assertEquals(emptyList<String>(), extractReplies("no"))
+    }
 }

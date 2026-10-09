@@ -63,7 +63,9 @@ class LiteRtLmModel(private val modelPath: String, private val cacheDir: String)
     }
 
     private companion object {
-        val SAMPLER = SamplerConfig(topK = 40, topP = 0.95, temperature = 0.8)
+        // Low temperature: small Gemma models at 0.8 drifted from the four-item JSON format, and
+        // every malformed answer cost a second generation.
+        val SAMPLER = SamplerConfig(topK = 40, topP = 0.95, temperature = 0.3)
 
         // Four short replies as JSON fit well inside this; it caps the worst-case reply time.
         const val MAX_OUTPUT_TOKENS = 96

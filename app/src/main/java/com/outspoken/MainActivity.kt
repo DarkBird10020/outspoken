@@ -294,6 +294,10 @@ class MainActivity : ComponentActivity() {
                         onStats = { show(Screen.Stats) },
                         onSelect = { controller.onTap(it, now()) },
                         eyeHint = if (tuning.moveByEyes) "Look down or up: move.  Close eyes: choose." else "Close your eyes when your choice lights up.",
+                        onAsk = { question ->
+                            AppLog.write("listen", "quick topic \"$question\"")
+                            controller.onHeard(question, now())
+                        },
                         eyeView = { modifier ->
                             val sample by eyeReader.samples.collectAsStateWithLifecycle()
                             EyeMonitor(sample, tuning.blink, camera::showPreview, camera::hidePreview, modifier)

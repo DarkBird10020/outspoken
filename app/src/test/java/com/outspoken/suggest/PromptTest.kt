@@ -42,4 +42,11 @@ class PromptTest {
     fun `parts of the day`() {
         assertEquals(listOf("night", "morning", "afternoon", "evening", "night"), listOf(4, 5, 12, 17, 21).map(::partOfDay))
     }
+
+    @Test
+    fun `includes one worked example and ends asking for the answer`() {
+        val prompt = buildPrompt(SuggestionRequest(emptyList(), hourOfDay = 9))
+        assertTrue(prompt.contains(EXAMPLE_ANSWER))
+        assertTrue(prompt.endsWith("Answer:"))
+    }
 }

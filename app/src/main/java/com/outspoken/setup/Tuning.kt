@@ -17,6 +17,7 @@ data class Tuning(
         minBlinkMs = 300,
         maxBlinkMs = 1_500,
         chooseWhileShut = true,
+        smoothing = 0.65f,
         // MediaPipe reads eyes further round than ML Kit's 18°.
         maxHeadTurnDeg = 30f,
     ),
