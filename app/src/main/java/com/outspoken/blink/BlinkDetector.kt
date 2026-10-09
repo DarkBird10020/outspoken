@@ -50,7 +50,13 @@ class BlinkDetector(
     fun onSample(sample: EyeSample): BlinkEvent? {
         val left = sample.leftOpen
         val right = sample.rightOpen
-        if (!sample.faceFound || left == null || right == null || !facingCamera(sample)) {
+        val facing = facingCamera(sample)
+        // Eyelid closure deforms the face mesh landmarks, causing transient yaw jumps.
+        // If a closure is already in progress, tolerate this deformation while the face is still found.
+        val inClosure = closedSinceMs != null
+        val acceptableOrientation = facing || (inClosure && sample.faceFound && abs(sample.yawDeg) <= 60f)
+
+        if (!sample.faceFound || left == null || right == null || !acceptableOrientation) {
             val missingSince = missingSinceMs ?: sample.timeMs.also { missingSinceMs = it }
             if (!tracking || sample.timeMs - missingSince < settings.faceLostAfterMs) return null
             if (closedSinceMs != null) log.write("blink", "closure cancelled, face lost")
@@ -65,25 +71,31 @@ class BlinkDetector(
         tracking = true
         if (!wasTracking) log.write("blink", "face found")
         val closedSince = closedSinceMs
+        val avgOpen = (left + right) / 2f
         if (closedSince == null) {
-            if (left < settings.closedBelow && right < settings.closedBelow) {
+            val bothShut = (left < settings.closedBelow && right < settings.closedBelow) ||
+                (avgOpen < settings.closedBelow && minOf(left, right) < settings.closedBelow + 0.08f)
+            if (bothShut) {
                 closedSinceMs = sample.timeMs
                 val gaze = sample.gaze?.let { ", gaze up/down ${open(it.y)}" } ?: ""
                 log.write("blink", "eyes shut (left ${open(left)}, right ${open(right)}$gaze)")
             }
-        } else if (maxOf(left, right) > settings.openAbove) {
-            closedSinceMs = null
-            val duration = sample.timeMs - closedSince
-            if (duration in settings.minBlinkMs..settings.maxBlinkMs) {
-                log.write("blink", "blink $duration ms")
-                return BlinkEvent.Blink(closedSince, duration)
+        } else {
+            val eyesRecovered = avgOpen > settings.openAbove || (left > settings.openAbove && right > settings.openAbove)
+            if (eyesRecovered) {
+                closedSinceMs = null
+                val duration = sample.timeMs - closedSince
+                if (duration in settings.minBlinkMs..settings.maxBlinkMs) {
+                    log.write("blink", "blink $duration ms")
+                    return BlinkEvent.Blink(closedSince, duration)
+                }
+                val why = if (duration < settings.minBlinkMs) {
+                    "shorter than ${settings.minBlinkMs} ms"
+                } else {
+                    "longer than ${settings.maxBlinkMs} ms"
+                }
+                log.write("blink", "ignored $duration ms, $why")
             }
-            val why = if (duration < settings.minBlinkMs) {
-                "shorter than ${settings.minBlinkMs} ms"
-            } else {
-                "longer than ${settings.maxBlinkMs} ms"
-            }
-            log.write("blink", "ignored $duration ms, $why")
         }
         return if (wasTracking) null else BlinkEvent.FaceFound
     }

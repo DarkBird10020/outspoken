@@ -4,7 +4,17 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: the main page shows the live camera with the eye dots above the cards, so detection and choosing happen on one screen; app locked to portrait so a rotation no longer restarts it. M1 is waiting for the phone test.
+Latest: interactive practice tutorial screen wired up for onboarding and calibration; blink detection handles asymmetric eyelids without yaw cancellations; upward gaze stepping constrained to looks above top bezel to eliminate reading jitter. Verified and installed on the connected iQOO 15 phone.
+
+## Tutorial onboarding and accuracy fixes
+
+The app now launches with an interactive practice round on first use, teaches the user how to step and blink, catches 3 stars, and auto-calibrates the eye thresholds to their personal eyes. Inaccurate automatic card hopping and premature selections have been resolved.
+
+- [x] **Tutorial practice round (PRD F6).** First launch opens `PracticeScreen`: 3 star targets, catch stars with deliberate blinks (~0.4 s), personalized calibration of `closedBelow` and `openAbove`, spoken audio feedback, and transition to ConversationScreen. The eye icon on ConversationScreen returns to practice anytime. Code: `ui/PracticeScreen.kt`, `practice/PracticeController.kt`, `MainActivity.kt`.
+- [x] **Asymmetric eyelid detection.** Average aperture `(left + right) / 2` and combined recovery ensure users with eyelid asymmetry (e.g. one lid closing to 0.50 and the other to 0.31) trigger deliberate blinks reliably without single-frame flicker cutoffs. Code: `blink/BlinkDetector.kt`.
+- [x] **Yaw jitter tolerance during eye closure.** When eyes shut, MediaPipe facial mesh points contract and yaw temporarily jumps up to -50°. In-progress closures are no longer cancelled by transient yaw spikes while the face remains detected. Code: `blink/BlinkDetector.kt`.
+- [x] **Reading glance isolation in GazeStepper.** Gaze stepping now requires eyes to look towards or above the top bezel (`gaze.y < 0.20f`) in addition to `-dy >= lookStrength`, preventing glances between cards on the screen from triggering unintended card jumps. Code: `scan/GazeStepper.kt`.
+- [x] **Stale preferences guard.** `TuningStore` upgrades hyper-sensitive legacy values (`minBlinkMs < 350` or `lookStrength < 0.35`) to recommended stable defaults. Code: `setup/Tuning.kt`.
 
 ## Eyes move the highlight (owner decision)
 

@@ -28,9 +28,11 @@ import com.outspoken.setup.TuningStore
 import com.outspoken.setup.checkOfflineVoice
 import com.outspoken.setup.findModelFile
 import com.outspoken.speech.Speaker
+import com.outspoken.practice.PracticeController
 import com.outspoken.ui.ConversationScreen
 import com.outspoken.ui.EyeCheckScreen
 import com.outspoken.ui.EyeMonitor
+import com.outspoken.ui.PracticeScreen
 import com.outspoken.ui.SetupStatus
 import com.outspoken.ui.theme.OutspokenTheme
 import kotlinx.coroutines.delay
@@ -39,12 +41,13 @@ import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
 
-    private enum class Screen { Conversation, EyeCheck }
+    private enum class Screen { Conversation, Practice, EyeCheck }
 
     private lateinit var speaker: Speaker
     private lateinit var camera: FrontCamera
     private lateinit var tuningStore: TuningStore
     private lateinit var eyeReader: EyeReader
+    private lateinit var practiceController: PracticeController
     private val blinkDetector = BlinkDetector(log = AppLog)
     private val scanner = Scanner()
     private val gazeStepper = GazeStepper(log = AppLog)
@@ -77,7 +80,24 @@ class MainActivity : ComponentActivity() {
         tuningStore = TuningStore(this)
         applyTuning(tuningStore.load())
         AppLog.write("app", "tuning $tuning")
-        eyeReader = EyeReader(this) { controller.onSample(it) }
+
+        practiceController = PracticeController(
+            initialTuning = tuning,
+            log = AppLog,
+            speak = { speaker.speak(it) },
+            onCalibrated = { calibrated ->
+                applyTuning(calibrated)
+                tuningStore.save(calibrated)
+            },
+        )
+
+        eyeReader = EyeReader(this) { sample ->
+            if (screen == Screen.Practice) {
+                practiceController.onSample(sample)
+            } else {
+                controller.onSample(sample)
+            }
+        }
         eyeReader.dotsOn = true
         speaker = Speaker(this) { controller.onSpeechDone(now()) }
         camera = FrontCamera(this, this)
@@ -97,6 +117,11 @@ class MainActivity : ComponentActivity() {
         val modelLine = modelStatusLine()
         AppLog.write("app", "model $modelLine")
 
+        // First launch opens the practice / tutorial round directly
+        if (!tuningStore.hasCompletedPractice()) {
+            screen = Screen.Practice
+        }
+
         setContent {
             LaunchedEffect(Unit) {
                 while (true) {
@@ -104,14 +129,13 @@ class MainActivity : ComponentActivity() {
                     delay(TICK_MS)
                 }
             }
-            if (!cameraGranted || screen == Screen.EyeCheck) {
-                BackHandler(enabled = screen == Screen.EyeCheck) { show(Screen.Conversation) }
+            if (!cameraGranted) {
                 val sample by eyeReader.samples.collectAsStateWithLifecycle()
                 val fps by eyeReader.fps.collectAsStateWithLifecycle()
                 val recent by AppLog.recent.collectAsStateWithLifecycle()
                 MaterialTheme {
                     EyeCheckScreen(
-                        cameraGranted = cameraGranted,
+                        cameraGranted = false,
                         sample = sample,
                         fps = fps,
                         tuning = tuning,
@@ -130,21 +154,66 @@ class MainActivity : ComponentActivity() {
                         onPreviewGone = camera::hidePreview,
                     )
                 }
-            } else {
-                val conversation by controller.ui.collectAsStateWithLifecycle()
-                OutspokenTheme {
-                    ConversationScreen(
-                        ui = conversation,
-                        // The practice round arrives in M3; until then this shows the live eye numbers.
-                        onPractice = { show(Screen.EyeCheck) },
-                        onStats = {},
-                        onSelect = { controller.onTap(it, now()) },
-                        eyeHint = if (tuning.moveByEyes) "Look up: next.  Close eyes: choose." else "Close your eyes when your choice lights up.",
-                        eyeView = { modifier ->
-                            val sample by eyeReader.samples.collectAsStateWithLifecycle()
-                            EyeMonitor(sample, tuning.blink, camera::showPreview, camera::hidePreview, modifier)
-                        },
-                    )
+            } else when (screen) {
+                Screen.Practice -> {
+                    BackHandler { show(Screen.Conversation) }
+                    val practiceUi by practiceController.ui.collectAsStateWithLifecycle()
+                    OutspokenTheme {
+                        PracticeScreen(
+                            ui = practiceUi,
+                            onBack = { show(Screen.Conversation) },
+                            onStart = {
+                                tuningStore.markPracticeCompleted()
+                                show(Screen.Conversation)
+                            },
+                        )
+                    }
+                }
+                Screen.EyeCheck -> {
+                    BackHandler(enabled = true) { show(Screen.Conversation) }
+                    val sample by eyeReader.samples.collectAsStateWithLifecycle()
+                    val fps by eyeReader.fps.collectAsStateWithLifecycle()
+                    val recent by AppLog.recent.collectAsStateWithLifecycle()
+                    MaterialTheme {
+                        EyeCheckScreen(
+                            cameraGranted = true,
+                            sample = sample,
+                            fps = fps,
+                            tuning = tuning,
+                            recentLines = recent,
+                            setup = SetupStatus(modelLine, offlineVoice),
+                            onTuningChange = {
+                                applyTuning(it)
+                                tuningStore.save(it)
+                            },
+                            onTuningReset = {
+                                tuningStore.clear()
+                                applyTuning(Tuning())
+                            },
+                            onRequestCamera = { cameraPermission.launch(Manifest.permission.CAMERA) },
+                            onPreviewReady = camera::showPreview,
+                            onPreviewGone = camera::hidePreview,
+                        )
+                    }
+                }
+                Screen.Conversation -> {
+                    val conversation by controller.ui.collectAsStateWithLifecycle()
+                    OutspokenTheme {
+                        ConversationScreen(
+                            ui = conversation,
+                            onPractice = {
+                                practiceController.reset()
+                                show(Screen.Practice)
+                            },
+                            onStats = { show(Screen.EyeCheck) },
+                            onSelect = { controller.onTap(it, now()) },
+                            eyeHint = if (tuning.moveByEyes) "Look up: next.  Close eyes: choose." else "Close your eyes when your choice lights up.",
+                            eyeView = { modifier ->
+                                val sample by eyeReader.samples.collectAsStateWithLifecycle()
+                                EyeMonitor(sample, tuning.blink, camera::showPreview, camera::hidePreview, modifier)
+                            },
+                        )
+                    }
                 }
             }
         }

@@ -38,7 +38,7 @@ class GazeStepper(
         }
         val centre = restY ?: gaze.y.also { restY = it }
         val dy = gaze.y - centre
-        val direction = if (-dy >= settings.lookStrength) GazeStep.Next else null
+        val direction = if (-dy >= settings.lookStrength && gaze.y < LOOK_UP_MAX_Y) GazeStep.Next else null
 
         if (direction == null) {
             if (abs(dy) < settings.lookStrength / 2) restY = centre + dy * REST_FOLLOW
@@ -73,5 +73,7 @@ class GazeStepper(
         /** Share of the way the resting gaze moves toward the current one per frame at rest. */
         const val REST_FOLLOW = 0.05f
         const val REST_RESET_MS = 3_000L
+        /** Eyes must look toward or above the top bezel, not just glance within the screen cards. */
+        const val LOOK_UP_MAX_Y = 0.20f
     }
 }
