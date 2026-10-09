@@ -30,6 +30,7 @@ fun EyeCheckScreen(
     setup: SetupStatus,
     onRequestCamera: () -> Unit,
     onPreviewReady: (PreviewView) -> Unit,
+    onPreviewGone: () -> Unit,
 ) {
     Scaffold { padding ->
         Column(
@@ -44,7 +45,7 @@ fun EyeCheckScreen(
                     .weight(1f)
             ) {
                 if (cameraGranted) {
-                    CameraPreview(onPreviewReady, Modifier.fillMaxSize())
+                    CameraPreview(onPreviewReady, onPreviewGone, Modifier.fillMaxSize())
                 } else {
                     Button(onClick = onRequestCamera) { Text("Allow camera") }
                 }
@@ -63,8 +64,12 @@ fun EyeCheckScreen(
 }
 
 @Composable
-fun CameraPreview(onReady: (PreviewView) -> Unit, modifier: Modifier = Modifier) {
-    AndroidView(factory = { context -> PreviewView(context).also(onReady) }, modifier = modifier)
+fun CameraPreview(onReady: (PreviewView) -> Unit, onGone: () -> Unit, modifier: Modifier = Modifier) {
+    AndroidView(
+        factory = { context -> PreviewView(context).also(onReady) },
+        modifier = modifier,
+        onRelease = { onGone() },
+    )
 }
 
 @Composable

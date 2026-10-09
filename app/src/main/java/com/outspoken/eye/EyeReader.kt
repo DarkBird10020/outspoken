@@ -1,5 +1,6 @@
 package com.outspoken.eye
 
+import android.os.SystemClock
 import androidx.annotation.OptIn
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
@@ -12,7 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class EyeReader : ImageAnalysis.Analyzer {
+class EyeReader(private val onSample: (EyeSample) -> Unit = {}) : ImageAnalysis.Analyzer {
 
     private val detector = FaceDetection.getClient(
         FaceDetectorOptions.Builder()
@@ -37,13 +38,16 @@ class EyeReader : ImageAnalysis.Analyzer {
             image.close()
             return
         }
-        // Sensor timestamp, so blink durations are not skewed by detector latency.
-        val timeMs = image.imageInfo.timestamp / 1_000_000
+        // Stamped before detection, on the same clock as the scanner, so detector latency does
+        // not stretch blinks.
+        val timeMs = SystemClock.elapsedRealtime()
         val input = InputImage.fromMediaImage(media, image.imageInfo.rotationDegrees)
         detector.process(input)
             .addOnSuccessListener { faces ->
                 val face = faces.maxByOrNull { it.boundingBox.width() * it.boundingBox.height() }
-                _samples.value = face?.toSample(timeMs) ?: EyeSample(timeMs, faceFound = false)
+                val sample = face?.toSample(timeMs) ?: EyeSample(timeMs, faceFound = false)
+                _samples.value = sample
+                onSample(sample)
                 _fps.value = fpsMeter.onFrame(timeMs)
             }
             .addOnCompleteListener { image.close() }

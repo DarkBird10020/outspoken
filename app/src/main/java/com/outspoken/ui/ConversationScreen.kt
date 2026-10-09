@@ -22,6 +22,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.outspoken.R
+import com.outspoken.conversation.Board
 import com.outspoken.ui.theme.EyesFoundDot
 import com.outspoken.ui.theme.InkFaint
 import com.outspoken.ui.theme.InkSoft
@@ -32,7 +33,7 @@ import com.outspoken.ui.theme.surface
 import com.outspoken.ui.theme.type
 
 /**
- * Scanner cards: indexes 0 to 3 are the replies, then the two fixed cards.
+ * [highlighted] is a card id from [Board]: 0 to 3 for replies, or one of the two fixed cards.
  * [heard] is the listener's question, null when nothing was heard.
  */
 data class ConversationUi(
@@ -40,12 +41,7 @@ data class ConversationUi(
     val heard: String?,
     val replies: List<String>,
     val highlighted: Int,
-) {
-    companion object {
-        const val MORE_OPTIONS = 4
-        const val YES_NO = 5
-    }
-}
+)
 
 @Composable
 fun ConversationScreen(
@@ -87,11 +83,11 @@ fun ConversationScreen(
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            FixedCard("More options", ui.highlighted == ConversationUi.MORE_OPTIONS, Modifier.weight(1f)) {
-                onSelect(ConversationUi.MORE_OPTIONS)
+            FixedCard("More options", ui.highlighted == Board.MORE_OPTIONS, Modifier.weight(1f)) {
+                onSelect(Board.MORE_OPTIONS)
             }
-            FixedCard("Yes / No", ui.highlighted == ConversationUi.YES_NO, Modifier.weight(1f)) {
-                onSelect(ConversationUi.YES_NO)
+            FixedCard("Yes / No", ui.highlighted == Board.YES_NO, Modifier.weight(1f)) {
+                onSelect(Board.YES_NO)
             }
         }
         FooterNote("Runs on this phone. No internet.")
