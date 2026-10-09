@@ -30,6 +30,12 @@ data class BlinkSettings(
     val faceLostAfterMs: Long = 400,
     val shapeClosedBelow: Float? = null,
     val shapeOpenAbove: Float? = null,
+    /**
+     * Choose as soon as the eyes have been shut for [minBlinkMs], without waiting for them to
+     * open again. Waiting for the reopen added the whole rest of the close to every choice, which
+     * felt slow on the phone. [maxBlinkMs] then no longer applies.
+     */
+    val chooseWhileShut: Boolean = false,
 )
 
 sealed interface BlinkEvent {
@@ -54,6 +60,9 @@ class BlinkDetector(
     private var closedSinceMs: Long? = null
     private var missingSinceMs: Long? = null
 
+    /** This close already chose a card, so its reopen must not choose again. */
+    private var chosen = false
+
     /** When the eyes shut, while they are still shut; null while they are open. */
     val shutSinceMs: Long? get() = closedSinceMs
 
@@ -65,6 +74,7 @@ class BlinkDetector(
             if (!tracking || sample.timeMs - missingSince < settings.faceLostAfterMs) return null
             if (closedSinceMs != null) log.write("blink", "closure cancelled, face lost")
             closedSinceMs = null
+            chosen = false
             tracking = false
             log.write("blink", "face lost: ${lostReason(sample)}")
             return BlinkEvent.FaceLost
@@ -85,6 +95,11 @@ class BlinkDetector(
         } else if (maxOf(left, right) > settings.openAbove || lidsOpen(sample)) {
             closedSinceMs = null
             val duration = sample.timeMs - closedSince
+            if (chosen) {
+                chosen = false
+                log.write("blink", "eyes open after $duration ms")
+                return if (wasTracking) null else BlinkEvent.FaceFound
+            }
             if (duration in settings.minBlinkMs..settings.maxBlinkMs) {
                 log.write("blink", "blink $duration ms")
                 return BlinkEvent.Blink(closedSince, duration)
@@ -95,6 +110,11 @@ class BlinkDetector(
                 "longer than ${settings.maxBlinkMs} ms"
             }
             log.write("blink", "ignored $duration ms, $why")
+        } else if (settings.chooseWhileShut && !chosen && sample.timeMs - closedSince >= settings.minBlinkMs) {
+            chosen = true
+            val duration = sample.timeMs - closedSince
+            log.write("blink", "blink $duration ms, chosen with the eyes still shut")
+            return BlinkEvent.Blink(closedSince, duration)
         }
         return if (wasTracking) null else BlinkEvent.FaceFound
     }

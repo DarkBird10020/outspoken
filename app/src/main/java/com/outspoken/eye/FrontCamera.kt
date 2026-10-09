@@ -29,7 +29,7 @@ class FrontCamera(private val context: Context, private val owner: LifecycleOwne
         providerFuture.addListener({
             val provider = providerFuture.get().also { this.provider = it }
             val analysis = ImageAnalysis.Builder()
-                .setResolutionSelector(fourByThree(CAMERA_SIZE))
+                .setResolutionSelector(fourByThree(ANALYSIS_SIZE))
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
@@ -58,6 +58,11 @@ class FrontCamera(private val context: Context, private val owner: LifecycleOwne
         // detailed enough for the face mesh. Preview and analysis share 4:3 so the debug dots
         // line up.
         val CAMERA_SIZE = Size(1280, 960)
+
+        // Face tracking only needs a small frame: MediaPipe crops the face to 256 x 256. On the
+        // phone each 1280x960 frame cut the rate from 30 to 20-25 fps once a face was in view, so
+        // the analysed frames are smaller; same 4:3 shape so the dots still line up.
+        val ANALYSIS_SIZE = Size(640, 480)
 
         fun fourByThree(size: Size) = ResolutionSelector.Builder()
             .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)

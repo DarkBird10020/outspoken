@@ -158,4 +158,21 @@ class BlinkDetectorTest {
         val blink = events.single() as BlinkEvent.Blink
         assertTrue(blink.durationMs in 495..530)
     }
+
+    @Test
+    fun `choosing while shut fires once, as soon as the close is long enough`() {
+        detector.settings = BlinkSettings(minBlinkMs = 300, chooseWhileShut = true)
+        hold(500) { eyes(0.95f) }
+        val shutAt = time
+        val blink = hold(400) { eyes(0.05f) }.single() as BlinkEvent.Blink
+        assertEquals(shutAt, blink.startMs)
+        assertTrue(blink.durationMs in 300..340)
+        assertEquals(emptyList<BlinkEvent>(), hold(300) { eyes(0.95f) })
+    }
+
+    @Test
+    fun `a normal blink still does nothing when choosing while shut`() {
+        detector.settings = BlinkSettings(minBlinkMs = 300, chooseWhileShut = true)
+        assertEquals(emptyList<BlinkEvent>(), blink(150))
+    }
 }
