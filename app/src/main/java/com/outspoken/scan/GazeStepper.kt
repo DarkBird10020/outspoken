@@ -82,7 +82,8 @@ class GazeStepper(
         val down = settings.downStrength
         val direction = when {
             eyesOpen && -dy >= settings.lookStrength -> GazeStep.Previous
-            irisLine != null -> if (irisDown) GazeStep.Next else null
+            // Iris when it is read; the blendshape look down only when this frame has no iris.
+            irisLine != null && irisY != null -> if (irisDown) GazeStep.Next else null
             down != null && dy >= down -> GazeStep.Next
             else -> null
         }

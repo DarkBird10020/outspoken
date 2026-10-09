@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: looks no longer bounce back: the eyes returning from a look are not counted as a look the other way, holding a look does not move the resting point, and a look must last 0.35 s. Waiting for the phone test.
+Latest: iris look down is on by default, so a failed calibration or reinstall no longer turns looking down off. Waiting for the phone test.
 
 ## Phone test history
 
@@ -14,6 +14,11 @@ Latest: looks no longer bounce back: the eyes returning from a look are not coun
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
+
+## Looking down never switched off
+
+- [ ] **Iris look down is on by default (0.012).** On the phone a new install wipes the saved settings, and calibration at start failed with no face in view ("Face not seen while looking at the screen"); the defaults had the iris look down off, so looking down stopped working. Calibrated runs gave 0.008 to 0.011. Code: `setup/Tuning.kt`.
+- [ ] **A frame without an iris reading falls back to the blendshape look down** instead of doing nothing. Code: `scan/GazeStepper.kt`. Test: `GazeStepperTest` "with the iris line set but no iris reading, the blendshape look down still works".
 
 ## Steadier looks (owner report: "too fast up and down")
 
