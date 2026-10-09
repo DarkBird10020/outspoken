@@ -2,6 +2,8 @@ package com.outspoken.conversation
 
 import com.outspoken.blink.BlinkDetector
 import com.outspoken.blink.BlinkEvent
+import com.outspoken.blink.Wink
+import com.outspoken.blink.WinkDetector
 import com.outspoken.eye.EyeSample
 import com.outspoken.help.HelpStep
 import com.outspoken.help.HelpTrigger
@@ -32,6 +34,7 @@ class ConversationController(
     private val board: Board = Board(),
     private val log: EventLog = EventLog.None,
     private val gaze: GazeStepper = GazeStepper(log = log),
+    private val wink: WinkDetector = WinkDetector(log = log),
     private val requestReplies: (requestId: Int, turns: List<Turn>) -> Boolean = { _, _ -> false },
     private val help: HelpTrigger = HelpTrigger(log = log),
     private val onHelp: (HelpStep) -> Unit = {},
@@ -85,6 +88,12 @@ class ConversationController(
         help.onEyes(detector.shutSinceMs, nowMs)?.let(onHelp)
         if (moveByEyes && !speaking && !waiting && detector.tracking) {
             // Only shut eyes stop a look; half-lowered lids still count as open here.
+            // Owner request: left wink moves down, right wink moves up; both eyes shut chooses.
+            when (wink.onSample(sample, detector.settings)) {
+                Wink.Left -> moveCursor(cursor + 1, nowMs)
+                Wink.Right -> moveCursor(cursor - 1, nowMs)
+                null -> Unit
+            }
             val eyesOpen = !detector.eyesShut(sample)
             when (gaze.onSample(sample.gaze, eyesOpen, nowMs, sample.irisY)) {
                 GazeStep.Next -> moveCursor(cursor + 1, nowMs)

@@ -298,7 +298,7 @@ class MainActivity : ComponentActivity() {
                         onPractice = { show(Screen.EyeCheck) },
                         onStats = { show(Screen.Stats) },
                         onSelect = { controller.onTap(it, now()) },
-                        eyeHint = if (tuning.moveByEyes) "Look down or up: move.  Close eyes: choose." else "Close your eyes when your choice lights up.",
+                        eyeHint = if (tuning.moveByEyes) "Look or wink to move (left wink down, right wink up).  Close both eyes: choose." else "Close your eyes when your choice lights up.",
                         onAsk = { question ->
                             AppLog.write("listen", "quick topic \"$question\"")
                             controller.onHeard(question, now())

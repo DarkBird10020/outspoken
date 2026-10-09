@@ -161,8 +161,8 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
         const val MIN_IRIS_DOWN_LINE = 0.01f
         const val MIN_CLOSE_RANGE = 0.12f
 
-        /** A look counts at half of the smaller of the two measured looks up. */
-        const val LOOK_SHARE = 0.5f
+        /** A look up counts at 35% of the smaller measured look up (half needed too far a look). */
+        const val LOOK_SHARE = 0.35f
 
         /**
          * A look down counts at 30% of the measured one. The eyes have much less room to move down

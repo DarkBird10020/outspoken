@@ -132,4 +132,33 @@ class EyeModeTest {
         assertEquals(listOf("I need water"), said)
         assertEquals(0, c.ui.value.highlighted.coerceAtLeast(0))
     }
+
+    private fun wink(left: Float, right: Float) {
+        val end = time + 500
+        while (time < end) {
+            controller.onSample(EyeSample(time, true, left, right, gaze = Dot(0f, 0f)))
+            time += 33
+        }
+        frames(800)
+    }
+
+    @Test
+    fun `a left wink moves down and a right wink moves up`() {
+        frames(500)
+        wink(left = 0.05f, right = 0.95f)
+        assertEquals(1, highlighted)
+        wink(left = 0.05f, right = 0.95f)
+        assertEquals(2, highlighted)
+        wink(left = 0.95f, right = 0.05f)
+        assertEquals(1, highlighted)
+        assertEquals(emptyList<String>(), said)
+    }
+
+    @Test
+    fun `after winking, closing both eyes chooses`() {
+        frames(500)
+        wink(left = 0.05f, right = 0.95f)
+        blink()
+        assertEquals(listOf("I am in pain"), said)
+    }
 }

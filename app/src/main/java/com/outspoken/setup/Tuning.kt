@@ -26,7 +26,7 @@ data class Tuning(
     val moveByEyes: Boolean = true,
     // Iris look down on from the start (calibrated runs on the phone gave 0.008 to 0.011), so a
     // failed calibration or a fresh install never leaves looking down off.
-    val gaze: GazeSettings = GazeSettings(irisDownStrength = 0.012f),
+    val gaze: GazeSettings = GazeSettings(lookStrength = 0.3f, irisDownStrength = 0.012f),
 )
 
 /** Keeps [Tuning] across app restarts. */

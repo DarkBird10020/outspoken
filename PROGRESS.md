@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: steady gaze: readings are averaged over a few frames before a look is judged, steps are at least 0.6 s apart, and the gaze box dot shows the averaged values. Waiting for the phone test.
+Latest: wink control (left wink down, right wink up, both eyes choose), easier look up (35% of the measured reach), steady cursor and highlight, easier look down. Waiting for the phone test.
 
 ## Phone test history
 
@@ -14,6 +14,11 @@ Latest: steady gaze: readings are averaged over a few frames before a look is ju
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
+
+## Wink control and easier look up (owner request)
+
+- [ ] **Left wink = highlight down, right wink = highlight up, both eyes shut = choose.** One eye below the shut lines (eye-open value and lid gap) while the other stays above the open line, held 0.3 s; fires once per wink while the eye is still shut. A blink that shuts one eye a frame early is not a wink, and a half-shut other eye is not either. Works alongside looking up and down. Left and right are the person's own. Code: `blink/WinkDetector.kt`, `conversation/ConversationController.kt`. Tests: `WinkDetectorTest`, `EyeModeTest` "a left wink moves down and a right wink moves up", "after winking, closing both eyes chooses".
+- [ ] **Look up needs less movement:** 35% of the smaller measured look up (was half); default 0.3 before calibration. Code: `setup/Calibration.kt` (`LOOK_SHARE`), `setup/Tuning.kt`.
 
 ## Steady cursor and highlight (owner report: "shaking")
 
