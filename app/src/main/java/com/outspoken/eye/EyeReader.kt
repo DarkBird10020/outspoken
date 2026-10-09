@@ -9,6 +9,8 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.Face
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
+import com.outspoken.log.AppLog
+import com.outspoken.log.EyeSummary
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +32,8 @@ class EyeReader(private val onSample: (EyeSample) -> Unit = {}) : ImageAnalysis.
     val fps: StateFlow<Float> = _fps.asStateFlow()
 
     private val fpsMeter = FpsMeter()
+    private val summary = EyeSummary()
+    private var failures = 0
 
     @OptIn(ExperimentalGetImage::class)
     override fun analyze(image: ImageProxy) {
@@ -49,6 +53,13 @@ class EyeReader(private val onSample: (EyeSample) -> Unit = {}) : ImageAnalysis.
                 _samples.value = sample
                 onSample(sample)
                 _fps.value = fpsMeter.onFrame(timeMs)
+                summary.add(sample)?.let { AppLog.write("eyes", it) }
+            }
+            .addOnFailureListener { error ->
+                failures++
+                if (failures == 1 || failures % 100 == 0) {
+                    AppLog.write("eyes", "face detection failed ($failures so far): $error")
+                }
             }
             .addOnCompleteListener { image.close() }
     }
