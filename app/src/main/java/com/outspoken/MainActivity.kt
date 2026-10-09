@@ -21,11 +21,13 @@ import androidx.lifecycle.lifecycleScope
 import com.outspoken.blink.BlinkDetector
 import com.outspoken.conversation.ConversationController
 import com.outspoken.eye.EyeReader
+import com.outspoken.eye.EyeSample
 import com.outspoken.eye.FrontCamera
 import com.outspoken.log.AppLog
 import com.outspoken.log.exportLogs
 import com.outspoken.scan.GazeStepper
 import com.outspoken.scan.Scanner
+import com.outspoken.setup.Calibration
 import com.outspoken.setup.Tuning
 import com.outspoken.setup.TuningStore
 import com.outspoken.setup.checkOfflineVoice
@@ -39,6 +41,7 @@ import com.outspoken.suggest.SuggestionEngine
 import com.outspoken.suggest.SuggestionRequest
 import com.outspoken.suggest.Turn
 import com.outspoken.ui.ConversationScreen
+import com.outspoken.ui.CalibrationScreen
 import com.outspoken.ui.EyeCheckScreen
 import com.outspoken.ui.EyeMonitor
 import com.outspoken.ui.SetupStatus
@@ -55,7 +58,7 @@ import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
 
-    private enum class Screen { Conversation, EyeCheck }
+    private enum class Screen { Conversation, EyeCheck, Calibrate }
 
     private lateinit var speaker: Speaker
     private lateinit var camera: FrontCamera
@@ -78,6 +81,11 @@ class MainActivity : ComponentActivity() {
     private var offlineVoice by mutableStateOf<Boolean?>(null)
     private var screen by mutableStateOf(Screen.Conversation)
     private var tuning by mutableStateOf(Tuning())
+    private val calibration = Calibration()
+    private var calibrationPrompt by mutableStateOf("")
+    private var calibrationProgress by mutableStateOf(0f)
+    private var calibrationOutcome by mutableStateOf<String?>(null)
+    private var calibrationFailed by mutableStateOf(false)
     private var lastReplyLine by mutableStateOf("none yet")
     private var importLine by mutableStateOf<String?>(null)
     private var suggestionEngine: SuggestionEngine? = null
@@ -93,7 +101,10 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             cameraGranted = granted
             AppLog.write("app", "camera permission ${if (granted) "granted" else "denied"}")
-            if (granted) camera.start(eyeReader, analyzerExecutor)
+            if (granted) {
+                camera.start(eyeReader, analyzerExecutor)
+                startCalibration()
+            }
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -104,7 +115,7 @@ class MainActivity : ComponentActivity() {
         tuningStore = TuningStore(this)
         applyTuning(tuningStore.load())
         AppLog.write("app", "tuning $tuning")
-        eyeReader = EyeReader(this) { controller.onSample(it) }
+        eyeReader = EyeReader(this) { if (screen == Screen.Calibrate) onCalibrationSample(it) else controller.onSample(it) }
         eyeReader.dotsOn = true
         speaker = Speaker(this) { controller.onSpeechDone(now()) }
         camera = FrontCamera(this, this)
@@ -113,6 +124,11 @@ class MainActivity : ComponentActivity() {
         AppLog.write("app", "camera permission ${if (cameraGranted) "already granted" else "requested"}")
         if (cameraGranted) {
             camera.start(eyeReader, analyzerExecutor)
+            // Eye readings change with where the phone sits, so each start measures them again.
+            lifecycleScope.launch {
+                delay(CALIBRATION_START_DELAY_MS)
+                startCalibration()
+            }
         } else {
             cameraPermission.launch(Manifest.permission.CAMERA)
         }
@@ -139,7 +155,24 @@ class MainActivity : ComponentActivity() {
                     delay(TICK_MS)
                 }
             }
-            if (!cameraGranted || screen == Screen.EyeCheck) {
+            if (cameraGranted && screen == Screen.Calibrate) {
+                BackHandler { show(Screen.Conversation) }
+                val sample by eyeReader.samples.collectAsStateWithLifecycle()
+                MaterialTheme {
+                    CalibrationScreen(
+                        prompt = calibrationPrompt,
+                        progress = calibrationProgress,
+                        outcome = calibrationOutcome,
+                        failed = calibrationFailed,
+                        sample = sample,
+                        settings = tuning.blink,
+                        onPreviewReady = camera::showPreview,
+                        onPreviewGone = camera::hidePreview,
+                        onRetry = ::startCalibration,
+                        onSkip = { show(Screen.Conversation) },
+                    )
+                }
+            } else if (!cameraGranted || screen == Screen.EyeCheck) {
                 BackHandler(enabled = screen == Screen.EyeCheck) { show(Screen.Conversation) }
                 val sample by eyeReader.samples.collectAsStateWithLifecycle()
                 val fps by eyeReader.fps.collectAsStateWithLifecycle()
@@ -166,6 +199,7 @@ class MainActivity : ComponentActivity() {
                         onPreviewGone = camera::hidePreview,
                         onChooseModel = { modelPicker.launch(arrayOf("*/*")) },
                         onSaveLogs = { logSaver.launch("outspoken-logs.txt") },
+                        onCalibrate = ::startCalibration,
                     )
                 }
             } else {
@@ -188,6 +222,56 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    /** Spoken steps that set the look and blink lines from this person's eyes (PRD F6). */
+    private fun startCalibration() {
+        calibration.start(now())
+        calibrationOutcome = null
+        calibrationFailed = false
+        calibrationProgress = 0f
+        calibrationPrompt = calibration.step.prompt
+        AppLog.write("calibration", "started")
+        speaker.speak(calibrationPrompt)
+        show(Screen.Calibrate)
+    }
+
+    private fun onCalibrationSample(sample: EyeSample) {
+        if (calibrationOutcome != null) return
+        calibrationProgress = calibration.progress(sample.timeMs)
+        val step = calibration.onSample(sample) ?: return
+        if (step != Calibration.Step.Done) {
+            calibrationPrompt = step.prompt
+            speaker.speak(step.prompt)
+            return
+        }
+        when (val result = calibration.result(tuning)) {
+            is Calibration.Result.Ok -> {
+                applyTuning(result.tuning)
+                tuningStore.save(result.tuning)
+                val m = result.measured
+                AppLog.write(
+                    "calibration",
+                    "ok: rest gaze ${fmt(m.restGaze)}, look up reach ${fmt(m.upReach)}, open ${fmt(m.restOpen)}, " +
+                        "closed ${fmt(m.closedOpen)} -> look ${fmt(result.tuning.gaze.lookStrength)}, " +
+                        "shut line ${fmt(result.tuning.blink.closedBelow)}, open line ${fmt(result.tuning.blink.openAbove)}",
+                )
+                calibrationOutcome = "Done. Look up to move, close your eyes to choose."
+                speaker.speak("Done")
+                lifecycleScope.launch {
+                    delay(CALIBRATION_DONE_MS)
+                    if (screen == Screen.Calibrate) show(Screen.Conversation)
+                }
+            }
+            is Calibration.Result.Failed -> {
+                AppLog.write("calibration", "failed: ${result.reason}")
+                calibrationOutcome = result.reason
+                calibrationFailed = true
+                speaker.speak(result.reason)
+            }
+        }
+    }
+
+    private fun fmt(value: Float) = String.format(Locale.US, "%.2f", value)
 
     override fun onResume() {
         super.onResume()
@@ -290,5 +374,9 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val TICK_MS = 50L
+        const val CALIBRATION_DONE_MS = 2_500L
+
+        // Gives the offline voice time to start so the first prompt is spoken.
+        const val CALIBRATION_START_DELAY_MS = 1_500L
     }
 }
