@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: looks have hysteresis (start at the line, end below half of it) and the look up line has a 0.2 floor, so looks down register reliably without extra steps. Repeated-looks-down fix merged with the demo-reliability changes. Waiting for the phone test.
+Latest: no false looks up when coming back from a look down (1 s window) or when the face returns (1 s settle). Waiting for the phone test.
 
 ## Phone test history
 
@@ -27,6 +27,12 @@ The app now launches with an interactive practice round on first use, teaches th
 - [x] **Stale preferences guard.** `TuningStore` upgrades hyper-sensitive legacy values (`minBlinkMs < 350` or `lookStrength < 0.35`) to recommended stable defaults. Code: `setup/Tuning.kt`.
 - [x] **Live transcript mirrored to laptop via Office Kit (PRD S2).** High-contrast, large-font full-screen transcript view accessible via top bar icon button. Renders real-time visitor speech (22sp) and speaker eye-blink replies (26sp pink card), live listening status pill, and session sentence counters. Zero internet used. Code: `ui/TranscriptScreen.kt`, `conversation/ConversationController.kt`, `MainActivity.kt`.
 - [x] **Frequent phrases in-session learning (PRD S3).** Dynamically learns sentences chosen by the speaker and prioritizes them to earlier phrase-bank pages and LLM top-up/fallback candidates, reducing eye movements required for habitual needs. Code: `conversation/Board.kt`, `conversation/ConversationController.kt`, `suggest/ModelSuggestionEngine.kt`.
+
+## Looks up: same fixes (owner report)
+
+- [ ] **The way back from a look is ignored for 1 s** (was 0.7 s). Phone 02:22:47 look down, 02:22:48.7 a "look up": the eyes coming back took 1.3 s. Code: `scan/GazeStepper.kt` (`REBOUND_MS`).
+- [ ] **For 1 s after the face comes back, only the resting gaze is learned, quickly; nothing moves.** Phone 02:23:30.9 face found, 02:23:31.4 a "look up 0.56": the rest had been taken from the first, still-moving frame. Code: `scan/GazeStepper.kt` (`SETTLE_MS`). Test: `GazeStepperTest` "just after the face comes back nothing steps while the rest is learned".
+- Tests updated on purpose: the rebound test and the `EyeModeTest` helpers pause 1 s between opposite looks, longer than the new window.
 
 ## Looks with hysteresis (owner report: down "too fast, hard to register, extra steps")
 
