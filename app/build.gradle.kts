@@ -29,6 +29,16 @@ android {
         buildConfigField("String", "COMMIT", "\"${gitCommit()}\"")
         buildConfigField("boolean", "CHANGED", "${gitChanged()}")
         buildConfigField("boolean", "FROM_CI", "${System.getenv("GITHUB_ACTIONS") == "true"}")
+        buildConfigField("boolean", "SHARED_KEY", "${System.getenv("GITHUB_ACTIONS") == "true" || sharedDebugKey.exists()}")
+    }
+
+    // The team's shared debug key, the one CI signs with, kept outside the repo. With it every
+    // laptop build and every CI APK installs over the last one, so nothing has to be uninstalled
+    // and the phone keeps its settings, logs and "All files access".
+    signingConfigs {
+        getByName("debug") {
+            if (sharedDebugKey.exists()) storeFile = sharedDebugKey
+        }
     }
 
     buildTypes {
@@ -79,6 +89,8 @@ dependencies {
 
     testImplementation(libs.junit)
 }
+
+val sharedDebugKey: File get() = File(System.getProperty("user.home"), ".android/outspoken-debug.keystore")
 
 fun git(vararg args: String): String = runCatching {
     providers.exec { commandLine("git", *args) }.standardOutput.asText.get().trim()
