@@ -135,4 +135,11 @@ class GazeStepperTest {
         repeat(20) { stepper.onSample(Dot(0f, 0.9f), true, time, irisY = 0.12f)?.let(steps::add); time += 50 }
         assertEquals(emptyList<GazeStep>(), steps)
     }
+
+    @Test
+    fun `with the iris line set but no iris reading, the blendshape look down still works`() {
+        stepper.settings = stepper.settings.copy(irisDownStrength = 0.012f)
+        look(500)
+        assertEquals(listOf(GazeStep.Next), look(1_000, y = 0.4f))
+    }
 }

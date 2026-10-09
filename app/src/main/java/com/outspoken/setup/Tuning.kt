@@ -24,7 +24,9 @@ data class Tuning(
     val scanMs: Long = 1_200,
     /** The highlight moves when the eyes look up. Off: it moves on its own every [scanMs]. */
     val moveByEyes: Boolean = true,
-    val gaze: GazeSettings = GazeSettings(),
+    // Iris look down on from the start (calibrated runs on the phone gave 0.008 to 0.011), so a
+    // failed calibration or a fresh install never leaves looking down off.
+    val gaze: GazeSettings = GazeSettings(irisDownStrength = 0.012f),
 )
 
 /** Keeps [Tuning] across app restarts. */
@@ -48,7 +50,11 @@ class TuningStore(context: Context) {
             moveByEyes = prefs.getBoolean("moveByEyes", default.moveByEyes),
             gaze = GazeSettings(
                 lookStrength = prefs.getFloat("lookStrength", default.gaze.lookStrength),
-                irisDownStrength = prefs.getFloat("irisDownStrength", NOT_SET).takeIf { it != NOT_SET },
+                irisDownStrength = if (prefs.contains("irisDownStrength")) {
+                    prefs.getFloat("irisDownStrength", NOT_SET).takeIf { it != NOT_SET }
+                } else {
+                    default.gaze.irisDownStrength
+                },
                 downStrength = if (prefs.contains("downStrength")) {
                     prefs.getFloat("downStrength", NOT_SET).takeIf { it != NOT_SET }
                 } else {
