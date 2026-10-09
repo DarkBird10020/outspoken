@@ -99,4 +99,25 @@ class ConversationControllerTest {
         controller.onSample(EyeSample(10_000 + 1_180, true, 0.95f, 0.95f))
         assertEquals(1, controller.ui.value.highlighted)
     }
+
+    @Test
+    fun `allTurns preserves speaker and listener turns in order`() {
+        controller.onHeard("How are you feeling?", time)
+        controller.onTap(0, time + 100)
+        assertEquals(2, controller.allTurns.size)
+        assertTrue(controller.allTurns[0].fromListener)
+        assertEquals("How are you feeling?", controller.allTurns[0].text)
+        assertFalse(controller.allTurns[1].fromListener)
+        assertEquals("I need water", controller.allTurns[1].text)
+    }
+
+    @Test
+    fun `frequent phrases sorts by count descending`() {
+        controller.onTap(0, time)
+        controller.onSpeechDone(time + 100)
+        controller.onTap(1, time + 200)
+        controller.onSpeechDone(time + 300)
+        controller.onTap(1, time + 400)
+        assertEquals(listOf("I am in pain", "I need water"), controller.frequentPhrases)
+    }
 }

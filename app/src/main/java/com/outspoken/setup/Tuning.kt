@@ -39,11 +39,16 @@ class TuningStore(context: Context) {
     fun load(): Tuning {
         val default = Tuning()
         val blink = default.blink
+        val rawMinBlink = prefs.getLong("minBlinkMs", blink.minBlinkMs)
+        val rawLookStrength = prefs.getFloat("lookStrength", default.gaze.lookStrength)
+        // Guard against stale early settings saved on device that caused hyper-sensitive triggers
+        val safeMinBlink = if (rawMinBlink < 250L) blink.minBlinkMs else rawMinBlink
+        val safeLookStrength = if (rawLookStrength < 0.35f) default.gaze.lookStrength else rawLookStrength
         return Tuning(
             blink = blink.copy(
                 closedBelow = prefs.getFloat("closedBelow", blink.closedBelow),
                 openAbove = prefs.getFloat("openAbove", blink.openAbove),
-                minBlinkMs = prefs.getLong("minBlinkMs", blink.minBlinkMs),
+                minBlinkMs = safeMinBlink,
                 maxBlinkMs = prefs.getLong("maxBlinkMs", blink.maxBlinkMs),
                 shapeClosedBelow = prefs.getFloat("shapeClosedBelow", NOT_SET).takeIf { it != NOT_SET },
                 shapeOpenAbove = prefs.getFloat("shapeOpenAbove", NOT_SET).takeIf { it != NOT_SET },
@@ -51,7 +56,7 @@ class TuningStore(context: Context) {
             scanMs = prefs.getLong("scanMs", default.scanMs),
             moveByEyes = prefs.getBoolean("moveByEyes", default.moveByEyes),
             gaze = GazeSettings(
-                lookStrength = prefs.getFloat("lookStrength", default.gaze.lookStrength),
+                lookStrength = safeLookStrength,
                 irisDownStrength = if (prefs.contains("irisDownStrength")) {
                     prefs.getFloat("irisDownStrength", NOT_SET).takeIf { it != NOT_SET }
                 } else {
@@ -65,6 +70,12 @@ class TuningStore(context: Context) {
                 lookHoldMs = prefs.getLong("lookHoldMs", default.gaze.lookHoldMs),
             ),
         )
+    }
+
+    fun hasCompletedPractice(): Boolean = prefs.getBoolean("practiceCompleted", false)
+
+    fun markPracticeCompleted() {
+        prefs.edit().putBoolean("practiceCompleted", true).apply()
     }
 
     fun save(tuning: Tuning) {

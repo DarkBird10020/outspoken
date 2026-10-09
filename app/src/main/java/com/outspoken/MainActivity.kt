@@ -43,6 +43,7 @@ import com.outspoken.setup.TuningStore
 import com.outspoken.setup.checkOfflineVoice
 import com.outspoken.setup.findModelFile
 import com.outspoken.speech.Speaker
+import com.outspoken.practice.PracticeController
 import com.outspoken.stats.PitStats
 import com.outspoken.suggest.ModelImporter
 import com.outspoken.suggest.ModelState
@@ -55,10 +56,13 @@ import com.outspoken.ui.CalibrationScreen
 import com.outspoken.ui.ConversationScreen
 import com.outspoken.ui.EyeCheckScreen
 import com.outspoken.ui.EyeMonitor
+import com.outspoken.ui.PracticeScreen
 import com.outspoken.ui.HelpAlertScreen
 import com.outspoken.ui.SetupStatus
 import com.outspoken.ui.StatsScreen
 import com.outspoken.ui.StatsUi
+import com.outspoken.ui.TranscriptScreen
+import com.outspoken.ui.TranscriptUi
 import com.outspoken.ui.describeReplies
 import com.outspoken.ui.theme.OutspokenTheme
 import kotlinx.coroutines.Dispatchers
@@ -72,12 +76,13 @@ import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
 
-    private enum class Screen { Conversation, EyeCheck, Calibrate, Help, Stats }
+    private enum class Screen { Conversation, Practice, EyeCheck, Calibrate, Help, Stats, Transcript }
 
     private lateinit var speaker: Speaker
     private lateinit var camera: FrontCamera
     private lateinit var tuningStore: TuningStore
     private lateinit var eyeReader: EyeReader
+    private lateinit var practiceController: PracticeController
     private val blinkDetector = BlinkDetector(log = AppLog)
     private val scanner = Scanner()
     private val gazeStepper = GazeStepper(log = AppLog)
@@ -147,12 +152,23 @@ class MainActivity : ComponentActivity() {
         tuningStore = TuningStore(this)
         applyTuning(tuningStore.load())
         AppLog.write("app", "tuning $tuning")
-        eyeReader = EyeReader(this) {
+        practiceController = PracticeController(
+            initialTuning = tuning,
+            log = AppLog,
+            speak = ::say,
+            onCalibrated = { calibrated ->
+                applyTuning(calibrated)
+                tuningStore.save(calibrated)
+            },
+        )
+
+        eyeReader = EyeReader(this) { sample ->
             when (screen) {
-                Screen.Calibrate -> onCalibrationSample(it)
-                // While the alarm screen is up, eyes pick nothing.
-                Screen.Help -> Unit
-                else -> controller.onSample(it)
+                Screen.Practice -> practiceController.onSample(sample)
+                Screen.Calibrate -> onCalibrationSample(sample)
+                // While the alarm screen or mirrored transcript is up, eyes pick nothing.
+                Screen.Help, Screen.Transcript -> Unit
+                else -> controller.onSample(sample)
             }
         }
         eyeReader.dotsOn = true
@@ -198,10 +214,15 @@ class MainActivity : ComponentActivity() {
             OnDeviceModel.state.collect { state ->
                 AppLog.write("model", modelLine(state))
                 if (state is ModelState.Ready && suggestionEngine == null) {
-                    suggestionEngine = ModelSuggestionEngine(state.model, ::now)
+                    suggestionEngine = ModelSuggestionEngine(state.model, frequentPhrases = { controller.frequentPhrases }, clockMs = ::now)
                     controller.refreshReplies()
                 }
             }
+        }
+
+        // First launch opens the practice / tutorial round directly
+        if (!tuningStore.hasCompletedPractice()) {
+            screen = Screen.Practice
         }
 
         setContent {
@@ -289,14 +310,38 @@ class MainActivity : ComponentActivity() {
                         },
                     )
                 }
+            } else if (screen == Screen.Practice) {
+                BackHandler { show(Screen.Conversation) }
+                val practiceUi by practiceController.ui.collectAsStateWithLifecycle()
+                OutspokenTheme {
+                    PracticeScreen(
+                        ui = practiceUi,
+                        onBack = { show(Screen.Conversation) },
+                        onStart = {
+                            tuningStore.markPracticeCompleted()
+                            show(Screen.Conversation)
+                        },
+                    )
+                }
+            } else if (screen == Screen.Transcript) {
+                BackHandler { show(Screen.Conversation) }
+                OutspokenTheme {
+                    TranscriptScreen(
+                        ui = transcriptUi(),
+                        onBack = { show(Screen.Conversation) },
+                    )
+                }
             } else {
                 val conversation by controller.ui.collectAsStateWithLifecycle()
                 OutspokenTheme {
                     ConversationScreen(
                         ui = conversation,
-                        // The practice round arrives in M3; until then this shows the live eye numbers.
-                        onPractice = { show(Screen.EyeCheck) },
+                        onPractice = {
+                            practiceController.reset()
+                            show(Screen.Practice)
+                        },
                         onStats = { show(Screen.Stats) },
+                        onTranscript = { show(Screen.Transcript) },
                         onSelect = { controller.onTap(it, now()) },
                         eyeHint = if (tuning.moveByEyes) "Look or wink to move (left wink down, right wink up).  Close both eyes: choose." else "Close your eyes when your choice lights up.",
                         onAsk = { question ->
@@ -457,10 +502,16 @@ class MainActivity : ComponentActivity() {
         if (micGranted) updateListening() else micPermission.launch(Manifest.permission.RECORD_AUDIO)
     }
 
-    /** Listens only on the conversation page while the app is on screen. */
+    /** Listens on the conversation and mirrored transcript pages while the app is on screen. */
     private fun updateListening() {
-        if (micGranted && visible && screen == Screen.Conversation) listener.start() else listener.stop()
+        if (micGranted && visible && (screen == Screen.Conversation || screen == Screen.Transcript)) listener.start() else listener.stop()
     }
+
+    private fun transcriptUi() = TranscriptUi(
+        turns = controller.allTurns,
+        isListening = micGranted && visible && (screen == Screen.Conversation || screen == Screen.Transcript),
+        totalSentences = controller.history.size,
+    )
 
     private fun show(next: Screen) {
         AppLog.write("ui", "screen $next")
