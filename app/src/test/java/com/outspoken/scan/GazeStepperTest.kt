@@ -165,4 +165,17 @@ class GazeStepperTest {
         repeat(12) { stepper.onSample(Dot(0f, 0.7f), false, time, irisY = 0.009f)?.let(steps::add); time += 50 }
         assertEquals(emptyList<GazeStep>(), steps)
     }
+
+    @Test
+    fun `a drifting resting iris is followed instead of stepping again and again`() {
+        stepper.settings = stepper.settings.copy(irisDownStrength = 0.02f)
+        repeat(10) { stepper.onSample(Dot(0f, 0.4f), true, time, irisY = -0.03f); time += 50 }
+        // Phone log 00:51: resting eyes drift from -0.034 to -0.013 without a look.
+        val steps = mutableListOf<GazeStep>()
+        for (iris in listOf(-0.025f, -0.02f, -0.016f, -0.013f)) {
+            repeat(30) { stepper.onSample(Dot(0f, 0.4f), true, time, irisY = iris)?.let(steps::add); time += 50 }
+        }
+        assertEquals(emptyList<GazeStep>(), steps)
+        assertEquals(-0.013f, stepper.restIrisDrop!!, 0.004f)
+    }
 }

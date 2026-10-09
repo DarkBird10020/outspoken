@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: blinks restored from eyelid gap; shut eyes never step; Office Kit live transcript view (S2); in-session frequent phrases learning (S3); interactive practice tutorial screen (F6); iris look down with rebound guard (0.7 s); arm64 APK.
+Latest: resting iris drift followed and iris down line floor (0.02) to stop accidental steps; blinks restored from lid gap; shut eyes never step; Office Kit live transcript view (S2); in-session frequent phrases learning (S3); interactive practice tutorial screen (F6); iris look down with rebound guard (0.7 s); arm64 APK.
 
 ## Phone test history
 
@@ -27,6 +27,11 @@ The app now launches with an interactive practice round on first use, teaches th
 - [x] **Stale preferences guard.** `TuningStore` upgrades hyper-sensitive legacy values (`minBlinkMs < 350` or `lookStrength < 0.35`) to recommended stable defaults. Code: `setup/Tuning.kt`.
 - [x] **Live transcript mirrored to laptop via Office Kit (PRD S2).** High-contrast, large-font full-screen transcript view accessible via top bar icon button. Renders real-time visitor speech (22sp) and speaker eye-blink replies (26sp pink card), live listening status pill, and session sentence counters. Zero internet used. Code: `ui/TranscriptScreen.kt`, `conversation/ConversationController.kt`, `MainActivity.kt`.
 - [x] **Frequent phrases in-session learning (PRD S3).** Dynamically learns sentences chosen by the speaker and prioritizes them to earlier phrase-bank pages and LLM top-up/fallback candidates, reducing eye movements required for habitual needs. Code: `conversation/Board.kt`, `conversation/ConversationController.kt`, `suggest/ModelSuggestionEngine.kt`.
+
+## No more moving on its own (owner report)
+
+- [ ] **The resting iris is followed as it drifts.** In the 00:51 phone run the iris moved between -0.036 and +0.005 with the eyes at rest; the rest point only followed within half the 0.017 line, so once the eyes drifted further it stayed behind and resting eyes read as a look down again and again (five steps down in 7 s, 00:51:40 to 00:51:47). It now follows across the whole band below the line, and creeps 1% per frame during a look down. Code: `scan/GazeStepper.kt`. Test: `GazeStepperTest` "a drifting resting iris is followed instead of stepping again and again".
+- [ ] **The look down line is at least 0.02**, above the resting drift; calibration can only set it higher. Default 0.02. Code: `setup/Calibration.kt` (`MIN_IRIS_DOWN_LINE`), `setup/Tuning.kt`.
 
 ## Blinks restored: the iris no longer blocks a close (owner report)
 

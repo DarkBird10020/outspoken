@@ -129,7 +129,7 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
             gaze = current.gaze.copy(
                 lookStrength = upReach * LOOK_SHARE,
                 downStrength = if (downReach >= MIN_DOWN_REACH) downReach * DOWN_SHARE else null,
-                irisDownStrength = irisDownReach?.takeIf { it >= MIN_IRIS_DOWN_REACH }?.let { it * DOWN_SHARE },
+                irisDownStrength = irisDownReach?.takeIf { it >= MIN_IRIS_DOWN_REACH }?.let { maxOf(it * DOWN_SHARE, MIN_IRIS_DOWN_LINE) },
             ),
         )
         return Result.Ok(tuning, measured)
@@ -153,6 +153,9 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
 
         /** Iris drop as a share of the eye width; a deliberate look down moves it several times this. */
         const val MIN_IRIS_DOWN_REACH = 0.02f
+
+        /** The resting iris drifts about 0.04; a line under 0.02 let resting eyes step down. */
+        const val MIN_IRIS_DOWN_LINE = 0.02f
         const val MIN_CLOSE_RANGE = 0.12f
 
         /** A look counts at half of the smaller of the two measured looks up. */
