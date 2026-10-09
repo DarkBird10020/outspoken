@@ -2,6 +2,7 @@ package com.outspoken.blink
 
 import com.outspoken.eye.EyeSample
 import com.outspoken.log.EventLog
+import kotlin.math.abs
 
 /** Which eye winked, by the person's own left and right. */
 enum class Wink { Left, Right }
@@ -28,16 +29,37 @@ class WinkDetector(
     private var armed = true
     private var bothOpenSinceMs: Long? = null
 
+    private var smoothDiff = 0f
+    private var restDiff = 0f
+    private var diffSeen = false
+
     /** One eye is held shut right now, whether or not the wink has fired yet. */
     val active: Boolean get() = winking != null
+
+    /**
+     * One eye reads clearly lower than the other, measured from this person's usual difference
+     * between the eyes. True while a wink starts, is held, or the eye is still half open after it.
+     * On the phone the gaze reading jumped up the whole time one eye was half shut (02:29:36 to
+     * 02:29:51), so looks must not count then.
+     */
+    val oneEyeLower: Boolean get() = abs(smoothDiff - restDiff) >= ONE_EYE_LOWER
 
     fun onSample(sample: EyeSample, settings: BlinkSettings): Wink? {
         val left = sample.leftOpen
         val right = sample.rightOpen
         if (!sample.faceFound || left == null || right == null) {
             winking = null
+            smoothDiff = restDiff
             return null
         }
+        if (!diffSeen) {
+            smoothDiff = left - right
+            restDiff = smoothDiff
+            diffSeen = true
+        }
+        smoothDiff += (left - right - smoothDiff) * DIFF_SMOOTHING
+        // Slowly even while lowered, so eyes that always read apart stop counting as a wink.
+        restDiff += (smoothDiff - restDiff) * if (oneEyeLower) LOWERED_FOLLOW else REST_FOLLOW
         fun winks(shut: Float, other: Float) =
             shut < settings.closedBelow && other > settings.openAbove && other - shut >= MIN_DIFFERENCE
         val current = when {
@@ -77,5 +99,15 @@ class WinkDetector(
 
         /** No two winks closer than this. */
         const val MIN_GAP_MS = 600L
+
+        /** How far one eye must read below its usual difference from the other to stop looks. */
+        const val ONE_EYE_LOWER = 0.2f
+
+        const val DIFF_SMOOTHING = 0.5f
+
+        /** How fast the usual difference between the eyes follows while neither eye is lowered. */
+        const val REST_FOLLOW = 0.02f
+
+        const val LOWERED_FOLLOW = 0.003f
     }
 }

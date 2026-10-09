@@ -101,24 +101,28 @@ class ConversationController(
         if (moveByEyes && !speaking && !waiting && detector.tracking) {
             // Only shut eyes stop a look; half-lowered lids still count as open here.
             // Owner request: left wink moves down, right wink moves up; both eyes shut chooses.
-            when (wink.onSample(sample, detector.settings)) {
-                Wink.Left -> {
-                    moveCursor(cursor + 1, nowMs)
-                    gaze.pauseUntil(nowMs + AFTER_WINK_MS)
+            val winked = wink.onSample(sample, detector.settings)
+            if (winked != null) {
+                // The eye starting to close shifts the gaze reading, so a look can fire just
+                // before the wink does (phone 02:29:49). Take that look back.
+                if (nowMs - lastLookMs <= LOOK_UNDO_MS) {
+                    log.write("gaze", "look undone, a wink came ${nowMs - lastLookMs} ms after it")
+                    moveCursor(beforeLook, nowMs)
                 }
-                Wink.Right -> {
-                    moveCursor(cursor - 1, nowMs)
-                    gaze.pauseUntil(nowMs + AFTER_WINK_MS)
-                }
-                null -> Unit
+                lastLookMs = Long.MIN_VALUE / 2
+                moveCursor(if (winked == Wink.Left) cursor + 1 else cursor - 1, nowMs)
             }
+            // One eye lower than the other pauses looks, and for a moment after: half closing one
+            // eye moved the gaze reading as far as a real look up (phone 02:29:36 to 02:29:51).
+            if (wink.active || wink.oneEyeLower) gaze.pauseUntil(nowMs + AFTER_WINK_MS)
             // Either eye shut pauses looks: closing one eye for a wink shifts the gaze and iris
             // readings, and on the phone a left wink also fired a "look down" (01:35:38).
-            val eyesOpen = !detector.eitherEyeShut(sample) && !wink.active
-            when (gaze.onSample(sample.gaze, eyesOpen, nowMs, sample.irisY)) {
-                GazeStep.Next -> moveCursor(cursor + 1, nowMs)
-                GazeStep.Previous -> moveCursor(cursor - 1, nowMs)
-                null -> Unit
+            val eyesOpen = !detector.eitherEyeShut(sample)
+            val step = gaze.onSample(sample.gaze, eyesOpen, nowMs, sample.irisY)
+            if (step != null) {
+                beforeLook = cursor
+                lastLookMs = nowMs
+                moveCursor(if (step == GazeStep.Next) cursor + 1 else cursor - 1, nowMs)
             }
         }
         publish(nowMs)
@@ -274,6 +278,9 @@ class ConversationController(
     }
 
     /** Moves the eye-mode highlight, wrapping round the ends of the list. */
+    private var lastLookMs = Long.MIN_VALUE / 2
+    private var beforeLook = 0
+
     private fun moveCursor(position: Int, nowMs: Long) {
         val size = board.cards.size
         previousCursor = cursor
@@ -293,7 +300,10 @@ class ConversationController(
     }
 
     private companion object {
-        /** Looks are ignored this long after a wink, while the winking eye reopens. */
-        const val AFTER_WINK_MS = 1_000L
+        /** Looks are ignored this long after one eye stops reading lower than the other. */
+        const val AFTER_WINK_MS = 800L
+
+        /** A look this soon before a wink was the wink starting, not a look. */
+        const val LOOK_UNDO_MS = 1_000L
     }
 }

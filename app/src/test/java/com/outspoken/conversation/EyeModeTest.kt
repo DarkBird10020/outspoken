@@ -226,4 +226,41 @@ class EyeModeTest {
         // Phone 02:23:51: wink down, then "look up" 0.45 s later. Now only the wink moves.
         assertEquals(1, highlighted)
     }
+
+    private fun eyes(ms: Long, left: Float, right: Float, gazeY: Float = 0f) {
+        val end = time + ms
+        while (time < end) {
+            controller.onSample(EyeSample(time, true, left, right, gaze = Dot(0f, gazeY)))
+            time += 33
+        }
+    }
+
+    @Test
+    fun `an eye left half shut between winks is not a look up`() {
+        frames(500)
+        eyes(500, 0.05f, 0.95f)
+        // Phone 02:29:36: the winking eye stayed at 0.5 and the gaze read up for over a second.
+        eyes(1_200, 0.55f, 0.90f, gazeY = -0.7f)
+        frames(1_100)
+        assertEquals(1, highlighted)
+    }
+
+    @Test
+    fun `a look fired just before a wink is taken back`() {
+        frames(500)
+        // Phone 02:29:49: the eye starting to close read as a look up 0.4 s before the wink.
+        frames(500, gazeY = -0.7f)
+        assertEquals(Board.YES_NO, highlighted)
+        eyes(500, 0.05f, 0.95f)
+        frames(1_100)
+        assertEquals(1, highlighted)
+    }
+
+    @Test
+    fun `looks still work when one eye always reads lower`() {
+        eyes(500, 0.95f, 0.70f)
+        eyes(500, 0.95f, 0.70f, gazeY = 0.5f)
+        eyes(1_100, 0.95f, 0.70f)
+        assertEquals(1, highlighted)
+    }
 }

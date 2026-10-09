@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: winks are steady too: looks pause for 1 s after a wink, and winks need both eyes open again (0.2 s) and 0.6 s apart. Waiting for the phone test.
+Latest: winks no longer move up and down: looks stop while one eye reads lower than the other (and 0.8 s after), and a look just before a wink is taken back. Waiting for the phone test.
 
 ## Phone test history
 
@@ -28,9 +28,16 @@ The app now launches with an interactive practice round on first use, teaches th
 - [x] **Live transcript mirrored to laptop via Office Kit (PRD S2).** High-contrast, large-font full-screen transcript view accessible via top bar icon button. Renders real-time visitor speech (22sp) and speaker eye-blink replies (26sp pink card), live listening status pill, and session sentence counters. Zero internet used. Code: `ui/TranscriptScreen.kt`, `conversation/ConversationController.kt`, `MainActivity.kt`.
 - [x] **Frequent phrases in-session learning (PRD S3).** Dynamically learns sentences chosen by the speaker and prioritizes them to earlier phrase-bank pages and LLM top-up/fallback candidates, reducing eye movements required for habitual needs. Code: `conversation/Board.kt`, `conversation/ConversationController.kt`, `suggest/ModelSuggestionEngine.kt`.
 
+## Winks moving up and down (owner report)
+
+Phone run 02:29:33 to 02:29:52: every wink registered, but extra "look up" steps came in between. While one eye was shut or half shut (0.5 against 0.9), the gaze reading sat at 0.28 against a rest of 0.60, as far as a real look up.
+
+- [ ] **Looks stop while one eye reads lower than the other**, and for 0.8 s after. "Lower" means 0.2 beyond this person's usual difference between the eyes, so eyes that always read a bit apart still work. Code: `blink/WinkDetector.kt` (`oneEyeLower`), `conversation/ConversationController.kt`. Tests: `EyeModeTest` "an eye left half shut between winks is not a look up", "looks still work when one eye always reads lower"; `WinkDetectorTest` "one eye half shut reads as one eye lower".
+- [ ] **A look up to 1 s before a wink is taken back.** Phone 02:29:49: the eye starting to close fired a "look up" 0.4 s before the right wink. The log says "look undone". Test: `EyeModeTest` "a look fired just before a wink is taken back".
+
 ## Winks: same fixes (owner report)
 
-- [ ] **Looks pause for 1 s after a wink.** Phone 02:23:51: each left wink was followed about 0.45 s later by a "look up" as the eye reopened, undoing it. Code: `scan/GazeStepper.kt` (`pauseUntil`), `conversation/ConversationController.kt` (`AFTER_WINK_MS`). Test: `EyeModeTest` "the eye reopening after a wink is not a look up".
+- [ ] **Looks pause after a wink** (now 0.8 s after the eye is back level, see above). Phone 02:23:51: each left wink was followed about 0.45 s later by a "look up" as the eye reopened, undoing it. Code: `scan/GazeStepper.kt` (`pauseUntil`), `conversation/ConversationController.kt` (`AFTER_WINK_MS`). Test: `EyeModeTest` "the eye reopening after a wink is not a look up".
 - [ ] **Wink hysteresis:** after a wink, both eyes must be open together for 0.2 s before the next counts, and winks are at least 0.6 s apart, so an eye flickering open mid-wink counts once. Code: `blink/WinkDetector.kt`. Test: `WinkDetectorTest` "an eye flickering open mid wink counts once".
 
 ## Looks up: same fixes (owner report)
