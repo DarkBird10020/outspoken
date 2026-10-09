@@ -128,8 +128,8 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
             ),
             gaze = current.gaze.copy(
                 lookStrength = upReach * LOOK_SHARE,
-                downStrength = if (downReach >= MIN_DOWN_REACH) downReach * LOOK_SHARE else null,
-                irisDownStrength = irisDownReach?.takeIf { it >= MIN_IRIS_DOWN_REACH }?.let { it * LOOK_SHARE },
+                downStrength = if (downReach >= MIN_DOWN_REACH) downReach * DOWN_SHARE else null,
+                irisDownStrength = irisDownReach?.takeIf { it >= MIN_IRIS_DOWN_REACH }?.let { it * DOWN_SHARE },
             ),
         )
         return Result.Ok(tuning, measured)
@@ -157,6 +157,12 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
 
         /** A look counts at half of the smaller of the two measured looks up. */
         const val LOOK_SHARE = 0.5f
+
+        /**
+         * A look down counts at 35% of the measured one. People look down as far as they can when
+         * asked, so half of that still needed the eyes nearly at the bottom (owner report).
+         */
+        const val DOWN_SHARE = 0.35f
 
         /** Shut line halfway between closed and open; open line three quarters of the way up. */
         const val SHUT_SHARE = 0.5f

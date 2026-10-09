@@ -342,6 +342,11 @@ private fun TuningSliders(tuning: Tuning, onChange: (Tuning) -> Unit, onReset: (
         LabeledSlider("Look up distance: ${tuning.gaze.lookStrength.formatOpen()}", tuning.gaze.lookStrength, 0.1f..0.9f) {
             onChange(tuning.copy(gaze = tuning.gaze.copy(lookStrength = it)))
         }
+        tuning.gaze.irisDownStrength?.let { iris ->
+            LabeledSlider("Look down (iris): ${String.format(Locale.US, "%.3f", iris)} - lower is more sensitive", iris, 0.005f..0.08f) {
+                onChange(tuning.copy(gaze = tuning.gaze.copy(irisDownStrength = it)))
+            }
+        }
         val down = tuning.gaze.downStrength
         LabeledSlider("Look down distance: ${down?.formatOpen() ?: "off"}", down ?: 0f, 0f..0.9f) {
             onChange(tuning.copy(gaze = tuning.gaze.copy(downStrength = it.takeIf { v -> v >= 0.05f })))

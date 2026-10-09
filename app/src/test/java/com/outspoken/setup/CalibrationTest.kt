@@ -113,7 +113,7 @@ class CalibrationTest {
     fun `look down line is set from the measured look down`() {
         run(downGaze = 0.9f)
         val gaze = (calibration.result(Tuning()) as Calibration.Result.Ok).tuning.gaze
-        assertEquals(0.2f, gaze.downStrength!!, 0.001f)
+        assertEquals(0.14f, gaze.downStrength!!, 0.001f)
     }
 
     @Test
@@ -165,7 +165,7 @@ class CalibrationTest {
         step(0.9f, 0.5f, iris = rest)
         val result = calibration.result(Tuning()) as Calibration.Result.Ok
         assertEquals(0.06f, result.measured.irisDownReach!!, 0.0001f)
-        assertEquals(0.03f, result.tuning.gaze.irisDownStrength!!, 0.0001f)
+        assertEquals(0.021f, result.tuning.gaze.irisDownStrength!!, 0.0001f)
         // The blendshape look down barely moved, so it stays off.
         assertEquals(null, result.tuning.gaze.downStrength)
     }
