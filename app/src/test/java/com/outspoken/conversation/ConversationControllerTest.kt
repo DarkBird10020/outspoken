@@ -12,9 +12,13 @@ class ConversationControllerTest {
 
     private val said = mutableListOf<String>()
     private val requests = mutableListOf<Pair<Int, List<Turn>>>()
+    private var modelThere = false
     private val controller = ConversationController(
         speak = { said += it },
-        requestReplies = { id, turns -> requests += id to turns },
+        requestReplies = { id, turns ->
+            requests += id to turns
+            modelThere
+        },
         scanner = Scanner(intervalMs = 1_200),
     )
     private var time = 10_000L
@@ -28,7 +32,7 @@ class ConversationControllerTest {
     }
 
     private fun blink() {
-        frames(500, open = 0.05f)
+        frames(700, open = 0.05f)
         frames(100, open = 0.95f)
     }
 
@@ -42,7 +46,7 @@ class ConversationControllerTest {
 
     @Test
     fun `the card highlighted when the eyes shut is chosen`() {
-        frames(1_000, open = 0.95f)
+        frames(900, open = 0.95f)
         // Eyes shut on card 0; the highlight moves to card 1 while they are closed.
         blink()
         assertEquals(listOf("I need water"), said)
@@ -105,6 +109,7 @@ class ConversationControllerTest {
 
     @Test
     fun `model replies replace the cards and scanning starts at the top`() {
+        modelThere = true
         frames(100, open = 0.95f)
         blink()
         controller.onSpeechDone(time)
@@ -130,5 +135,46 @@ class ConversationControllerTest {
         controller.refreshReplies()
         controller.onReplies(requests.last().first, listOf("x", "y", "z", "w"), fromModel = false, nowMs = time)
         assertEquals("I need water", controller.ui.value.replies.first())
+    }
+
+    @Test
+    fun `after speaking, scanning waits for the model`() {
+        modelThere = true
+        frames(100, open = 0.95f)
+        blink()
+        controller.onSpeechDone(time)
+        frames(1_000, open = 0.95f)
+        assertEquals(-1, controller.ui.value.highlighted)
+        controller.onReplies(requests.last().first, listOf("A one", "B two", "C three", "D four"), fromModel = true, nowMs = time)
+        assertEquals(0, controller.ui.value.highlighted)
+    }
+
+    @Test
+    fun `a slow model does not hold scanning forever`() {
+        modelThere = true
+        frames(100, open = 0.95f)
+        blink()
+        controller.onSpeechDone(time)
+        frames(3_000, open = 0.95f)
+        assertTrue(controller.ui.value.highlighted >= 0)
+        assertEquals("I need water", controller.ui.value.replies.first())
+    }
+
+    @Test
+    fun `speech that never reports done does not freeze the board`() {
+        frames(100, open = 0.95f)
+        blink()
+        frames(11_000, open = 0.95f)
+        assertTrue(controller.ui.value.highlighted >= 0)
+    }
+
+    @Test
+    fun `short normal blinks pick nothing`() {
+        frames(100, open = 0.95f)
+        repeat(5) {
+            frames(250, open = 0.05f)
+            frames(800, open = 0.95f)
+        }
+        assertTrue(said.isEmpty())
     }
 }

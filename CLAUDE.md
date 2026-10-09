@@ -47,7 +47,7 @@ Follow the milestones in PRD section 9 in order (M0 to M5). Do not start a miles
 - Blink detection is our own state machine with calibrated thresholds. Keep it pure Kotlin with no Android imports so it can be unit tested.
 - On-device Gemma through LiteRT-LM, behind a `SuggestionEngine` interface. Load once at startup. Exactly four replies as a JSON list, retry once, then fall back to the phrase bank.
 - Android on-device `SpeechRecognizer` for listening, Android `TextToSpeech` with an offline voice for speech.
-- Conversation state is in memory only.
+- Conversation state is in memory only. The one exception is the session log (`log/SessionLog.kt`): eye values and events, including what was said, written to the app's own folder on the phone for debugging. It never leaves the phone and only the newest 5 are kept.
 
 ## 6. Working rules
 

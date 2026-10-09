@@ -4,7 +4,19 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: M2 built. After each sentence, Gemma on the phone writes four new replies. Waiting for phone tests of M0, M1 and M2.
+Latest: blink detection rebuilt after the first phone test felt random. The app now starts with calibration and the practice round, and saves a session log on the phone. Waiting for the next phone test.
+
+## Phone test history
+
+| Date | What was tested | Result | What changed |
+|---|---|---|---|
+| 2026-10-09 | M0 to M2 | Not working properly, picks felt random | Hold time 0.5 s, lines set from each person's own eyes, calibration and practice round first, noise tolerance, scanning waits for new replies, session log added |
+
+## Session log (for finding problems)
+
+Every session writes a file on the phone with the eye values of each camera frame and every event (blink, ignored closure, card picked, sentence said, model replies, calibration result). It stays on the phone; only the last 5 are kept.
+
+To send one: connect the phone and run `adb pull /sdcard/Android/data/com.outspoken/files/logs/`, then share the newest `session-*.csv`.
 
 ## M0. Skeleton
 
@@ -39,7 +51,7 @@ Extras beyond the PRD:
 PRD pass test: say "I need water" by blinking, ten times in a row.
 Status: not passed yet. This test also covers M0, since it needs the live eye values.
 
-- [ ] **Blink detector** (F1). Both eyes shut for 0.3 to 0.9 s is a blink. Fast normal blinks, long closures and winks are ignored. Uses two lines with a gap between them (shut below 0.3, open above 0.5) so noise does not flicker. Pure Kotlin. Code: `blink/BlinkDetector.kt`.
+- [ ] **Blink detector** (F1). Both eyes shut for 0.5 to 1.5 s is a blink (calibration can lower the start to 0.4 s). Fast normal blinks, long closures and winks are ignored. The shut and open lines are set from the person's own open-eye level, so droopy lids or a low phone do not count as shut. One noisy frame cannot end a blink, and a face missing for under half a second is ignored. Pure Kotlin. Code: `blink/BlinkDetector.kt`.
 - [ ] **Scanner** (F2). The highlight moves every 1.2 s over the four replies, "More options" and "Yes / No". It stops while the face is lost and shows "Looking for you". Code: `scan/Scanner.kt`.
 - [ ] **Phrase bank** (F5). I need water, I am in pain, Please call the nurse, I need the toilet, then (More options) I am too hot, I am too cold, Thank you. "Yes / No" shows Yes and No. Code: `conversation/Board.kt`.
 - [ ] **Speech** (F3). Says the chosen sentence with an offline English voice, Indian English if installed. Code: `speech/Speaker.kt`.
@@ -51,7 +63,7 @@ How to test on the phone:
 3. When "I need water" is highlighted, shut your eyes for about half a second. The phone says "I need water".
 4. Do it ten times in a row. Count misses and wrong cards.
 5. Also try: normal blinking (nothing should happen), a wink (nothing), turning away (pill says "Looking for you", highlight stops).
-6. The eye button at the top opens the M0 screen with live numbers. Back returns.
+6. Long-press the "Eyes found" pill to open the M0 screen with live numbers, the blink lines and the last few closures (picked or ignored). Back returns.
 
 Unit tests:
 - `BlinkDetectorTest`: blink window, fast blink, long closure, wink, face lost, head turned, the gap between the two lines.
@@ -63,10 +75,14 @@ Extras beyond the PRD:
 - The card chosen is the one lit when the eyes shut, not when they open, since the highlight can move during a blink.
 - Tapping a card also speaks it, so the person at the bedside can test without blinking.
 - Blinks are ignored while the phone is speaking, so one blink cannot pick twice.
+- If the speech engine never says it finished, scanning starts again after 10 s anyway.
+
+Changed from the PRD, with reason:
+- PRD says a blink is roughly 0.3 to 0.9 s. On the phone, normal blinks measured up to about 0.4 s and were picking cards, so the default is now 0.5 to 1.5 s, as the PRD risk table suggests ("Raise the hold time"). Calibration sets it from the person's own blinks.
 
 For later milestones:
 - Scan speed is fixed at 1.2 s in code. The design shows it but has no control to change it yet (design gap).
-- The eye button opens the M0 number screen until the practice round (M3). The stats button does nothing until M4.
+- The eye button opens the practice round. The stats button does nothing until M4.
 
 ## M2. Model replies
 
@@ -76,14 +92,15 @@ Status: not passed yet. Needs M1 to pass first.
 - [ ] **Model on the phone** (F4). Gemma runs through LiteRT-LM, loaded once when the app starts. Tries the GPU, falls back to the CPU. Any `.litertlm` file in the app folder is used. Code: `suggest/LiteRtLmModel.kt`, `suggest/OnDeviceModel.kt`.
 - [ ] **Suggestion engine** (F4). Sends the last few lines of the conversation and the time of day, asks for exactly four replies as a JSON list (first person, at most 8 words). Code: `suggest/Prompt.kt`, `suggest/ModelSuggestionEngine.kt`. The `SuggestionEngine` interface is the swap point if another runtime is needed.
 - [ ] **Reply checking.** Exactly four, different, short replies, or the answer is rejected. A bad answer gets one retry, then the phrase bank is used. Code: `suggest/ReplyParser.kt`.
+- [ ] **Waits for the new replies.** After speaking, scanning waits up to 2.5 s for the model so the cards do not change under the person's eyes; then it carries on with the phrase bank.
 - [ ] **Instant fallback** (F5). The phrase bank shows at once after each sentence while the model thinks, and stays if the model fails. "More options" pages from the model's replies into the phrase bank.
 - [ ] **Measured.** The M0 screen (eye button) shows the model state (loading, ready on GPU or CPU, failed) and the last reply time with tokens per second.
 
 How to test on the phone:
 1. Download a Gemma `.litertlm` model (Gemma3-1B-IT from the LiteRT community on Hugging Face is a good start) and push it with the `adb push` line in the README.
-2. Open the app, then the eye button. Wait until "Model: ... ready on GPU" (or CPU). Back.
+2. Open the app, then long-press the status pill. Wait until "Model: ... ready on GPU" (or CPU). Back.
 3. Blink "I am in pain". The phrase bank shows while it thinks, then four new cards should be about the pain.
-4. Open the eye button again and read "Last replies". It should say under 2 s from the model.
+4. Long-press the status pill and read "Last replies". It should say under 2 s from the model.
 5. If it says phrase bank, the model failed or answered badly twice. Tell me what it says.
 
 Unit tests:
@@ -98,6 +115,25 @@ Extras beyond the PRD:
 - Output is capped at 96 tokens so a rambling answer cannot hold up the reply time.
 
 To tune on the phone (PRD: pick the largest model that meets 2 s): try Gemma3-1B-IT first, then a larger Gemma if it stays under 2 s.
+
+## M3. Listening and calibration (started)
+
+PRD pass test: a stranger asks an unscripted question aloud and gets a sensible blinked answer in under 20 seconds, in airplane mode.
+Status: in progress. Calibration and the practice round are built; listening is next.
+
+- [ ] **Calibration** (F6). The app opens with it. For about 8 seconds of seeing the face it measures the person's open-eye level and the length of their normal blinks, then sets the blink lines and the hold time. Code: `practice/PracticeSession.kt`.
+- [ ] **Practice round** (F6). The designed screen: the star lights up in one of three places, the person blinks while it is lit, three catches and they are ready. It shows the live eye level against their blink line. Blink accuracy (caught out of all chances and stray blinks) is kept for the stats screen. The eye button opens it again any time.
+- [ ] **Listening** (F7). Not built yet.
+
+How to test on the phone:
+1. Open the app. Look at the screen with eyes open; it says "Measuring" then "Steady".
+2. When a star lights up, shut your eyes for about half a second. "Blinks caught" goes up.
+3. After three, press "Start talking" (or back) to reach the conversation.
+
+Unit tests:
+- `PracticeSessionTest`: measuring, waiting for the face, hold time from natural blinks, rounds, accuracy, no misses while the face is away.
+- `SessionLogTest`: CSV lines, keeping the newest 5 files.
+- `BlinkDetectorTest`: rewritten for the person-based lines, noise, short dropouts and long closures.
 
 ## Design (from the teammate)
 
@@ -120,6 +156,9 @@ Design gaps, for the teammate to decide. Each uses the closest existing style fo
 - Help alert: no design yet for after the sound is turned off.
 - Help alert glass blur is left out; the background behind it is a smooth gradient, so it looks the same.
 - No control to change scan speed (the practice round only shows it).
+- Practice round status words not in the design: "Measuring", "Shut", "Looking for you", "Keep your eyes open while it measures", "Two more...", "You are ready". Between rounds no star shows (three rings).
+- The M0 check screen has no button; it opens with a long-press on the status pill.
+- After speaking, while waiting for new replies, no card is lit.
 - While the phone is speaking, no card is lit.
 
 ## CI checks
