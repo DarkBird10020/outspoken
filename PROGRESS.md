@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: when the face comes back after being lost, the resting gaze is taken afresh, so looks work again at once. Waiting for the phone test.
+Latest: repeated looks down keep registering: the resting iris no longer creeps toward each look. Waiting for the phone test.
 
 ## Phone test history
 
@@ -14,6 +14,10 @@ Latest: when the face comes back after being lost, the resting gaze is taken afr
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
+
+## Repeated looks down (owner report)
+
+- [ ] **Looking down many times in a row keeps working.** Owner: centre to down, many times, and sometimes it stopped going down. During each look down the iris resting point crept 1% a frame toward the look, so over several looks it moved down and later looks no longer reached the line. The creep is gone; the resting point follows only near rest (within 3/4 of the line) and more gently (3% a frame). Code: `scan/GazeStepper.kt`. Test: `GazeStepperTest` "many looks down in a row all register" (8 of 8).
 
 ## Face coming back (owner report)
 

@@ -135,8 +135,8 @@ class GazeStepper(
             // across the whole band below the line; following only within half the line left the
             // rest behind and resting eyes read as a look down again and again.
             val rest = restIris
-            if (irisLine != null && iris != null && rest != null && abs(iris - rest) < irisLine) {
-                restIris = rest + (iris - rest) * REST_FOLLOW
+            if (irisLine != null && iris != null && rest != null && abs(iris - rest) < irisLine * IRIS_REST_BAND) {
+                restIris = rest + (iris - rest) * IRIS_REST_FOLLOW
             }
             looking = null
             stepped = false
@@ -147,12 +147,6 @@ class GazeStepper(
         if (direction != lastStep && timeMs - lastStepMs < REBOUND_MS) {
             looking = null
             return null
-        }
-        // During a look the iris rest still creeps toward the eyes, so an offset that lasts
-        // seconds is absorbed instead of stepping again each time the gaze wobbles.
-        val rest = restIris
-        if (direction == GazeStep.Next && irisLine != null && iris != null && rest != null) {
-            restIris = rest + (iris - rest) * LOOK_CREEP
         }
         if (direction != looking) {
             looking = direction
@@ -196,8 +190,13 @@ class GazeStepper(
         /** No two steps closer than this, so the highlight never jitters. */
         const val MIN_STEP_GAP_MS = 600L
 
-        /** Share of the way the iris rest creeps toward the eyes per frame during a look down. */
-        const val LOOK_CREEP = 0.01f
+        /**
+         * The iris rest follows only within this share of the line, and gently. Following during
+         * looks (1% a frame) moved the rest toward each look down, so after several looks down in
+         * a row they stopped reaching the line (owner report).
+         */
+        const val IRIS_REST_BAND = 0.75f
+        const val IRIS_REST_FOLLOW = 0.03f
 
         /** Iris drop beyond this is shut eyes, not a look down. */
         const val IRIS_SHUT_ABOVE = 0.15f
