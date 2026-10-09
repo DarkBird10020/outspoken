@@ -7,7 +7,9 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.Face
+import com.google.mlkit.vision.face.FaceContour
 import com.google.mlkit.vision.face.FaceDetection
+import com.google.mlkit.vision.face.FaceDetector
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import com.outspoken.log.AppLog
 import com.outspoken.log.EyeSummary
@@ -17,13 +19,17 @@ import kotlinx.coroutines.flow.asStateFlow
 
 class EyeReader(private val onSample: (EyeSample) -> Unit = {}) : ImageAnalysis.Analyzer {
 
-    private val detector = FaceDetection.getClient(
-        FaceDetectorOptions.Builder()
-            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
-            .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
-            .setMinFaceSize(0.15f)
-            .build()
+    private val detector = FaceDetection.getClient(options().build())
+
+    // ML Kit advises against contours and classification together for real-time use, so the
+    // outline detector only runs while the debug dots are on screen.
+    private val dotsDetector = FaceDetection.getClient(
+        options().setContourMode(FaceDetectorOptions.CONTOUR_MODE_ALL).build()
     )
+
+    /** Draws eye outlines on the debug screen. Slower, so off during normal use. */
+    @Volatile
+    var dotsOn = false
 
     private val _samples = MutableStateFlow<EyeSample?>(null)
     val samples: StateFlow<EyeSample?> = _samples.asStateFlow()
@@ -34,6 +40,9 @@ class EyeReader(private val onSample: (EyeSample) -> Unit = {}) : ImageAnalysis.
     private val fpsMeter = FpsMeter()
     private val summary = EyeSummary()
     private var failures = 0
+    private var detectTotalMs = 0L
+    private var detectFrames = 0
+    private var lastDetectLogMs = 0L
 
     @OptIn(ExperimentalGetImage::class)
     override fun analyze(image: ImageProxy) {
@@ -45,15 +54,21 @@ class EyeReader(private val onSample: (EyeSample) -> Unit = {}) : ImageAnalysis.
         // Stamped before detection, on the same clock as the scanner, so detector latency does
         // not stretch blinks.
         val timeMs = SystemClock.elapsedRealtime()
-        val input = InputImage.fromMediaImage(media, image.imageInfo.rotationDegrees)
-        detector.process(input)
+        val rotation = image.imageInfo.rotationDegrees
+        val uprightWidth = if (rotation % 180 == 0) image.width else image.height
+        val uprightHeight = if (rotation % 180 == 0) image.height else image.width
+        val withDots = dotsOn
+        val input = InputImage.fromMediaImage(media, rotation)
+        (if (withDots) dotsDetector else detector).process(input)
             .addOnSuccessListener { faces ->
                 val face = faces.maxByOrNull { it.boundingBox.width() * it.boundingBox.height() }
-                val sample = face?.toSample(timeMs) ?: EyeSample(timeMs, faceFound = false)
+                val dots = if (withDots) face?.dots(uprightWidth, uprightHeight) else null
+                val sample = face?.toSample(timeMs, dots) ?: EyeSample(timeMs, faceFound = false)
                 _samples.value = sample
                 onSample(sample)
                 _fps.value = fpsMeter.onFrame(timeMs)
                 summary.add(sample)?.let { AppLog.write("eyes", it) }
+                noteDetectTime(timeMs, uprightWidth, uprightHeight, face, withDots)
             }
             .addOnFailureListener { error ->
                 failures++
@@ -64,14 +79,55 @@ class EyeReader(private val onSample: (EyeSample) -> Unit = {}) : ImageAnalysis.
             .addOnCompleteListener { image.close() }
     }
 
-    fun close() = detector.close()
+    fun close() {
+        detector.close()
+        dotsDetector.close()
+    }
 
-    private fun Face.toSample(timeMs: Long) = EyeSample(
+    private fun noteDetectTime(startMs: Long, width: Int, height: Int, face: Face?, withDots: Boolean) {
+        val now = SystemClock.elapsedRealtime()
+        detectTotalMs += now - startMs
+        detectFrames++
+        if (now - lastDetectLogMs < DETECT_LOG_EVERY_MS) return
+        val faceWidth = face?.boundingBox?.width()?.let { "$it px" } ?: "-"
+        AppLog.write(
+            "eyes",
+            "detect ${detectTotalMs / detectFrames} ms avg, image ${width}x$height, face width $faceWidth, dots ${if (withDots) "on" else "off"}",
+        )
+        lastDetectLogMs = now
+        detectTotalMs = 0
+        detectFrames = 0
+    }
+
+    private fun Face.toSample(timeMs: Long, dots: FaceDots?) = EyeSample(
         timeMs = timeMs,
         faceFound = true,
         leftOpen = leftEyeOpenProbability,
         rightOpen = rightEyeOpenProbability,
         yawDeg = headEulerAngleY,
         pitchDeg = headEulerAngleX,
+        dots = dots,
     )
+
+    private fun Face.dots(width: Int, height: Int): FaceDots? {
+        val left = getContour(FaceContour.LEFT_EYE)?.points?.map { Dot(it.x, it.y) } ?: return null
+        val right = getContour(FaceContour.RIGHT_EYE)?.points?.map { Dot(it.x, it.y) } ?: return null
+        fun List<Dot>.scaled() = map { Dot(it.x / width, it.y / height) }
+        return FaceDots(
+            leftEye = left.scaled(),
+            rightEye = right.scaled(),
+            imageAspect = width.toFloat() / height,
+            leftShape = eyeShape(left),
+            rightShape = eyeShape(right),
+        )
+    }
+
+    private companion object {
+        const val DETECT_LOG_EVERY_MS = 5_000L
+
+        fun options() = FaceDetectorOptions.Builder()
+            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+            .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
+            .setMinFaceSize(0.15f)
+    }
 }

@@ -4,13 +4,32 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: blink detection rebuilt after the first phone test felt random, and merged with the run logs from the other branch. The app now starts with calibration and the practice round. Waiting for the next phone test.
+Latest: blink detection rebuilt after the first phone test felt random, merged with the run logs and the eye debug view from the other branch. The app now starts with calibration and the practice round. Waiting for the next phone test.
 
 ## Phone test history
 
 | Date | What was tested | Result | What changed |
 |---|---|---|---|
 | 2026-10-09 | M0 to M2 | Not working properly, picks felt random | Hold time 0.5 s, lines set from each person's own eyes, calibration and practice round first, noise tolerance, scanning waits for new replies, run logs |
+
+## Eye detection fixes and debug view
+
+The highlight is meant to move on its own, one card every 1.2 s (PRD F2, "scanning"). The app does not follow where you look; it waits for a deliberate blink while the right card is lit. These changes make the blink part reliable and visible.
+
+- [ ] **Head turn limit 25° → 18°.** Google's ML Kit docs say eye-open values only work for faces turned at most 18° left or right. Between 18° and 25° the values were noise and could fake blinks. Head tilt (looking down at the phone) is allowed up to 35°, since ML Kit sets none. Code: `blink/BlinkDetector.kt`.
+- [ ] **Sharper camera feed, 640x480 → 1280x960.** ML Kit needs the face at least 100 px wide for eye-open values (200 px for the eye outline). At arm's length the face was only about 120 px. Code: `eye/FrontCamera.kt`. The log line `detect ... ms avg, image ..., face width ... px` every 5 s shows the real numbers.
+- [ ] **Debug dots.** The check screen (long-press the status pill) shows: 16 dots on each eye outline over the camera (green open, yellow unsure, red shut), a 5-second graph of both eyes (blue left, orange right) with the shut and open lines dashed, head turn and tilt marked ok or too far, and the last blink decisions written out. Code: `ui/EyeCheckScreen.kt`, `eye/EyeReader.kt`.
+- [ ] **Eye shape measure.** From the outline: eye height over width, the eye aspect ratio from Soukupová and Čech (2016). Shown on the check screen and logged next to ML Kit's value, so the two can be compared before choosing which one drives blinks. Code: `eye/EyeShape.kt`.
+
+How to test on the phone:
+1. Long-press the status pill (the eye button now opens the practice round). Dots should sit on both eyes and follow them.
+2. Blink slowly: dots turn red, both graph lines drop below the red dashed line, and "blink ... ms" appears at the bottom.
+3. Blink normally: "ignored ... ms, shorter than 500 ms" (or the hold time calibration set).
+4. Turn your head: "turn ... too far" and "face lost: head turned".
+
+Unit tests:
+- `EyeShapeTest`: open and shut outlines, size does not matter, too few points.
+- `EyeSummaryTest`: the shape values in the log line.
 
 ## Logs
 

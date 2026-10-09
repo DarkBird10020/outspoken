@@ -1,5 +1,10 @@
 package com.outspoken.log
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+
 /** A sink for short lines about what the app saw and did. [area] groups related lines. */
 fun interface EventLog {
     fun write(area: String, message: String)
@@ -14,5 +19,18 @@ object AppLog : EventLog {
     @Volatile
     var sink: EventLog = EventLog.None
 
-    override fun write(area: String, message: String) = sink.write(area, message)
+    private val _recent = MutableStateFlow<List<String>>(emptyList())
+
+    /** The last few blink and selection lines, for the debug screen. */
+    val recent: StateFlow<List<String>> = _recent.asStateFlow()
+
+    override fun write(area: String, message: String) {
+        sink.write(area, message)
+        if (onScreen(area, message)) _recent.update { (it + "$area: $message").takeLast(RECENT_LINES) }
+    }
+
+    private fun onScreen(area: String, message: String) =
+        area == "blink" || (area == "scan" && !message.startsWith("highlight"))
+
+    private const val RECENT_LINES = 6
 }

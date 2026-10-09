@@ -36,6 +36,7 @@ import com.outspoken.suggest.SuggestionRequest
 import com.outspoken.suggest.Turn
 import com.outspoken.ui.ConversationScreen
 import com.outspoken.ui.EyeCheckScreen
+import com.outspoken.ui.EyeLines
 import com.outspoken.ui.PracticeScreen
 import com.outspoken.ui.PracticeUi
 import com.outspoken.ui.SetupStatus
@@ -136,11 +137,14 @@ class MainActivity : ComponentActivity() {
                     val sample by eyeReader.samples.collectAsStateWithLifecycle()
                     val fps by eyeReader.fps.collectAsStateWithLifecycle()
                     val modelState by OnDeviceModel.state.collectAsStateWithLifecycle()
+                    val recent by AppLog.recent.collectAsStateWithLifecycle()
                     MaterialTheme {
                         EyeCheckScreen(
                             cameraGranted = cameraGranted,
                             sample = sample,
                             fps = fps,
+                            settings = eyeLines(),
+                            recentLines = recent,
                             setup = SetupStatus(
                                 modelLine = modelLine(modelState, modelDir?.absolutePath),
                                 offlineVoice = offlineVoice,
@@ -234,16 +238,20 @@ class MainActivity : ComponentActivity() {
     private fun show(next: Screen) {
         AppLog.write("ui", "screen $next")
         screen = next
+        eyeReader.dotsOn = next == Screen.EyeCheck
     }
 
     private fun detectorLines(): List<String> {
         val closures = detector.recentClosures.joinToString { "${it.durationMs} ms ${if (it.accepted) "picked" else "ignored"}" }
         return listOf(
             "Open level: ${"%.2f".format(Locale.US, detector.openLevel)}, shut below ${"%.2f".format(Locale.US, detector.closedBelow)}, open above ${"%.2f".format(Locale.US, detector.openAbove)}",
-            "Blink must last ${detector.settings.minBlinkMs} to ${detector.settings.maxBlinkMs} ms",
             "Last closures: ${closures.ifEmpty { "none" }}",
             "Practice accuracy: ${formatWhole(practiceAccuracy, "%")}",
         )
+    }
+
+    private fun eyeLines() = with(detector.settings) {
+        EyeLines(detector.closedBelow, detector.openAbove, minBlinkMs, maxBlinkMs, maxYawDeg, maxPitchDeg)
     }
 
     private fun modelLine(state: ModelState, dir: String?): String = when (state) {
