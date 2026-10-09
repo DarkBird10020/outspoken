@@ -2,6 +2,7 @@ package com.outspoken.setup
 
 import com.outspoken.eye.Dot
 import com.outspoken.eye.EyeSample
+import com.outspoken.eye.FaceDots
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -13,26 +14,27 @@ class CalibrationTest {
     private val spoken = mutableListOf<Calibration.Step>()
 
     /** Feeds one step of frames: [open] for both eyes, [gazeY] up negative. */
-    private fun step(open: Float, gazeY: Float, face: Boolean = true) {
+    private fun step(open: Float, gazeY: Float, face: Boolean = true, gap: Float? = null) {
         repeat(50) {
-            val sample = if (face) EyeSample(time, true, open, open, gaze = Dot(0f, gazeY)) else EyeSample(time, false)
+            val dots = gap?.let { FaceDots(emptyList(), emptyList(), 0.75f, it, it) }
+            val sample = if (face) EyeSample(time, true, open, open, gaze = Dot(0f, gazeY), dots = dots) else EyeSample(time, false)
             calibration.onSample(sample)?.let(spoken::add)
             time += 50
         }
     }
 
     /** A person whose eyes rest at 0.9 open, gaze 0.5, look up to 0.0 and close to 0.4. */
-    private fun run(upGaze: Float = 0f, closedOpen: Float = 0.4f, face: Boolean = true) {
+    private fun run(upGaze: Float = 0f, closedOpen: Float = 0.4f, face: Boolean = true, openGap: Float? = null, closedGap: Float? = null) {
         calibration.start(time)
-        step(0.9f, 0.5f, face)
-        step(0.9f, upGaze, face)
-        step(0.9f, 0.5f, face)
-        step(0.9f, upGaze, face)
-        step(0.9f, 0.5f, face)
-        step(closedOpen, 0.6f, face)
-        step(0.9f, 0.5f, face)
-        step(closedOpen, 0.6f, face)
-        step(0.9f, 0.5f, face)
+        step(0.9f, 0.5f, face, openGap)
+        step(0.9f, upGaze, face, openGap)
+        step(0.9f, 0.5f, face, openGap)
+        step(0.9f, upGaze, face, openGap)
+        step(0.9f, 0.5f, face, openGap)
+        step(closedOpen, 0.6f, face, closedGap)
+        step(0.9f, 0.5f, face, openGap)
+        step(closedOpen, 0.6f, face, closedGap)
+        step(0.9f, 0.5f, face, openGap)
     }
 
     @Test
@@ -79,5 +81,20 @@ class CalibrationTest {
         val after = (calibration.result(before) as Calibration.Result.Ok).tuning
         assertEquals(before.blink.minBlinkMs, after.blink.minBlinkMs)
         assertEquals(before.moveByEyes, after.moveByEyes)
+    }
+
+    @Test
+    fun `lid gap lines are set when the gap is read`() {
+        run(openGap = 0.30f, closedGap = 0.06f)
+        val blink = (calibration.result(Tuning()) as Calibration.Result.Ok).tuning.blink
+        assertEquals(0.132f, blink.shapeClosedBelow!!, 0.001f)
+        assertEquals(0.18f, blink.shapeOpenAbove!!, 0.001f)
+    }
+
+    @Test
+    fun `no lid gap reading leaves the gap check off`() {
+        run()
+        val blink = (calibration.result(Tuning()) as Calibration.Result.Ok).tuning.blink
+        assertEquals(null, blink.shapeClosedBelow)
     }
 }

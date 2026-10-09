@@ -1,6 +1,7 @@
 package com.outspoken.blink
 
 import com.outspoken.eye.EyeSample
+import com.outspoken.eye.FaceDots
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -118,5 +119,43 @@ class BlinkDetectorTest {
         assertTrue(detector.onSample(EyeSample(1_900, true, 0.95f, 0.95f)) is BlinkEvent.Blink)
         detector.onSample(EyeSample(3_000, true, 0.05f, 0.05f))
         assertNull(detector.onSample(EyeSample(3_901, true, 0.95f, 0.95f)))
+    }
+
+    private fun withGap(open: Float, gap: Float) =
+        EyeSample(time, true, open, open, dots = FaceDots(emptyList(), emptyList(), 0.75f, gap, gap))
+
+    private val gapSettings = BlinkSettings(
+        closedBelow = 0.68f,
+        openAbove = 0.78f,
+        minBlinkMs = 400,
+        maxBlinkMs = 1_500,
+        shapeClosedBelow = 0.13f,
+        shapeOpenAbove = 0.18f,
+    )
+
+    @Test
+    fun `looking down with the lids half open is not a close`() {
+        detector.settings = gapSettings
+        hold(500) { withGap(0.9f, 0.30f) }
+        // Phone log: looking down read 0.55 to 0.65 open with a lid gap of about 0.15.
+        val events = hold(1_000) { withGap(0.6f, 0.15f) } + hold(300) { withGap(0.9f, 0.30f) }
+        assertEquals(emptyList<BlinkEvent>(), events)
+    }
+
+    @Test
+    fun `a real close passes both checks`() {
+        detector.settings = gapSettings
+        hold(500) { withGap(0.9f, 0.30f) }
+        val events = hold(500) { withGap(0.45f, 0.06f) } + hold(300) { withGap(0.9f, 0.30f) }
+        assertTrue(events.single() is BlinkEvent.Blink)
+    }
+
+    @Test
+    fun `opening the lids ends a close while looking down`() {
+        detector.settings = gapSettings
+        hold(500) { withGap(0.9f, 0.30f) }
+        val events = hold(500) { withGap(0.45f, 0.06f) } + hold(300) { withGap(0.6f, 0.22f) }
+        val blink = events.single() as BlinkEvent.Blink
+        assertTrue(blink.durationMs in 495..530)
     }
 }
