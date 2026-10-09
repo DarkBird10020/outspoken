@@ -46,7 +46,6 @@ class ModelImporter(private val context: Context) {
                 }
             }
         }
-        targetDir.listFiles { file -> file.extension == "litertlm" }?.forEach { it.delete() }
         val target = File(targetDir, name)
         check(partial.renameTo(target)) { "could not save $name" }
         target
