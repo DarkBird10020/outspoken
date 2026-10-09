@@ -157,7 +157,9 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         AppLog.write("app", "closed")
         speaker.shutdown()
-        eyeReader.close()
+        // Closed on the camera thread, after any frame already being analysed, so no frame reaches
+        // a closed face tracker.
+        analyzerExecutor.execute { eyeReader.close() }
         analyzerExecutor.shutdown()
     }
 
