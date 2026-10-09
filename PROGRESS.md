@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: lid gap shut line moved closer to the measured close, since looking down still passed it on the phone. Waiting for the phone test.
+Latest: look down moves the highlight down again (the lid gap check now tells looking down from a close), calibration measures the look down too. Merged with listening (F7), help alarm (F8) and stats (S1). Waiting for the phone test.
 
 ## Phone test history
 
@@ -14,6 +14,17 @@ Latest: lid gap shut line moved closer to the measured close, since looking down
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
+
+## Look down and up (owner request)
+
+- [ ] **Look down = highlight moves down, look up = moves up, both wrap round.** From the top card one look up reaches "Yes / No", two reach "More options". Looking down was off because on the phone it read as the eyes closing; the lid gap check now tells them apart (looking down about 0.15, closed 0.04 to 0.09), so a look only stops when the eyes are really shut. Code: `scan/GazeStepper.kt`, `blink/BlinkDetector.kt` (`eyesShut`), `conversation/ConversationController.kt`.
+- Why: in the 23:41 phone run blinking chose cards fine, but "More options" and "Yes / No" were only reachable with four or five looks up in a row, and the highlight goes back to the top after every sentence, so they were only ever opened by tapping.
+- [ ] **Calibration measures the look down too** ("Look down, below the phone", twice). The look down line is half of the smaller look down measured; if none is seen, looking down is turned off and up still works. Slider: "Look down distance". Code: `setup/Calibration.kt`, `setup/Tuning.kt`, `ui/EyeCheckScreen.kt`.
+
+Unit tests:
+- `GazeStepperTest`: down and up each step once, down can be switched off, reading and short glances do nothing, shut eyes never step.
+- `EyeModeTest`: down moves to the card below, up from the top wraps to Yes / No then More options, a blink on More options opens the next page, blink says the card, back to top after speaking.
+- `CalibrationTest`: look down line from the measured look down, no look down turns it off.
 
 ## Calibration (PRD F6)
 
@@ -187,9 +198,50 @@ Extras beyond the PRD:
 
 To tune on the phone (PRD: pick the largest model that meets 2 s): try Gemma3-1B-IT first, then a larger Gemma if it stays under 2 s.
 
-## M3. Listening and calibration (not started)
+## M3. Listening and calibration
 
-- Calibration and the practice round were built once on the old ML Kit reader and taken out when eye reading moved to MediaPipe. They will be rebuilt on the new reader, alongside the tuning sliders.
+PRD pass test: a stranger asks an unscripted question aloud and gets a sensible blinked answer in under 20 seconds, in airplane mode.
+Status: in progress. Calibration is in its own section above; listening is built; the practice round is still to come.
+
+- [ ] **Listening** (F7). The microphone listens all the time on the conversation page, on the phone itself: Android's on-device recogniser when there is one, otherwise the normal recogniser told to stay offline. Each finished sentence shows on the designed "Heard" card and goes to Gemma with the conversation, so the four replies answer it. Code: `listen/Listener.kt`, `conversation/ConversationController.kt`.
+- [ ] **Does not hear itself.** Listening pauses while the phone speaks (replies and calibration prompts), drops anything heard in the 1.5 s after, and drops text that matches what the phone just said. Code: `listen/HeardFilter.kt`.
+- [ ] **Typed question and topic buttons** (F7 fallback). On the eye check page: type the visitor's question and tap Ask, or tap a topic (Pain, Comfort, Food and drink, Feelings, Family). Either goes to the conversation like a spoken question. Code: `ui/EyeCheckScreen.kt` (`AskBox`), `listen/QuickTopics.kt`.
+- [ ] **Microphone permission** asked once after the camera. The eye check page shows what the listener is doing ("listening on the phone", "no microphone permission", "wants the internet: download the offline English speech pack").
+- [ ] **Practice round** (F6). Not rebuilt yet on the new eye reader.
+
+How to test on the phone:
+1. Turn on airplane mode. Open the app and allow the microphone.
+2. After calibration, ask out loud: "Are you in pain?". The "Heard" card shows it, and the cards change to answers about pain once the model replies.
+3. If nothing shows, open the eye check page: the "Listening:" line says why. Type the question there instead, or tap "Pain".
+4. Answer by looking up to the right card and closing your eyes. Time it from the end of the question: the PRD target is under 20 seconds.
+
+Unit tests:
+- `HeardFilterTest`: questions kept and cleaned, blank results dropped, nothing kept while the phone speaks or just after, the phone's own words dropped, topic buttons are all questions.
+- `ConversationHeardTest`: the question shows and goes to the model, the answer follows it, answering clears it, questions during speech are ignored.
+
+Extras beyond the PRD:
+- The echo filter, since the speaker and microphone sit a few centimetres apart.
+
+## M4. Alarm, stats, laptop view (started)
+
+PRD pass test: the help alarm, the stats screen and the laptop view all shown in one run.
+Status: in progress. The help alarm and the stats screen are built; the laptop view is next.
+
+- [ ] **Help alarm** (F8). Eyes held shut for 2 s: a beep says the hold is done. Open the eyes and blink once within 5 s: the phone's alarm sound plays on the alarm channel, looping, at full volume, and the designed help screen fills the display with the last thing said. "I am here" (or back) stops it and returns to the cards; the speaker button silences it. The confirm blink never picks a card, and the hold itself never counts as a blink. Works even while the phone is speaking. Code: `help/HelpTrigger.kt`, `help/HelpAlarm.kt`, `conversation/ConversationController.kt`, `ui/HelpAlertScreen.kt`.
+- Why two steps: a person resting with their eyes closed should not set it off alone.
+- [ ] **Stats screen** (S1). The designed screen, opened with the stats button (bar chart). Average reply time and model speed (tokens per second) over this session's model answers, replies written, the phone's temperature (battery sensor), model name and runtime, session length, sentences spoken. Updates every second. Blink accuracy shows "-" until the practice round is rebuilt. Code: `stats/PitStats.kt`, `ui/StatsScreen.kt`, `MainActivity.kt`.
+
+How to test on the phone:
+1. On the conversation page, close your eyes and keep them closed until the beep (2 s).
+2. Open your eyes, then close them for about half a second once.
+3. The alarm sounds and the pink help screen shows "Help needed". Tap "I am here".
+4. Also try: close your eyes for 3 s and just open them, then wait 6 s. Nothing should happen.
+5. Tap the stats button (bar chart). After a few answers from the model, reply time and model speed fill in; session length counts up.
+
+Unit tests:
+- `HelpTriggerTest`: the cue once, alarm on the confirm blink, short closes do nothing, no confirm in 5 s cancels, the hold is never a pick.
+- `ConversationHelpTest`: hold, open, blink raises the alarm and says no card; a normal pick raises nothing.
+- `PitStatsTest`: averages, replies written, fallbacks kept apart, session length.
 
 ## Design (from the teammate)
 
@@ -205,6 +257,8 @@ Unit tests:
 - `FormatTest`: how numbers on the stats and practice screens are written ("1.2 s", "24 tok/s", "04:12", "-" when not measured).
 
 Design gaps, for the teammate to decide. Each uses the closest existing style for now:
+- Help screen after the sound is turned off: it still reads "Alarm is sounding".
+- No design for the typed question box and topic buttons; they are on the plain eye check page.
 - No design for the "Choose model file" button; it is on the plain eye check screen.
 - Main page live camera with eye dots (owner asked for it): a 150 dp rounded box under the status row, and a hint line in the soft ink style.
 - Highlight on "More options" and "Yes / No": pink glow, no "Blink" badge (the badge is taller than these cards).

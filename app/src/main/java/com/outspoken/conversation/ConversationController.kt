@@ -3,6 +3,8 @@ package com.outspoken.conversation
 import com.outspoken.blink.BlinkDetector
 import com.outspoken.blink.BlinkEvent
 import com.outspoken.eye.EyeSample
+import com.outspoken.help.HelpStep
+import com.outspoken.help.HelpTrigger
 import com.outspoken.log.EventLog
 import com.outspoken.scan.GazeStep
 import com.outspoken.scan.GazeStepper
@@ -15,7 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * The blink-to-speech loop: eye samples in, highlighted card and spoken sentences out.
- * The highlight moves either by the eyes (look up for the next card) or on a timer, see
+ * The highlight moves either by the eyes (look down for the card below, up for the one above) or on a timer, see
  * [moveByEyes].
  *
  * New replies are asked for through [requestReplies], which returns false when no model is there
@@ -31,10 +33,12 @@ class ConversationController(
     private val log: EventLog = EventLog.None,
     private val gaze: GazeStepper = GazeStepper(log = log),
     private val requestReplies: (requestId: Int, turns: List<Turn>) -> Boolean = { _, _ -> false },
+    private val help: HelpTrigger = HelpTrigger(log = log),
+    private val onHelp: (HelpStep) -> Unit = {},
     private val replyWaitMs: Long = 2_500,
     private val maxSpeakMs: Long = 10_000,
 ) {
-    /** True: the highlight only moves when the eyes look up. False: it moves on a timer. */
+    /** True: the highlight only moves when the eyes look down or up. False: it moves on a timer. */
     var moveByEyes = false
         set(value) {
             field = value
@@ -48,6 +52,7 @@ class ConversationController(
     private var cursorMovedMs = Long.MIN_VALUE
 
     private val turns = mutableListOf<Turn>()
+    private var heard: String? = null
     private var speakingSinceMs: Long? = null
     private var waitUntilMs: Long? = null
     private var latestRequest = 0
@@ -76,9 +81,11 @@ class ConversationController(
             BlinkEvent.FaceLost -> scanner.pause(nowMs)
             null -> Unit
         }
+        // Help works at any time, even while the phone speaks.
+        help.onEyes(detector.shutSinceMs, nowMs)?.let(onHelp)
         if (moveByEyes && !speaking && !waiting && detector.tracking) {
             // Only shut eyes stop a look; half-lowered lids still count as open here.
-            val eyesOpen = minOf(sample.leftOpen ?: 0f, sample.rightOpen ?: 0f) > detector.settings.closedBelow
+            val eyesOpen = !detector.eyesShut(sample)
             when (gaze.onSample(sample.gaze, eyesOpen, nowMs)) {
                 GazeStep.Next -> moveCursor(cursor + 1, nowMs)
                 GazeStep.Previous -> moveCursor(cursor - 1, nowMs)
@@ -117,6 +124,20 @@ class ConversationController(
     }
 
     /** Asks for replies that fit the conversation so far. */
+    /** A question from the visitor, heard or typed. The replies are asked for at once. */
+    fun onHeard(question: String, timeMs: Long) {
+        val nowMs = advance(timeMs)
+        if (speaking) {
+            log.write("listen", "ignored \"$question\" while speaking")
+            return
+        }
+        log.write("listen", "heard \"$question\"")
+        heard = question
+        turns += Turn(fromListener = true, text = question)
+        refreshReplies()
+        publish(nowMs)
+    }
+
     fun refreshReplies() {
         latestRequest++
         repliesPending = requestReplies(latestRequest, turns.toList())
@@ -144,6 +165,11 @@ class ConversationController(
     }
 
     private fun onBlink(blink: BlinkEvent.Blink, nowMs: Long) {
+        help.onBlink(blink.startMs)?.let {
+            onHelp(it)
+            return
+        }
+        if (help.isHold(blink.durationMs)) return
         if (speaking || waiting) {
             log.write("scan", "blink ignored while ${if (speaking) "speaking" else "waiting for new replies"}")
             return
@@ -166,6 +192,8 @@ class ConversationController(
             return
         }
         turns += Turn(fromListener = false, text = sentence)
+        // The question has its answer now.
+        heard = null
         // The phrase bank shows at once while the model writes the next replies.
         board.showSuggestions(null)
         speakingSinceMs = nowMs
@@ -208,7 +236,7 @@ class ConversationController(
         lastHighlighted = highlighted
         _ui.value = ConversationUi(
             faceFound = detector.tracking,
-            heard = null,
+            heard = heard,
             replies = board.replies,
             highlighted = highlighted,
         )
