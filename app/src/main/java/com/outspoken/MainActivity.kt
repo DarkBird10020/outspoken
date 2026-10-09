@@ -1,6 +1,8 @@
 package com.outspoken
 
 import android.Manifest
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.net.Uri
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -23,6 +25,8 @@ import com.outspoken.conversation.ConversationController
 import com.outspoken.eye.EyeReader
 import com.outspoken.eye.EyeSample
 import com.outspoken.eye.FrontCamera
+import com.outspoken.help.HelpAlarm
+import com.outspoken.help.HelpStep
 import com.outspoken.listen.HeardFilter
 import com.outspoken.listen.Listener
 import com.outspoken.log.AppLog
@@ -43,6 +47,7 @@ import com.outspoken.suggest.SuggestionEngine
 import com.outspoken.suggest.SuggestionRequest
 import com.outspoken.suggest.Turn
 import com.outspoken.ui.ConversationScreen
+import com.outspoken.ui.HelpAlertScreen
 import com.outspoken.ui.CalibrationScreen
 import com.outspoken.ui.EyeCheckScreen
 import com.outspoken.ui.EyeMonitor
@@ -60,7 +65,7 @@ import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
 
-    private enum class Screen { Conversation, EyeCheck, Calibrate }
+    private enum class Screen { Conversation, EyeCheck, Calibrate, Help }
 
     private lateinit var speaker: Speaker
     private lateinit var camera: FrontCamera
@@ -76,6 +81,7 @@ class MainActivity : ComponentActivity() {
         log = AppLog,
         gaze = gazeStepper,
         requestReplies = ::requestReplies,
+        onHelp = ::onHelpStep,
     )
     private val analyzerExecutor = Executors.newSingleThreadExecutor()
 
@@ -84,6 +90,8 @@ class MainActivity : ComponentActivity() {
     private var screen by mutableStateOf(Screen.Conversation)
     private var tuning by mutableStateOf(Tuning())
     private lateinit var listener: Listener
+    private lateinit var alarm: HelpAlarm
+    private var cue: ToneGenerator? = null
     private val heardFilter = HeardFilter()
     private var listenLine by mutableStateOf("off")
     private var micGranted = false
@@ -131,13 +139,23 @@ class MainActivity : ComponentActivity() {
         tuningStore = TuningStore(this)
         applyTuning(tuningStore.load())
         AppLog.write("app", "tuning $tuning")
-        eyeReader = EyeReader(this) { if (screen == Screen.Calibrate) onCalibrationSample(it) else controller.onSample(it) }
+        eyeReader = EyeReader(this) {
+            when (screen) {
+                Screen.Calibrate -> onCalibrationSample(it)
+                // While the alarm screen is up, eyes pick nothing.
+                Screen.Help -> Unit
+                else -> controller.onSample(it)
+            }
+        }
         eyeReader.dotsOn = true
         speaker = Speaker(this) {
             heardFilter.onSpeechDone(now())
             listener.resume()
             controller.onSpeechDone(now())
         }
+        alarm = HelpAlarm(this)
+        // Tells the person, eyes still shut, that the help hold is done.
+        cue = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, CUE_VOLUME) }.getOrNull()
         listener = Listener(
             this,
             onHeard = { text ->
@@ -185,7 +203,16 @@ class MainActivity : ComponentActivity() {
                     delay(TICK_MS)
                 }
             }
-            if (cameraGranted && screen == Screen.Calibrate) {
+            if (screen == Screen.Help) {
+                BackHandler { stopHelp() }
+                OutspokenTheme {
+                    HelpAlertScreen(
+                        lastSaid = controller.history.lastOrNull() ?: "",
+                        onSoundOff = alarm::stop,
+                        onDismiss = ::stopHelp,
+                    )
+                }
+            } else if (cameraGranted && screen == Screen.Calibrate) {
                 BackHandler { show(Screen.Conversation) }
                 val sample by eyeReader.samples.collectAsStateWithLifecycle()
                 MaterialTheme {
@@ -328,6 +355,8 @@ class MainActivity : ComponentActivity() {
         AppLog.write("app", "closed")
         speaker.shutdown()
         listener.stop()
+        alarm.stop()
+        cue?.release()
         // Closed on the camera thread, after any frame already being analysed, so no frame reaches
         // a closed face tracker.
         analyzerExecutor.execute { eyeReader.close() }
@@ -342,6 +371,22 @@ class MainActivity : ComponentActivity() {
         scanner.intervalMs = next.scanMs
         gazeStepper.settings = next.gaze
         if (controller.moveByEyes != next.moveByEyes) controller.moveByEyes = next.moveByEyes
+    }
+
+    private fun onHelpStep(step: HelpStep) {
+        when (step) {
+            HelpStep.HoldReached -> cue?.startTone(ToneGenerator.TONE_PROP_BEEP2, CUE_MS)
+            HelpStep.Alarm -> {
+                alarm.start()
+                show(Screen.Help)
+            }
+        }
+    }
+
+    private fun stopHelp() {
+        alarm.stop()
+        AppLog.write("help", "someone came")
+        show(Screen.Conversation)
     }
 
     /** Everything the phone says goes through here, so the microphone does not take it for a question. */
@@ -433,6 +478,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private companion object {
+        const val CUE_MS = 200
+        const val CUE_VOLUME = 80
         const val TICK_MS = 50L
         const val CALIBRATION_DONE_MS = 2_500L
 

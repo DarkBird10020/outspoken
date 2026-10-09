@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: the phone now listens to the visitor (M3, F7). The question shows on the "Heard" card and Gemma answers it; it can also be typed or picked from topic buttons. Blinks need both the eye-open value and the lid gap to say shut; calibration measures both. Waiting for the phone test.
+Latest: help alarm (F8) built: hold the eyes shut 2 s (a beep sounds), open them, blink once within 5 s, and the phone sounds its alarm at full volume with the designed help screen. Listening (F7) built before it. Waiting for the phone test.
 
 ## Phone test history
 
@@ -211,6 +211,24 @@ Unit tests:
 Extras beyond the PRD:
 - The echo filter, since the speaker and microphone sit a few centimetres apart.
 
+## M4. Alarm, stats, laptop view (started)
+
+PRD pass test: the help alarm, the stats screen and the laptop view all shown in one run.
+Status: in progress. The help alarm is built; stats and the laptop view are next.
+
+- [ ] **Help alarm** (F8). Eyes held shut for 2 s: a beep says the hold is done. Open the eyes and blink once within 5 s: the phone's alarm sound plays on the alarm channel, looping, at full volume, and the designed help screen fills the display with the last thing said. "I am here" (or back) stops it and returns to the cards; the speaker button silences it. The confirm blink never picks a card, and the hold itself never counts as a blink. Works even while the phone is speaking. Code: `help/HelpTrigger.kt`, `help/HelpAlarm.kt`, `conversation/ConversationController.kt`, `ui/HelpAlertScreen.kt`.
+- Why two steps: a person resting with their eyes closed should not set it off alone.
+
+How to test on the phone:
+1. On the conversation page, close your eyes and keep them closed until the beep (2 s).
+2. Open your eyes, then close them for about half a second once.
+3. The alarm sounds and the pink help screen shows "Help needed". Tap "I am here".
+4. Also try: close your eyes for 3 s and just open them, then wait 6 s. Nothing should happen.
+
+Unit tests:
+- `HelpTriggerTest`: the cue once, alarm on the confirm blink, short closes do nothing, no confirm in 5 s cancels, the hold is never a pick.
+- `ConversationHelpTest`: hold, open, blink raises the alarm and says no card; a normal pick raises nothing.
+
 ## Design (from the teammate)
 
 The four designed screens are built exactly from the design file, as stand-alone screens. Each one is wired up in the milestone that needs it. See them in Android Studio with the Preview pane.
@@ -225,6 +243,7 @@ Unit tests:
 - `FormatTest`: how numbers on the stats and practice screens are written ("1.2 s", "24 tok/s", "04:12", "-" when not measured).
 
 Design gaps, for the teammate to decide. Each uses the closest existing style for now:
+- Help screen after the sound is turned off: it still reads "Alarm is sounding".
 - No design for the typed question box and topic buttons; they are on the plain eye check page.
 - No design for the "Choose model file" button; it is on the plain eye check screen.
 - Main page live camera with eye dots (owner asked for it): a 150 dp rounded box under the status row, and a hint line in the soft ink style.
