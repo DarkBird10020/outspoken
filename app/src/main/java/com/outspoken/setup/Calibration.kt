@@ -27,6 +27,9 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
         val restOpen: Float,
         val upReach: Float,
         val closedOpen: Float,
+        /** Lid gap (`eyeShape`, the wider eye) looking at the screen and with the eyes closed; null if not read. */
+        val restGap: Float? = null,
+        val closedGap: Float? = null,
     )
 
     sealed interface Result {
@@ -85,11 +88,19 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
         val range = restOpen - closedOpen
         if (range < MIN_CLOSE_RANGE) return Result.Failed("Closed eyes not seen; close them fully")
 
-        val measured = Measured(restGaze, restOpen, upReach, closedOpen)
+        val restGap = median(rests.mapNotNull { gap(it) })
+        val closedGaps = listOf(Step.Close1, Step.Close2).map { close -> seen[close].orEmpty().mapNotNull { gap(it) }.minOrNull() }
+        val closedGap = if (closedGaps.any { it == null }) null else closedGaps.maxOf { it!! }
+        val gapRange = if (restGap != null && closedGap != null) restGap - closedGap else null
+        val useGap = gapRange != null && gapRange >= MIN_GAP_RANGE
+
+        val measured = Measured(restGaze, restOpen, upReach, closedOpen, restGap, closedGap)
         val tuning = current.copy(
             blink = current.blink.copy(
                 closedBelow = closedOpen + range * SHUT_SHARE,
                 openAbove = closedOpen + range * OPEN_SHARE,
+                shapeClosedBelow = if (useGap) closedGap!! + gapRange!! * GAP_SHUT_SHARE else null,
+                shapeOpenAbove = if (useGap) closedGap!! + gapRange!! * GAP_OPEN_SHARE else null,
             ),
             gaze = current.gaze.copy(lookStrength = upReach * LOOK_SHARE),
         )
@@ -97,6 +108,12 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
     }
 
     private fun open(sample: EyeSample) = minOf(sample.leftOpen ?: 0f, sample.rightOpen ?: 0f)
+
+    /** The wider of the two lid gaps, since both must be below the line to count as shut. */
+    private fun gap(sample: EyeSample): Float? {
+        val dots = sample.dots ?: return null
+        return maxOf(dots.leftShape ?: return null, dots.rightShape ?: return null)
+    }
 
     private fun median(values: List<Float>): Float? =
         values.sorted().let { if (it.isEmpty()) null else it[it.size / 2] }
@@ -112,5 +129,13 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
         /** Shut line halfway between closed and open; open line three quarters of the way up. */
         const val SHUT_SHARE = 0.5f
         const val OPEN_SHARE = 0.75f
+
+        /**
+         * Lid gap lines sit low in the range: on the phone a real close read 0.04 to 0.09, looking
+         * down at the screen about 0.15, open about 0.30.
+         */
+        const val GAP_SHUT_SHARE = 0.3f
+        const val GAP_OPEN_SHARE = 0.5f
+        const val MIN_GAP_RANGE = 0.08f
     }
 }
