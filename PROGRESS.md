@@ -4,8 +4,6 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: synced with main; README now explains the two modes, the top bar buttons and the eye check page. Look down is off by default (look up = next card), winks are off unless switched on, blink only mode on a timer, the eye graph is one tap from the main page, and a 0.6 s blink length saved by the old practice round is cleared. Waiting for the ten-in-a-row test in both modes.
-
 ## Phone test history
 
 | Date | What was tested | Result | What changed |
@@ -16,6 +14,19 @@ Latest: synced with main; README now explains the two modes, the top bar buttons
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
 | 2026-10-10 | Logs of the 01:13 run on this iQOO (read from the phone) | 3 blinks chose; 13 closes ignored, including 595 ms and 554 ms ones, because the saved shortest blink was 600 ms. Looks fired about 40 times in 15 min | Shortest blink over 400 ms from old builds cleared; practice round sets 200 to 400 ms; look down off by default; blink only mode |
 | 2026-10-09 | Reading options / accuracy test | Jitter when reading options, accidental selection blinks, no tutorial | Practice round tutorial screen wired up, asymmetric eyelid detection, yaw jitter tolerance, upward gaze boundary |
+
+## Models: download and switch in the app (owner request)
+
+- [ ] **Models list on the eye check page:** Gemma 4 E2B (2.6 GB, fastest, about 1 s a reply) and Gemma 4 E4B (3.7 GB, more accurate, about 2 to 3 s). Each shows "not downloaded", "downloading in the browser", "downloaded", "loading" or "in use", with a Download or Use button. Code: `setup/ModelCatalog.kt`, `setup/ModelShelf.kt`, `ui/EyeCheckScreen.kt` (`ModelList`), `MainActivity.kt`. Tests: `ModelCatalogTest`.
+- [ ] **The app still has no internet** (PRD rule, CI check). Download opens the file in the phone's browser. While the app is open it checks Downloads every 3 s, moves a finished model into its own folder and loads it by itself. Needs "All files access" once (button "Allow access to Downloads").
+- [ ] **Switching models:** Use frees the model in use and loads the other one; no restart. The choice is saved and loaded at the next start. Code: `suggest/OnDeviceModel.kt` (`switchTo`), `suggest/LiteRtLmModel.kt` (`close`).
+- [ ] **Choose model file** still works, and no longer deletes the other model files.
+- Not offered: the Qualcomm NPU build on Hugging Face is made for the previous chip (SM8750), not the iQOO 15's.
+
+How to test on the phone:
+1. Eye check page (eye button), scroll to Models. Tap "Allow access to Downloads" and switch it on, then go back.
+2. Tap Download next to Gemma 4 E2B. The browser downloads it (2.6 GB). Come back to the app: the row shows "loading", then "in use, on GPU". The log says "downloaded Gemma 4 E2B, moved into the app".
+3. Same for E4B, then tap Use on either to switch. Compare reply time and tokens per second on the Stats screen.
 
 ## Choosing reliably (goal: "I need water" ten times in a row, no wrong card, no missed blink)
 
@@ -452,6 +463,7 @@ Design gaps, for the teammate to decide. Each uses the closest existing style fo
 - Help alert glass blur is left out; the background behind it is a smooth gradient, so it looks the same.
 - No control to change scan speed (the practice round only shows it).
 - While the phone is speaking, no card is lit.
+- App icon (owner request, the default Android icon was in use): a speech bubble with a glowing green eye on a dark gradient, with a one-colour layer for themed icons. Code: `res/mipmap-anydpi/ic_launcher.xml`, `res/drawable/ic_launcher_*.xml`. For the teammate to replace if the design has its own.
 - Main page top bar: a fourth round button (eye icon) opens the eye check page; the practice round uses the star icon.
 
 ## CI checks

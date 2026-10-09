@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- A speech bubble with an eye: speaking with the eyes. -->
+    <path android:pathData="M40,30H68A14,14 0 0,1 82,44V58A14,14 0 0,1 68,72H50L35,83L40,72A14,14 0 0,1 26,58V44A14,14 0 0,1 40,30Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="26"
+                android:startY="30"
+                android:endX="82"
+                android:endY="83">
+                <item android:offset="0" android:color="#FFFFFFFF" />
+                <item android:offset="1" android:color="#FFC9E8D4" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:fillColor="#FF111316"
+        android:pathData="M36,51Q54,33 72,51Q54,69 36,51Z" />
+    <path android:pathData="M46.8,51a7.2,7.2 0 1,0 14.4,0a7.2,7.2 0 1,0 -14.4,0z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="54"
+                android:centerY="51"
+                android:gradientRadius="7.2">
+                <item android:offset="0" android:color="#FF7CFFB0" />
+                <item android:offset="0.6" android:color="#FF22C55E" />
+                <item android:offset="1" android:color="#FF0F7A3D" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:fillColor="#FF050607"
+        android:pathData="M51,51a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M55,48.4a1.6,1.6 0 1,0 3.2,0a1.6,1.6 0 1,0 -3.2,0z" />
+</vector>
