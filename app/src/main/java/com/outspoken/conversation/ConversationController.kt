@@ -3,6 +3,8 @@ package com.outspoken.conversation
 import com.outspoken.blink.BlinkDetector
 import com.outspoken.blink.BlinkEvent
 import com.outspoken.eye.EyeSample
+import com.outspoken.help.HelpStep
+import com.outspoken.help.HelpTrigger
 import com.outspoken.log.EventLog
 import com.outspoken.scan.GazeStep
 import com.outspoken.scan.GazeStepper
@@ -31,6 +33,8 @@ class ConversationController(
     private val log: EventLog = EventLog.None,
     private val gaze: GazeStepper = GazeStepper(log = log),
     private val requestReplies: (requestId: Int, turns: List<Turn>) -> Boolean = { _, _ -> false },
+    private val help: HelpTrigger = HelpTrigger(log = log),
+    private val onHelp: (HelpStep) -> Unit = {},
     private val replyWaitMs: Long = 2_500,
     private val maxSpeakMs: Long = 10_000,
 ) {
@@ -77,6 +81,8 @@ class ConversationController(
             BlinkEvent.FaceLost -> scanner.pause(nowMs)
             null -> Unit
         }
+        // Help works at any time, even while the phone speaks.
+        help.onEyes(detector.shutSinceMs, nowMs)?.let(onHelp)
         if (moveByEyes && !speaking && !waiting && detector.tracking) {
             // Only shut eyes stop a look; half-lowered lids still count as open here.
             val eyesOpen = minOf(sample.leftOpen ?: 0f, sample.rightOpen ?: 0f) > detector.settings.closedBelow
@@ -159,6 +165,11 @@ class ConversationController(
     }
 
     private fun onBlink(blink: BlinkEvent.Blink, nowMs: Long) {
+        help.onBlink(blink.startMs)?.let {
+            onHelp(it)
+            return
+        }
+        if (help.isHold(blink.durationMs)) return
         if (speaking || waiting) {
             log.write("scan", "blink ignored while ${if (speaking) "speaking" else "waiting for new replies"}")
             return

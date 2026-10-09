@@ -54,6 +54,9 @@ class BlinkDetector(
     private var closedSinceMs: Long? = null
     private var missingSinceMs: Long? = null
 
+    /** When the eyes shut, while they are still shut; null while they are open. */
+    val shutSinceMs: Long? get() = closedSinceMs
+
     fun onSample(sample: EyeSample): BlinkEvent? {
         val left = sample.leftOpen
         val right = sample.rightOpen
