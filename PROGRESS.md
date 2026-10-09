@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: winks work again after calibration: they use the difference between the eyes instead of the lid gap. Waiting for the phone test.
+Latest: when the face comes back after being lost, the resting gaze is taken afresh, so looks work again at once. Waiting for the phone test.
 
 ## Phone test history
 
@@ -27,6 +27,11 @@ The app now launches with an interactive practice round on first use, teaches th
 - [x] **Stale preferences guard.** `TuningStore` upgrades hyper-sensitive legacy values (`minBlinkMs < 350` or `lookStrength < 0.35`) to recommended stable defaults. Code: `setup/Tuning.kt`.
 - [x] **Live transcript mirrored to laptop via Office Kit (PRD S2).** High-contrast, large-font full-screen transcript view accessible via top bar icon button. Renders real-time visitor speech (22sp) and speaker eye-blink replies (26sp pink card), live listening status pill, and session sentence counters. Zero internet used. Code: `ui/TranscriptScreen.kt`, `conversation/ConversationController.kt`, `MainActivity.kt`.
 - [x] **Frequent phrases in-session learning (PRD S3).** Dynamically learns sentences chosen by the speaker and prioritizes them to earlier phrase-bank pages and LLM top-up/fallback candidates, reducing eye movements required for habitual needs. Code: `conversation/Board.kt`, `conversation/ConversationController.kt`, `suggest/ModelSuggestionEngine.kt`.
+
+## Face coming back (owner report)
+
+- [ ] **The resting gaze is taken afresh when the face comes back.** Owner: after moving the face out of the camera, things stopped working. The old resting point stayed, so coming back in a new position made looks fire by themselves or never reach the line until it slowly re-adjusted. Now it resets on face found; the calibrated look lines stay. Code: `scan/GazeStepper.kt` (`forgetRest`), `conversation/ConversationController.kt`. Test: `EyeModeTest` "coming back in a new position does not move by itself and looks still work".
+- Note from the 02:00 phone screen: with the phone lying flat the camera sees the ceiling and only the top of the head, so "Looking for you" is correct then; the face must be in view to be found again.
 
 ## Winks after calibration (owner report)
 

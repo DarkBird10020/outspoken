@@ -57,6 +57,21 @@ class GazeStepper(
     /** Where the iris rests between the eye corners; null until seen. */
     val restIrisDrop: Float? get() = restIris
 
+    /**
+     * Forget the resting point so it is taken again from the next frames. Used when the face comes
+     * back after being lost: the person may now sit or hold the phone differently, and the old rest
+     * made looks fire on their own or never reach the line.
+     */
+    fun forgetRest() {
+        restY = null
+        restIris = null
+        looking = null
+        stepped = false
+        smoothX = null
+        smoothY = null
+        smoothIris = null
+    }
+
     /** Starts from a measured resting gaze, for example the one calibration found. */
     fun restAt(y: Float, iris: Float? = null) {
         restY = y
