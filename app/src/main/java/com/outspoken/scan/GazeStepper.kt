@@ -86,18 +86,23 @@ class GazeStepper(
      */
     fun onSample(gaze: Dot?, eyesOpen: Boolean, timeMs: Long, irisY: Float? = null): GazeStep? {
         val irisLine = settings.irisDownStrength
+        if (gaze == null || !eyesOpen) {
+            // Start the averages afresh when the eyes open again: a wink or blink shifts the
+            // readings, and averaging back from them read as a look the other way.
+            looking = null
+            smoothX = null
+            smoothY = null
+            smoothIris = null
+            return null
+        }
         // Running averages of both readings: on the phone single-frame wobble kept crossing the
         // up line (0.30 to 0.34 against 0.28, a step every few seconds). About 0.1 s of lag.
         val iris = irisY?.let { smooth(smoothIris, it).also { v -> smoothIris = v } }
-        val gazeY = gaze?.y?.let { smooth(smoothY, it).also { v -> smoothY = v } }
-        gaze?.x?.let { smoothX = smooth(smoothX, it) }
+        val gazeY = smooth(smoothY, gaze.y).also { smoothY = it }
+        smoothX = smooth(smoothX, gaze.x)
         if (iris != null && restIris == null) restIris = iris
         val irisDown = irisLooksDown(iris)
-        if (gaze == null || !eyesOpen) {
-            looking = null
-            return null
-        }
-        val y = gazeY ?: return null
+        val y = gazeY
         val centre = restY ?: y.also { restY = it }
         val dy = y - centre
         val down = settings.downStrength
