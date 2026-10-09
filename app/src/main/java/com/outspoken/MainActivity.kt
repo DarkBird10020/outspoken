@@ -30,6 +30,7 @@ import com.outspoken.setup.findModelFile
 import com.outspoken.speech.Speaker
 import com.outspoken.ui.ConversationScreen
 import com.outspoken.ui.EyeCheckScreen
+import com.outspoken.ui.EyeMonitor
 import com.outspoken.ui.SetupStatus
 import com.outspoken.ui.theme.OutspokenTheme
 import kotlinx.coroutines.delay
@@ -77,6 +78,7 @@ class MainActivity : ComponentActivity() {
         applyTuning(tuningStore.load())
         AppLog.write("app", "tuning $tuning")
         eyeReader = EyeReader(this) { controller.onSample(it) }
+        eyeReader.dotsOn = true
         speaker = Speaker(this) { controller.onSpeechDone(now()) }
         camera = FrontCamera(this, this)
         cameraGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
@@ -137,6 +139,11 @@ class MainActivity : ComponentActivity() {
                         onPractice = { show(Screen.EyeCheck) },
                         onStats = {},
                         onSelect = { controller.onTap(it, now()) },
+                        eyeHint = if (tuning.moveByEyes) "Look up: next.  Close eyes: choose." else "Close your eyes when your choice lights up.",
+                        eyeView = { modifier ->
+                            val sample by eyeReader.samples.collectAsStateWithLifecycle()
+                            EyeMonitor(sample, tuning.blink, camera::showPreview, camera::hidePreview, modifier)
+                        },
                     )
                 }
             }
@@ -176,7 +183,6 @@ class MainActivity : ComponentActivity() {
     private fun show(next: Screen) {
         AppLog.write("ui", "screen $next")
         screen = next
-        eyeReader.dotsOn = next == Screen.EyeCheck
     }
 
     private fun modelStatusLine(): String {

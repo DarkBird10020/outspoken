@@ -46,7 +46,9 @@ class FrontCamera(private val context: Context, private val owner: LifecycleOwne
         provider?.let { bindPreview(it, view) }
     }
 
-    fun hidePreview() {
+    /** Only the view that is showing the preview can stop it, so a screen switch cannot cut the new one. */
+    fun hidePreview(view: PreviewView) {
+        if (previewView !== view) return
         previewView = null
         provider?.unbind(preview)
     }

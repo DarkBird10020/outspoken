@@ -76,7 +76,7 @@ fun EyeCheckScreen(
     onTuningReset: () -> Unit,
     onRequestCamera: () -> Unit,
     onPreviewReady: (PreviewView) -> Unit,
-    onPreviewGone: () -> Unit,
+    onPreviewGone: (PreviewView) -> Unit,
 ) {
     val settings = tuning.blink
     val history = remember { mutableStateListOf<EyeSample>() }
@@ -99,8 +99,7 @@ fun EyeCheckScreen(
                     .weight(1f)
             ) {
                 if (cameraGranted) {
-                    CameraPreview(onPreviewReady, onPreviewGone, Modifier.fillMaxSize())
-                    EyeDots(sample, settings, Modifier.fillMaxSize())
+                    EyeMonitor(sample, settings, onPreviewReady, onPreviewGone, Modifier.fillMaxSize())
                 } else {
                     Button(onClick = onRequestCamera) { Text("Allow camera") }
                 }
@@ -140,8 +139,23 @@ fun EyeCheckScreen(
     }
 }
 
+/** The front camera with the eyelid and iris dots drawn on it. */
 @Composable
-fun CameraPreview(onReady: (PreviewView) -> Unit, onGone: () -> Unit, modifier: Modifier = Modifier) {
+fun EyeMonitor(
+    sample: EyeSample?,
+    settings: BlinkSettings,
+    onPreviewReady: (PreviewView) -> Unit,
+    onPreviewGone: (PreviewView) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier) {
+        CameraPreview(onPreviewReady, onPreviewGone, Modifier.fillMaxSize())
+        EyeDots(sample, settings, Modifier.fillMaxSize())
+    }
+}
+
+@Composable
+fun CameraPreview(onReady: (PreviewView) -> Unit, onGone: (PreviewView) -> Unit, modifier: Modifier = Modifier) {
     AndroidView(
         factory = { context ->
             PreviewView(context).apply {
@@ -150,7 +164,7 @@ fun CameraPreview(onReady: (PreviewView) -> Unit, onGone: () -> Unit, modifier: 
             }.also(onReady)
         },
         modifier = modifier,
-        onRelease = { onGone() },
+        onRelease = { onGone(it) },
     )
 }
 
