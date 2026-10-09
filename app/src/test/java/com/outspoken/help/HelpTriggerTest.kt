@@ -50,6 +50,34 @@ class HelpTriggerTest {
     }
 
     @Test
+    fun `closing the eyes again for longer than a blink sounds the alarm once`() {
+        shut(1_000, 3_500)
+        // Phone, 05:08:31 to 05:08:44: opened, then shut again for 2.8 s instead of blinking.
+        assertEquals(listOf(HelpStep.Alarm), shut(6_900, 9_700))
+        assertFalse(trigger.armed)
+        assertNull(trigger.onBlink(10_500))
+    }
+
+    @Test
+    fun `the close that sounded the alarm is not a pick`() {
+        shut(1_000, 3_500)
+        var t = 6_900L
+        while (t < 8_500) {
+            trigger.onEyes(6_900, t)
+            t += 33
+        }
+        assertTrue(trigger.isHold(1_000))
+        trigger.onEyes(null, 8_600)
+        assertFalse(trigger.isHold(1_000))
+    }
+
+    @Test
+    fun `a second close starting after the five seconds is a new hold`() {
+        shut(1_000, 3_500)
+        assertEquals(listOf(HelpStep.HoldReached), shut(9_000, 11_500))
+    }
+
+    @Test
     fun `the hold itself is never a pick`() {
         assertTrue(trigger.isHold(2_000))
         assertFalse(trigger.isHold(1_500))

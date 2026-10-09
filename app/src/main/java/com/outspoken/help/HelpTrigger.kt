@@ -11,9 +11,9 @@ enum class HelpStep {
 }
 
 /**
- * The help alarm (PRD F8): eyes held shut for [holdMs], then opened, then one deliberate blink
- * within [confirmWithinMs]. The second step keeps a long rest with the eyes closed from raising
- * the alarm on its own.
+ * The help alarm (PRD F8): eyes held shut for [holdMs], then opened, then closed again on purpose
+ * within [confirmWithinMs], as one deliberate blink or a longer hold. The second step keeps a long
+ * rest with the eyes closed from raising the alarm on its own.
  */
 class HelpTrigger(
     private val holdMs: Long = 2_000,
@@ -23,15 +23,32 @@ class HelpTrigger(
     private var holdReported = false
     private var armedAtMs: Long? = null
 
+    /** The close now going on raised the alarm, so it neither re-arms nor picks a card. */
+    private var confirmedByClose = false
+
     val armed get() = armedAtMs != null
 
-    /** A closure this long is the help hold, never a pick. */
-    fun isHold(durationMs: Long) = durationMs >= holdMs
+    /** A closure this long is the help hold, and the close that confirmed the alarm: never a pick. */
+    fun isHold(durationMs: Long) = durationMs >= holdMs || confirmedByClose
 
-    /** Call with every frame. [shutSinceMs] is when the eyes shut, or null while they are open. */
-    fun onEyes(shutSinceMs: Long?, nowMs: Long): HelpStep? {
-        armedAtMs?.let {
-            if (nowMs - it > confirmWithinMs) {
+    /**
+     * Call with every frame. [shutSinceMs] is when the eyes shut, or null while they are open.
+     * [longestBlinkMs] is the longest close that still counts as a blink; a confirming close
+     * longer than that raises the alarm here, since no blink will come for it.
+     */
+    fun onEyes(shutSinceMs: Long?, nowMs: Long, longestBlinkMs: Long = LONGEST_BLINK_MS): HelpStep? {
+        armedAtMs?.let { armedAt ->
+            val confirming = shutSinceMs != null && shutSinceMs >= armedAt && shutSinceMs - armedAt <= confirmWithinMs
+            // On the phone the person closed the eyes again for 2.6 to 2.8 s instead of blinking,
+            // three times in a row, and the alarm never sounded (05:08:31 to 05:08:56).
+            if (confirming && nowMs - shutSinceMs!! > longestBlinkMs) {
+                armedAtMs = null
+                holdReported = true
+                confirmedByClose = true
+                log.write("help", "confirmed by closing the eyes again, alarm")
+                return HelpStep.Alarm
+            }
+            if (!confirming && nowMs - armedAt > confirmWithinMs) {
                 log.write("help", "no confirm blink within ${confirmWithinMs / 1000} s, cancelled")
                 armedAtMs = null
             }
@@ -44,7 +61,7 @@ class HelpTrigger(
             }
         } else if (holdReported) {
             holdReported = false
-            armedAtMs = nowMs
+            if (confirmedByClose) confirmedByClose = false else armedAtMs = nowMs
         }
         return null
     }
@@ -56,5 +73,9 @@ class HelpTrigger(
         armedAtMs = null
         log.write("help", "confirmed, alarm")
         return HelpStep.Alarm
+    }
+
+    private companion object {
+        const val LONGEST_BLINK_MS = 1_500L
     }
 }
