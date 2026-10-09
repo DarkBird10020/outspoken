@@ -4,13 +4,16 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: look up = next card (looking down read as eyes closing in the phone logs), crash on close fixed, blink settings set from logged values. M1 is waiting for the phone test.
+Latest: the main page shows the live camera with the eye dots above the cards, so detection and choosing happen on one screen; app locked to portrait so a rotation no longer restarts it. M1 is waiting for the phone test.
 
 ## Eyes move the highlight (owner decision)
 
 The owner asked for the highlight to follow the eyes instead of moving on a timer. This replaces PRD F2 timed scanning as the default; the timer stays as a switch.
 
 - [ ] **Look up = next card, close eyes about 0.4 s = say it.** One look up (above the top of the phone) is one step; the eyes come back to rest before the next; after the last card it goes back to the first. Looking down and sideways do nothing. Why only up: in the phone logs every look up registered (gaze -0.65 to -0.92), but every look down (gaze 0.81 to 0.87) arrived as "eyes shut", because looking down drops the upper lids. So down looks never moved the highlight ("stuck in the middle") and could fake a blink. Code: `scan/GazeStepper.kt`, `conversation/ConversationController.kt`.
+- [ ] **Eyes and cards on one page.** The main page shows the live camera with the eyelid and iris dots above the cards, and a one-line hint ("Look up: next. Close eyes: choose."), so the person sees their eyes are being read while choosing. The eye check page stays for tuning. Code: `ui/ConversationScreen.kt` (`eyeView`), `ui/EyeCheckScreen.kt` (`EyeMonitor`).
+- [ ] **Portrait only.** The log showed Android rebuilding the screen mid-test (`app: closed` then a fresh start at 22:38:21), the usual sign of a rotation, and that rebuild led to the crash below. The app is now locked to portrait and does not restart on rotation. Code: `AndroidManifest.xml`.
+- [ ] **Switching pages keeps the camera.** Leaving one page could stop the camera preview the next page had just started. Only the page showing the preview can stop it now. Code: `eye/FrontCamera.kt`.
 - [ ] **Crash on close fixed.** Logged `MediaPipeException: The task graph hasn't been started` from `EyeReader.analyze`: a camera frame reached the face tracker after it was closed. It now closes on the camera thread and ignores late frames. Code: `eye/EyeReader.kt`, `MainActivity.kt`.
 - [ ] **Blink and look settings from the logs.** Deliberate closes went down to 0.22 to 0.36 and lasted 0.31 to 0.65 s; normal blinks stayed at 0.40 to 0.53 and up to 0.25 s; at 0.25 s minimum, normal blinks said "I need water" three times in 8 s. Now: shut line 0.45, open line 0.55, 0.4 to 1.5 s. Looks up measured 0.65 to 0.92 from rest while reading the cards moved the eyes about 0.3, so a look must be 0.45 and last 0.25 s. Code: `setup/Tuning.kt`, `scan/GazeStepper.kt`.
 - [ ] **Eye reading switched from ML Kit to MediaPipe Face Landmarker.** Phone logs showed ML Kit could not do this: its dots trace the eyelids, not the eyeball, so they never moved with the eyes; one eye often read 0.01 while the other read 0.3; and it lost the face for single frames 16 times in a minute. MediaPipe gives 478 face points including both irises, a blink score per eye and gaze scores (look up, down, in, out). Model: `assets/face_landmarker.task` (Google, Apache 2.0). Code: `eye/EyeReader.kt`, `eye/FaceMesh.kt`.
@@ -143,6 +146,7 @@ Unit tests:
 - `FormatTest`: how numbers on the stats and practice screens are written ("1.2 s", "24 tok/s", "04:12", "-" when not measured).
 
 Design gaps, for the teammate to decide. Each uses the closest existing style for now:
+- Main page live camera with eye dots (owner asked for it): a 150 dp rounded box under the status row, and a hint line in the soft ink style.
 - Highlight on "More options" and "Yes / No": pink glow, no "Blink" badge (the badge is taller than these cards).
 - Face lost: same pill reading "Looking for you" with a grey dot.
 - Nothing heard yet: the "Heard" card is hidden.
