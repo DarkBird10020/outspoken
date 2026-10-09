@@ -130,7 +130,7 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
                 shapeOpenAbove = if (useGap) closedGap!! + gapRange!! * GAP_OPEN_SHARE else null,
             ),
             gaze = current.gaze.copy(
-                lookStrength = if (upSeen) upReach * LOOK_SHARE else current.gaze.lookStrength,
+                lookStrength = if (upSeen) maxOf(upReach * LOOK_SHARE, MIN_UP_LINE) else current.gaze.lookStrength,
                 downStrength = if (downReach >= MIN_DOWN_REACH) downReach * DOWN_SHARE else null,
                 irisDownStrength = irisDownReach?.takeIf { it >= MIN_IRIS_DOWN_REACH }?.let { maxOf(it * DOWN_SHARE, MIN_IRIS_DOWN_LINE) },
             ),
@@ -152,6 +152,12 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
     companion object {
         const val MIN_FRAMES = 5
         const val MIN_UP_REACH = 0.1f
+
+        /**
+         * Floor for the look up line. At 0.15 (02:14 phone run) resting wobble of 0.16 to 0.24 read
+         * as looks up and undid looks down; real looks up measured 0.4 to 0.7.
+         */
+        const val MIN_UP_LINE = 0.2f
         const val MIN_DOWN_REACH = 0.1f
 
         /** Iris drop as a share of the eye width; a deliberate look down moves it several times this. */

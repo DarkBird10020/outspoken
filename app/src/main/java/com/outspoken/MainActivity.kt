@@ -413,8 +413,8 @@ class MainActivity : ComponentActivity() {
 
     private fun eyeHint(tuning: Tuning) = when {
         !tuning.moveByEyes -> "Close your eyes when your choice lights up."
-        tuning.lookDown -> "Look up or down, or wink, to move.  Close both eyes: choose."
-        else -> "Look up or wink to move (left wink down, right wink up).  Close both eyes: choose."
+        else -> (if (tuning.lookDown) "Look up or down" else "Look up for the next card") +
+            (if (tuning.winks) ", or wink (left wink down, right wink up)" else "") + ".  Close both eyes: choose."
     }
 
     private fun fmt(value: Float) = String.format(Locale.US, "%.2f", value)
@@ -455,6 +455,7 @@ class MainActivity : ComponentActivity() {
         gazeStepper.settings = next.activeGaze
         controller.upMovesNext = !next.lookDown
         if (controller.moveByEyes != next.moveByEyes) controller.moveByEyes = next.moveByEyes
+        controller.winks = next.winks
     }
 
     private fun statsUi(nowMs: Long, model: ModelState) = StatsUi(

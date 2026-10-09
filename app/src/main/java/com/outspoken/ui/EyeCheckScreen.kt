@@ -378,6 +378,16 @@ private fun TuningSliders(tuning: Tuning, onChange: (Tuning) -> Unit, onReset: (
             Text("Looking down also moves (off: look up goes to the next card)", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
             Switch(checked = tuning.lookDown, onCheckedChange = { onChange(tuning.copy(lookDown = it)) })
         }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (tuning.winks) "Winks move too (left wink down, right wink up)" else "Winks do nothing",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.weight(1f),
+            )
+            Switch(checked = tuning.winks, onCheckedChange = { onChange(tuning.copy(winks = it)) })
+        }
+    }
+    if (tuning.moveByEyes) {
         LabeledSlider("Look up distance: ${tuning.gaze.lookStrength.formatOpen()}", tuning.gaze.lookStrength, 0.1f..0.9f) {
             onChange(tuning.copy(gaze = tuning.gaze.copy(lookStrength = it)))
         }

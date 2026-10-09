@@ -27,6 +27,8 @@ data class Tuning(
     val scanMs: Long = 1_200,
     /** The highlight moves when the eyes look up. Off: it moves on its own every [scanMs]. */
     val moveByEyes: Boolean = true,
+    /** Left wink moves down, right wink up. Off by default, owner decision. */
+    val winks: Boolean = false,
     // Iris look down on from the start (calibrated runs on the phone gave 0.008 to 0.011), so a
     // failed calibration or a fresh install never leaves looking down off.
     val gaze: GazeSettings = GazeSettings(lookStrength = 0.3f, irisDownStrength = 0.012f),
@@ -72,6 +74,7 @@ class TuningStore(context: Context) {
             scanMs = prefs.getLong("scanMs", default.scanMs),
             moveByEyes = prefs.getBoolean("moveByEyes", default.moveByEyes),
             lookDown = prefs.getBoolean("lookDown", default.lookDown),
+            winks = prefs.getBoolean("winks", default.winks),
             gaze = GazeSettings(
                 lookStrength = safeLookStrength,
                 irisDownStrength = if (prefs.contains("irisDownStrength")) {
@@ -107,6 +110,7 @@ class TuningStore(context: Context) {
             .putLong("scanMs", tuning.scanMs)
             .putBoolean("moveByEyes", tuning.moveByEyes)
             .putBoolean("lookDown", tuning.lookDown)
+            .putBoolean("winks", tuning.winks)
             .putFloat("lookStrength", tuning.gaze.lookStrength)
             .putFloat("downStrength", tuning.gaze.downStrength ?: NOT_SET)
             .putFloat("irisDownStrength", tuning.gaze.irisDownStrength ?: NOT_SET)

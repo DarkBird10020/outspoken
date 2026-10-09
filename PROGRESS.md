@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: look down is off by default (look up = next card), blink only mode on a timer, the eye graph is one tap from the main page, and a 0.6 s blink length saved by the old practice round is cleared. Waiting for the ten-in-a-row test in both modes.
+Latest: look down is off by default (look up = next card), blink only mode on a timer, the eye graph is one tap from the main page, and a 0.6 s blink length saved by the old practice round is cleared. Winks are off unless switched on (eye check screen). The highlight no longer moves by itself after speaking or after you shift position. Waiting for the ten-in-a-row test in both modes.
 
 ## Phone test history
 
@@ -46,6 +46,45 @@ The app now launches with an interactive practice round on first use, teaches th
 - [x] **Stale preferences guard.** `TuningStore` upgrades hyper-sensitive legacy values (`minBlinkMs < 350` or `lookStrength < 0.35`) to recommended stable defaults. Code: `setup/Tuning.kt`.
 - [x] **Live transcript mirrored to laptop via Office Kit (PRD S2).** High-contrast, large-font full-screen transcript view accessible via top bar icon button. Renders real-time visitor speech (22sp) and speaker eye-blink replies (26sp pink card), live listening status pill, and session sentence counters. Zero internet used. Code: `ui/TranscriptScreen.kt`, `conversation/ConversationController.kt`, `MainActivity.kt`.
 - [x] **Frequent phrases in-session learning (PRD S3).** Dynamically learns sentences chosen by the speaker and prioritizes them to earlier phrase-bank pages and LLM top-up/fallback candidates, reducing eye movements required for habitual needs. Code: `conversation/Board.kt`, `conversation/ConversationController.kt`, `suggest/ModelSuggestionEngine.kt`.
+
+## Moving on its own, and winks behind a switch (owner report)
+
+- [ ] **Winks are off unless switched on.** Eye check screen: "Winks move too (left wink down, right wink up)". Saved on the phone. Off by default, owner decision. Code: `setup/Tuning.kt` (`winks`), `conversation/ConversationController.kt`, `ui/EyeCheckScreen.kt`. Test: `EyeModeTest` "winks do nothing while the setting is off".
+- [ ] **No moves right after a pause in readings.** Phone 02:38:48, 02:38:54, 02:39:37, 02:39:45, 02:39:52: a "look up" fired 0.4 s after every spoken phrase, because the look from before the speech was still remembered. Coming back from Practice fired a "look down held 10474 ms" (02:39:30). Now after 0.4 s with no readings, nothing moves for 1 s while the resting point is learned again. Code: `scan/GazeStepper.kt` (`STALE_AFTER_MS`). Test: `GazeStepperTest` "a look left over from before a pause in readings does not step".
+- [ ] **Eyes away from rest for 2.5 s become the new rest.** Phone 02:39:24: the resting gaze moved from 0.6 to -0.1 and looks up kept firing on their own (02:39:32 to 02:39:52). Coming back to the old rest within 6 s restores it without a step. The log says "new resting point" and "back at the old resting point". Code: `scan/GazeStepper.kt` (`RECENTRE_AFTER_MS`). Tests: `GazeStepperTest` "eyes resting somewhere new become the rest", "holding a look steps once and coming back does not step" (renamed on purpose: the held look now becomes the rest after 2.5 s, and coming back restores the old one).
+
+## Winks moving up and down (owner report)
+
+Phone run 02:29:33 to 02:29:52: every wink registered, but extra "look up" steps came in between. While one eye was shut or half shut (0.5 against 0.9), the gaze reading sat at 0.28 against a rest of 0.60, as far as a real look up.
+
+- [ ] **Looks stop while one eye reads lower than the other**, and for 0.8 s after. "Lower" means 0.2 beyond this person's usual difference between the eyes, so eyes that always read a bit apart still work. Code: `blink/WinkDetector.kt` (`oneEyeLower`), `conversation/ConversationController.kt`. Tests: `EyeModeTest` "an eye left half shut between winks is not a look up", "looks still work when one eye always reads lower"; `WinkDetectorTest` "one eye half shut reads as one eye lower".
+- [ ] **A look up to 1 s before a wink is taken back.** Phone 02:29:49: the eye starting to close fired a "look up" 0.4 s before the right wink. The log says "look undone". Test: `EyeModeTest` "a look fired just before a wink is taken back".
+
+## Winks: same fixes (owner report)
+
+- [ ] **Looks pause after a wink** (now 0.8 s after the eye is back level, see above). Phone 02:23:51: each left wink was followed about 0.45 s later by a "look up" as the eye reopened, undoing it. Code: `scan/GazeStepper.kt` (`pauseUntil`), `conversation/ConversationController.kt` (`AFTER_WINK_MS`). Test: `EyeModeTest` "the eye reopening after a wink is not a look up".
+- [ ] **Wink hysteresis:** after a wink, both eyes must be open together for 0.2 s before the next counts, and winks are at least 0.6 s apart, so an eye flickering open mid-wink counts once. Code: `blink/WinkDetector.kt`. Test: `WinkDetectorTest` "an eye flickering open mid wink counts once".
+
+## Looks up: same fixes (owner report)
+
+- [ ] **The way back from a look is ignored for 1 s** (was 0.7 s). Phone 02:22:47 look down, 02:22:48.7 a "look up": the eyes coming back took 1.3 s. Code: `scan/GazeStepper.kt` (`REBOUND_MS`).
+- [ ] **For 1 s after the face comes back, only the resting gaze is learned, quickly; nothing moves.** Phone 02:23:30.9 face found, 02:23:31.4 a "look up 0.56": the rest had been taken from the first, still-moving frame. Code: `scan/GazeStepper.kt` (`SETTLE_MS`). Test: `GazeStepperTest` "just after the face comes back nothing steps while the rest is learned".
+- Tests updated on purpose: the rebound test and the `EyeModeTest` helpers pause 1 s between opposite looks, longer than the new window.
+
+## Looks with hysteresis (owner report: down "too fast, hard to register, extra steps")
+
+- [ ] **A look starts at its line and ends only below half of it.** With one line both ways, a single wobbly frame under the line restarted the 0.35 s hold (hard to register), and hovering near the line stepped twice (extra steps). Code: `scan/GazeStepper.kt` (`REARM`). Tests: `GazeStepperTest` "a wobble under the line during a look down does not stop it registering", "hovering around the line steps only once".
+- [ ] **Look up line at least 0.2.** The 02:14 calibration set it at 0.15 and resting wobble of 0.16 to 0.24 read as looks up (three in 1.4 s at 02:16:03), undoing looks down; real looks up measured 0.4 to 0.7. Code: `setup/Calibration.kt` (`MIN_UP_LINE`).
+- Merged with the demo-reliability changes (#32). The repeated-looks-down fix had not reached main because of that merge; Atul's absolute "look up must reach gaze 0.2" rule is replaced by the relative 0.2 floor, which works at any phone height.
+
+## Repeated looks down (owner report)
+
+- [ ] **Looking down many times in a row keeps working.** Owner: centre to down, many times, and sometimes it stopped going down. During each look down the iris resting point crept 1% a frame toward the look, so over several looks it moved down and later looks no longer reached the line. The creep is gone; the resting point follows only near rest (within 3/4 of the line) and more gently (3% a frame). Code: `scan/GazeStepper.kt`. Test: `GazeStepperTest` "many looks down in a row all register" (8 of 8).
+
+## Face coming back (owner report)
+
+- [ ] **The resting gaze is taken afresh when the face comes back.** Owner: after moving the face out of the camera, things stopped working. The old resting point stayed, so coming back in a new position made looks fire by themselves or never reach the line until it slowly re-adjusted. Now it resets on face found; the calibrated look lines stay. Code: `scan/GazeStepper.kt` (`forgetRest`), `conversation/ConversationController.kt`. Test: `EyeModeTest` "coming back in a new position does not move by itself and looks still work".
+- Note from the 02:00 phone screen: with the phone lying flat the camera sees the ceiling and only the top of the head, so "Looking for you" is correct then; the face must be in view to be found again.
 
 ## Winks after calibration (owner report)
 
