@@ -59,6 +59,7 @@ data class SetupStatus(
     val offlineVoice: Boolean?,
     val lastReplyLine: String = "none yet",
     val listenLine: String = "off",
+    val buildLine: String = "",
 )
 
 /** One model in the Models list: [status] in plain words, as shown. */
@@ -182,6 +183,7 @@ fun EyeCheckScreen(
                     },
                     style = MaterialTheme.typography.bodySmall,
                 )
+                Text("Build: ${setup.buildLine}", style = MaterialTheme.typography.bodySmall)
             }
         }
     }

@@ -19,7 +19,7 @@ class ModelShelf(private val context: Context) {
     private val prefs = context.getSharedPreferences("models", Context.MODE_PRIVATE)
     private val appDir: File? get() = context.getExternalFilesDir(null)
 
-    /** The model to load at start and after a download; null means the largest file there. */
+    /** The model picked in the app; null means none picked yet (see [ModelCatalog.atStart]). */
     var chosen: ModelChoice?
         get() = ModelCatalog.byFileName(prefs.getString(CHOSEN, null))
         set(value) = prefs.edit().putString(CHOSEN, value?.fileName).apply()
@@ -45,8 +45,9 @@ class ModelShelf(private val context: Context) {
     fun installed(choice: ModelChoice): File? =
         appDir?.let { File(it, choice.fileName) }?.takeIf { it.length() == choice.sizeBytes }
 
-    /** The file to load: the chosen model if it is here, otherwise the largest model file. */
-    fun fileToLoad(): File? = chosen?.let(::installed) ?: findModelFile(appDir)
+    /** The file to load: the chosen model if it is here, then E2B, then the largest model file. */
+    fun fileToLoad(): File? =
+        ModelCatalog.atStart(chosen) { installed(it) != null }?.let(::installed) ?: findModelFile(appDir)
 
     /**
      * Moves finished downloads from Downloads into the app's folder and returns the models moved.

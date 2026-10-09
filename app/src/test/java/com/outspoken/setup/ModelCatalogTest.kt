@@ -42,4 +42,24 @@ class ModelCatalogTest {
             ModelCatalog.E4B.url,
         )
     }
+
+    @Test
+    fun `at start the picked model wins when it is on the phone`() {
+        assertEquals(ModelCatalog.E4B, ModelCatalog.atStart(ModelCatalog.E4B) { true })
+    }
+
+    @Test
+    fun `with nothing picked E2B loads, not the larger E4B`() {
+        assertEquals(ModelCatalog.E2B, ModelCatalog.atStart(null) { true })
+    }
+
+    @Test
+    fun `a picked model that is gone falls back to E2B`() {
+        assertEquals(ModelCatalog.E2B, ModelCatalog.atStart(ModelCatalog.E4B) { it == ModelCatalog.E2B })
+    }
+
+    @Test
+    fun `with neither model on the phone there is no pick`() {
+        assertNull(ModelCatalog.atStart(null) { false })
+    }
 }

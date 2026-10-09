@@ -35,6 +35,15 @@ object ModelCatalog {
     )
     val all = listOf(E2B, E4B)
 
+    /**
+     * The model to load at start: the one picked in the app if it is on the phone, otherwise E2B.
+     * Null means neither; the caller then loads whatever model file is there. Loading the largest
+     * file made E4B the default, and it misses the PRD's 2 s reply target (2 to 3 s) and shares
+     * the GPU with the face tracker, which can slow the camera frames the blinks are read from.
+     */
+    fun atStart(chosen: ModelChoice?, isHere: (ModelChoice) -> Boolean): ModelChoice? =
+        chosen?.takeIf(isHere) ?: E2B.takeIf(isHere)
+
     fun byFileName(name: String?): ModelChoice? = all.firstOrNull { it.fileName == name }
 
     /**

@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: the app can download Gemma 4 E2B and E4B (through the browser, the app stays offline), load them by itself and switch between them. App icon added. Waiting for the phone test.
+Latest: both phones can now check they run the same build (commit shown on the eye check page and in the log), and with no model picked the app loads Gemma 4 E2B, not the larger E4B. Models download in the app; app icon added. Waiting for the ten-in-a-row test in both modes.
 
 ## Phone test history
 
@@ -29,6 +29,20 @@ How to test on the phone:
 1. Eye check page (eye button), scroll to Models. Tap "Allow access to Downloads" and switch it on, then go back.
 2. Tap Download next to Gemma 4 E2B. The browser downloads it (2.6 GB). Come back to the app: the row shows "loading", then "in use, on GPU". The log says "downloaded Gemma 4 E2B, moved into the app".
 3. Same for E4B, then tap Use on either to switch. Compare reply time and tokens per second on the Stats screen.
+
+## Same app on both phones (owner report: the friend's APK is less steady)
+
+- [ ] **The build is shown.** The eye check page ("Build:") and the first lines of every run log say which commit the APK came from, whether it had uncommitted edits, and whether it is the CI APK or built on a laptop. Two phones running different code show different lines. Code: `app/build.gradle.kts` (`COMMIT`, `CHANGED`, `FROM_CI`), `MainActivity.kt`, `ui/EyeCheckScreen.kt`.
+- [ ] **E2B loads when no model was picked.** It used to load the largest model file, so with both downloaded the phone ran E4B: 2 to 3 s a reply (over the PRD's 2 s target), and it shares the GPU with the face tracker, which can drop the camera frames blinks are read from. A model picked in the app still wins. Not yet confirmed from a log; compare the "eyes fps" lines while the model writes replies. Code: `setup/ModelCatalog.kt` (`atStart`), `setup/ModelShelf.kt`. Tests: `ModelCatalogTest` "with nothing picked E2B loads, not the larger E4B", "at start the picked model wins when it is on the phone", "a picked model that is gone falls back to E2B", "with neither model on the phone there is no pick".
+- Why the two APKs can differ even from one repo:
+  - Built from different commits, or with uncommitted edits. The "Build:" line shows it.
+  - Settings are saved on each phone: shortest blink, look lines, winks, look down, mode, scan speed. A new APK keeps them. "Reset to defaults" on the eye check page, then calibrate, puts both phones on the same start.
+  - Each laptop signs its own build with its own debug key, so one person's APK cannot install over the other's without uninstalling, which also deletes the downloaded model. The CI APK (`outspoken-debug-apk`) is signed with the shared key: install that on both phones for exactly the same app.
+
+## Models in the app
+
+- [ ] **Download Gemma 4 E2B or E4B from the eye check page.** The phone's browser downloads the file (the app stays offline); the app moves it in from Downloads and loads it, and can switch between them. Needs the "see Downloads" permission. Code: `setup/ModelCatalog.kt`, `setup/ModelShelf.kt`, `suggest/OnDeviceModel.kt`, `MainActivity.kt`, `ui/EyeCheckScreen.kt`. Tests: `ModelCatalogTest`.
+- [ ] **App icon.** Code: `res/mipmap-*`.
 
 ## Choosing reliably (goal: "I need water" ten times in a row, no wrong card, no missed blink)
 

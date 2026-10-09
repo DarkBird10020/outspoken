@@ -158,6 +158,7 @@ class MainActivity : ComponentActivity() {
 
         tuningStore = TuningStore(this)
         applyTuning(tuningStore.load())
+        AppLog.write("app", "build $buildLine")
         AppLog.write("app", "tuning $tuning")
         practiceController = PracticeController(
             initialTuning = tuning,
@@ -298,7 +299,7 @@ class MainActivity : ComponentActivity() {
                         fps = fps,
                         tuning = tuning,
                         recentLines = recent,
-                        setup = SetupStatus(importLine ?: modelLine(modelState), offlineVoice, lastReplyLine, listenLine),
+                        setup = SetupStatus(importLine ?: modelLine(modelState), offlineVoice, lastReplyLine, listenLine, buildLine),
                         onTuningChange = {
                             applyTuning(it)
                             tuningStore.save(it)
@@ -437,6 +438,11 @@ class MainActivity : ComponentActivity() {
         tuning.winks -> "Look up or wink to move (left wink down, right wink up).  Close both eyes: choose."
         else -> "Look up to move to the next card.  Close both eyes: choose."
     }
+
+    /** Which code this APK came from, so two phones can be checked for the same build. */
+    private val buildLine =
+        "${BuildConfig.COMMIT}${if (BuildConfig.CHANGED) " with uncommitted edits" else ""}, " +
+            if (BuildConfig.FROM_CI) "CI APK" else "built on a laptop"
 
     private fun fmt(value: Float) = String.format(Locale.US, "%.2f", value)
 

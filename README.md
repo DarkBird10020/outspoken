@@ -16,10 +16,12 @@ Every push builds a debug APK on GitHub Actions. Download `outspoken-debug-apk` 
    ```
    ./gradlew installDebug
    ```
-2. Download a Gemma model in LiteRT-LM format (a `.litertlm` file, for example Gemma3-1B-IT from the [LiteRT community on Hugging Face](https://huggingface.co/litert-community)) onto the phone. In the app, tap the eye button (top right) to open the eye check page, then "Choose model file", and pick it. The model is not in this repo; it comes under the Gemma terms of use.
+2. Get a Gemma model: on the eye check page (eye button, top right), tap Download next to Gemma 4 E2B (faster, the default) or E4B (more accurate, slower). The phone's browser downloads it and the app loads it by itself; the app never goes online. A `.litertlm` file already on the phone can be picked with "Choose model file". The model is not in this repo; it comes under the Gemma terms of use.
 3. Make sure the phone's text-to-speech engine has an offline English voice installed. The app shows "Offline voice: ready" when it does.
 
 Stand the phone on a table or holder at arm's length, front camera facing the speaker.
+
+To run exactly the same app on two phones, install the CI APK (`outspoken-debug-apk`) on both: it is signed with one shared key. The eye check page shows "Build:" with the commit, so the two can be compared.
 
 ## Using it
 

@@ -23,6 +23,12 @@ android {
         ndk {
             abiFilters += "arm64-v8a"
         }
+
+        // Which code this APK was built from, shown on the eye check page and in the run log, so
+        // two phones can check they run the same build.
+        buildConfigField("String", "COMMIT", "\"${gitCommit()}\"")
+        buildConfigField("boolean", "CHANGED", "${gitChanged()}")
+        buildConfigField("boolean", "FROM_CI", "${System.getenv("GITHUB_ACTIONS") == "true"}")
     }
 
     buildTypes {
@@ -38,6 +44,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     androidResources {
@@ -72,3 +79,12 @@ dependencies {
 
     testImplementation(libs.junit)
 }
+
+fun git(vararg args: String): String = runCatching {
+    providers.exec { commandLine("git", *args) }.standardOutput.asText.get().trim()
+}.getOrDefault("")
+
+fun gitCommit(): String = git("rev-parse", "--short=8", "HEAD").ifEmpty { "unknown" }
+
+/** True when the build has edits that are not committed, so it may differ from the commit. */
+fun gitChanged(): Boolean = git("status", "--porcelain", "--untracked-files=no").isNotEmpty()
