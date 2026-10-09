@@ -124,7 +124,7 @@ class GazeStepper(
         }
         // The eyes coming back from a look pass rest and read as a short look the other way; on the
         // phone every look down was undone by an "up" about half a second later.
-        if (timeMs - lastStepMs < MIN_STEP_GAP_MS || (direction != lastStep && timeMs - lastStepMs < REBOUND_MS)) {
+        if (direction != lastStep && timeMs - lastStepMs < REBOUND_MS) {
             looking = null
             return null
         }
@@ -141,7 +141,9 @@ class GazeStepper(
             return null
         }
         val heldMs = timeMs - lookingSinceMs
-        if (stepped || heldMs < settings.lookHoldMs) return null
+        // The minimum gap only delays a new step; it must not reset a look that already stepped,
+        // or holding a look would step again every gap.
+        if (stepped || heldMs < settings.lookHoldMs || timeMs - lastStepMs < MIN_STEP_GAP_MS) return null
         stepped = true
         lastStep = direction
         lastStepMs = timeMs
