@@ -47,6 +47,7 @@ import com.outspoken.eye.Dot
 import com.outspoken.eye.EyeSample
 import com.outspoken.listen.QuickTopics
 import com.outspoken.scan.GazeSettings
+import com.outspoken.setup.MIN_PICK_HOLD_MS
 import com.outspoken.setup.ModelChoice
 import com.outspoken.setup.Tuning
 import java.util.Locale
@@ -376,7 +377,7 @@ private fun TuningSliders(tuning: Tuning, onChange: (Tuning) -> Unit, onReset: (
     LabeledSlider("Open line (green): ${blink.openAbove.formatOpen()}", blink.openAbove, 0.1f..0.95f) {
         onChange(tuning.copy(blink = blink.copy(openAbove = it, closedBelow = minOf(blink.closedBelow, it - 0.05f))))
     }
-    LabeledSlider("Shortest blink: ${blink.minBlinkMs} ms", blink.minBlinkMs.toFloat(), 100f..600f) {
+    LabeledSlider("Shortest blink: ${blink.minBlinkMs} ms", blink.minBlinkMs.toFloat(), MIN_PICK_HOLD_MS.toFloat()..800f) {
         onChange(tuning.copy(blink = blink.copy(minBlinkMs = it.roundTo(10))))
     }
     LabeledSlider("Longest blink: ${blink.maxBlinkMs} ms", blink.maxBlinkMs.toFloat(), 600f..2_000f) {
