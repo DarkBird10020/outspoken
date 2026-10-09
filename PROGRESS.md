@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: both phones can now check they run the same build (commit shown on the eye check page and in the log), and with no model picked the app loads Gemma 4 E2B, not the larger E4B. Models download in the app; app icon added. Waiting for the ten-in-a-row test in both modes.
+Latest: models stay in Downloads and load from there, so a restart or reinstall never loses them; the chosen model stays loaded until another is picked. Waiting for the phone test.
 
 ## Phone test history
 
@@ -20,9 +20,10 @@ Latest: both phones can now check they run the same build (commit shown on the e
 ## Models: download and switch in the app (owner request)
 
 - [ ] **Models list on the eye check page:** Gemma 4 E2B (2.6 GB, fastest, about 1 s a reply) and Gemma 4 E4B (3.7 GB, more accurate, about 2 to 3 s). Each shows "not downloaded", "downloading in the browser", "downloaded", "loading" or "in use", with a Download or Use button. Code: `setup/ModelCatalog.kt`, `setup/ModelShelf.kt`, `ui/EyeCheckScreen.kt` (`ModelList`), `MainActivity.kt`. Tests: `ModelCatalogTest`.
-- [ ] **The app still has no internet** (PRD rule, CI check). Download opens the file in the phone's browser. While the app is open it checks Downloads every 3 s, moves a finished model into its own folder and loads it by itself. Needs "All files access" once (button "Allow access to Downloads").
+- [ ] **The app still has no internet** (PRD rule, CI check). Download opens the file in the phone's browser. While the app is open it checks Downloads every 3 s and loads the model it was asked for by itself. Needs "All files access" once per install (button "Allow access to Downloads"; asked by itself at start when no model can be seen).
+- [ ] **Models stay in Downloads and are never moved or copied** (owner report: the model was gone after a restart). Phone log 03:20:30: moving the 2.6 GB file into the app's folder was cut short when the app came back to the front, and by 03:20:37 no model file was left; that folder is also wiped on uninstall. Now the model is loaded from Downloads, so a restart, reinstall or uninstall keeps it. The chosen model is saved in `Documents/Outspoken/model.txt`, so it stays loaded until another is picked with Use. Code: `setup/ModelShelf.kt`, `MainActivity.kt` (`watchDownloads`, `importModel`).
 - [ ] **Switching models:** Use frees the model in use and loads the other one; no restart. The choice is saved and loaded at the next start. Code: `suggest/OnDeviceModel.kt` (`switchTo`), `suggest/LiteRtLmModel.kt` (`close`).
-- [ ] **Choose model file** still works, and no longer deletes the other model files.
+- [ ] **Choose model file** still works. A model already in Downloads is used where it is; another file is copied into Downloads (into the app folder only without access), and other model files are never deleted.
 - Not offered: the Qualcomm NPU build on Hugging Face is made for the previous chip (SM8750), not the iQOO 15's.
 
 How to test on the phone:

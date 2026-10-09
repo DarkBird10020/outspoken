@@ -6,23 +6,41 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Environment
 import android.provider.Settings
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * The models on this phone: which are downloaded, which one is chosen, and picking up finished
- * browser downloads. Seeing the Downloads folder needs "All files access", asked for once.
+ * The models on this phone and which one is chosen. Models stay where the browser saved them, in
+ * Downloads, and are loaded from there: moving them into the app's own folder lost a 2.6 GB file
+ * on the phone (03:20, a copy cut short when the app came back), and that folder is wiped when the
+ * app is uninstalled. The choice is kept in Documents/Outspoken so it survives a reinstall too.
+ * Seeing Downloads needs "All files access", asked for once per install.
  */
 class ModelShelf(private val context: Context) {
 
     private val prefs = context.getSharedPreferences("models", Context.MODE_PRIVATE)
     private val appDir: File? get() = context.getExternalFilesDir(null)
 
+    /** Where the browser saves the models, and where a picked model file is copied to. */
+    val downloadsDir: File get() = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+
+    private val choiceFile: File
+        get() = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "Outspoken/model.txt")
+
     /** The model picked in the app; null means none picked yet (see [ModelCatalog.atStart]). */
     var chosen: ModelChoice?
-        get() = ModelCatalog.byFileName(prefs.getString(CHOSEN, null))
-        set(value) = prefs.edit().putString(CHOSEN, value?.fileName).apply()
+        get() {
+            val saved = if (canSeeDownloads()) runCatching { choiceFile.readText().trim() }.getOrNull() else null
+            return ModelCatalog.byFileName(saved ?: prefs.getString(CHOSEN, null))
+        }
+        set(value) {
+            prefs.edit().putString(CHOSEN, value?.fileName).apply()
+            if (canSeeDownloads()) {
+                runCatching {
+                    choiceFile.parentFile?.mkdirs()
+                    choiceFile.writeText(value?.fileName.orEmpty())
+                }
+            }
+        }
 
     /** The model the browser was last asked to download, loaded by itself when it arrives. */
     var waitingFor: ModelChoice?
@@ -30,6 +48,13 @@ class ModelShelf(private val context: Context) {
         set(value) = prefs.edit().putString(WAITING, value?.fileName).apply()
 
     fun canSeeDownloads(): Boolean = Environment.isExternalStorageManager()
+
+    /** True once per install: the first time a model could not be loaded for want of access. */
+    fun shouldAskForAccess(): Boolean {
+        if (canSeeDownloads() || prefs.getBoolean(ASKED, false)) return false
+        prefs.edit().putBoolean(ASKED, true).apply()
+        return true
+    }
 
     fun askToSeeDownloads() {
         val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}"))
@@ -42,37 +67,18 @@ class ModelShelf(private val context: Context) {
         return start(Intent(Intent.ACTION_VIEW, Uri.parse(choice.url)))
     }
 
-    fun installed(choice: ModelChoice): File? =
-        appDir?.let { File(it, choice.fileName) }?.takeIf { it.length() == choice.sizeBytes }
+    /** The finished model file, in Downloads, or in the app's folder from older builds. */
+    fun installed(choice: ModelChoice): File? {
+        if (canSeeDownloads()) {
+            val files = downloadsDir.listFiles()?.map { it.name to it.length() }.orEmpty()
+            ModelCatalog.findDownload(choice, files)?.let { return File(downloadsDir, it) }
+        }
+        return appDir?.let { File(it, choice.fileName) }?.takeIf { it.length() == choice.sizeBytes }
+    }
 
-    /** The file to load: the chosen model if it is here, then E2B, then the largest model file. */
+    /** The file to load: the chosen model if it is here, then E2B, then any model file. */
     fun fileToLoad(): File? =
         ModelCatalog.atStart(chosen) { installed(it) != null }?.let(::installed) ?: findModelFile(appDir)
-
-    /**
-     * Moves finished downloads from Downloads into the app's folder and returns the models moved.
-     * Moving within the same storage is instant; a copy is the fallback.
-     */
-    suspend fun collectDownloads(onMoving: (ModelChoice) -> Unit = {}): List<ModelChoice> = withContext(Dispatchers.IO) {
-        val dir = appDir ?: return@withContext emptyList()
-        if (!canSeeDownloads()) return@withContext emptyList()
-        val downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        val files = downloads.listFiles()?.map { it.name to it.length() } ?: return@withContext emptyList()
-        ModelCatalog.all.mapNotNull { choice ->
-            if (installed(choice) != null) return@mapNotNull null
-            val name = ModelCatalog.findDownload(choice, files) ?: return@mapNotNull null
-            onMoving(choice)
-            val source = File(downloads, name)
-            val target = File(dir, choice.fileName)
-            if (!source.renameTo(target)) {
-                val partial = File(dir, "${choice.fileName}.part")
-                source.copyTo(partial, overwrite = true)
-                check(partial.renameTo(target)) { "could not save ${choice.fileName}" }
-                source.delete()
-            }
-            choice
-        }
-    }
 
     private fun start(intent: Intent): Boolean = try {
         context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -84,5 +90,6 @@ class ModelShelf(private val context: Context) {
     private companion object {
         const val CHOSEN = "chosen"
         const val WAITING = "waiting"
+        const val ASKED = "askedForAccess"
     }
 }
