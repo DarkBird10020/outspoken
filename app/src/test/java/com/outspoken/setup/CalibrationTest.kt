@@ -1,0 +1,83 @@
+package com.outspoken.setup
+
+import com.outspoken.eye.Dot
+import com.outspoken.eye.EyeSample
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class CalibrationTest {
+
+    private val calibration = Calibration(stepMs = 2_500, settleMs = 700)
+    private var time = 0L
+    private val spoken = mutableListOf<Calibration.Step>()
+
+    /** Feeds one step of frames: [open] for both eyes, [gazeY] up negative. */
+    private fun step(open: Float, gazeY: Float, face: Boolean = true) {
+        repeat(50) {
+            val sample = if (face) EyeSample(time, true, open, open, gaze = Dot(0f, gazeY)) else EyeSample(time, false)
+            calibration.onSample(sample)?.let(spoken::add)
+            time += 50
+        }
+    }
+
+    /** A person whose eyes rest at 0.9 open, gaze 0.5, look up to 0.0 and close to 0.4. */
+    private fun run(upGaze: Float = 0f, closedOpen: Float = 0.4f, face: Boolean = true) {
+        calibration.start(time)
+        step(0.9f, 0.5f, face)
+        step(0.9f, upGaze, face)
+        step(0.9f, 0.5f, face)
+        step(0.9f, upGaze, face)
+        step(0.9f, 0.5f, face)
+        step(closedOpen, 0.6f, face)
+        step(0.9f, 0.5f, face)
+        step(closedOpen, 0.6f, face)
+        step(0.9f, 0.5f, face)
+    }
+
+    @Test
+    fun `lines are set from the measured eyes`() {
+        run()
+        val result = calibration.result(Tuning()) as Calibration.Result.Ok
+        assertEquals(0.5f, result.measured.upReach, 0.001f)
+        assertEquals(0.25f, result.tuning.gaze.lookStrength, 0.001f)
+        assertEquals(0.65f, result.tuning.blink.closedBelow, 0.001f)
+        assertEquals(0.775f, result.tuning.blink.openAbove, 0.001f)
+    }
+
+    @Test
+    fun `every step prompt is announced in order`() {
+        run()
+        assertEquals(Calibration.Step.entries.drop(1), spoken)
+    }
+
+    @Test
+    fun `no look up fails and says so`() {
+        run(upGaze = 0.48f)
+        val result = calibration.result(Tuning())
+        assertTrue(result is Calibration.Result.Failed)
+        assertTrue((result as Calibration.Result.Failed).reason.startsWith("Look up not seen"))
+    }
+
+    @Test
+    fun `eyes that never close fail and say so`() {
+        run(closedOpen = 0.85f)
+        val result = calibration.result(Tuning()) as Calibration.Result.Failed
+        assertTrue(result.reason.startsWith("Closed eyes not seen"))
+    }
+
+    @Test
+    fun `no face fails`() {
+        run(face = false)
+        assertTrue(calibration.result(Tuning()) is Calibration.Result.Failed)
+    }
+
+    @Test
+    fun `other settings are kept`() {
+        run()
+        val before = Tuning()
+        val after = (calibration.result(before) as Calibration.Result.Ok).tuning
+        assertEquals(before.blink.minBlinkMs, after.blink.minBlinkMs)
+        assertEquals(before.moveByEyes, after.moveByEyes)
+    }
+}

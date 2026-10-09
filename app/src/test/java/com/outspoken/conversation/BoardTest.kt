@@ -60,9 +60,22 @@ class BoardTest {
     }
 
     @Test
-    fun `home returns to the first page`() {
+    fun `suggestions come first and the phrase bank follows`() {
+        val replies = listOf("My back hurts", "My head hurts", "It is getting worse", "I need medicine")
         board.choose(Board.MORE_OPTIONS)
-        board.home()
+        board.showSuggestions(replies)
+        assertEquals(replies, board.replies)
+        board.choose(Board.MORE_OPTIONS)
+        assertEquals("I need water", board.replies.first())
+        board.choose(Board.MORE_OPTIONS)
+        board.choose(Board.MORE_OPTIONS)
+        assertEquals(replies, board.replies)
+    }
+
+    @Test
+    fun `clearing suggestions goes back to the phrase bank`() {
+        board.showSuggestions(listOf("A", "B", "C", "D"))
+        board.showSuggestions(null)
         assertEquals("I need water", board.replies.first())
     }
 }
