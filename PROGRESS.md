@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: wink control (left wink down, right wink up, both eyes choose), easier look up (35% of the measured reach), steady cursor and highlight, easier look down. Waiting for the phone test.
+Latest: quick deliberate closes count (0.2 s), a wink moves exactly once, and calibration no longer fails on a weak look up. Waiting for the phone test.
 
 ## Phone test history
 
@@ -14,6 +14,12 @@ Latest: wink control (left wink down, right wink up, both eyes choose), easier l
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
+
+## Wink and blink fixes from the 01:35 phone run
+
+- [ ] **Quick deliberate closes count: shortest blink 0.3 s to 0.2 s.** The owner's closes lasted 42 to 239 ms and every one was ignored ("ignored 164 ms, shorter than 300 ms"). Normal blinks run about 100 to 150 ms. Code: `setup/Tuning.kt`.
+- [ ] **A wink moves exactly once.** At 01:35:38 a left wink also fired a "look down" 0.26 s earlier, because closing one eye shifts the gaze and iris readings. Looks now pause while either eye reads shut (eye-open value and lid gap), which a wink does and a look down does not. Code: `blink/BlinkDetector.kt` (`eitherEyeShut`), `conversation/ConversationController.kt`. Tests: `EyeModeTest` "a wink moves exactly once even when it shifts the gaze", `BlinkDetectorTest` "one eye shut counts for either eye shut...".
+- [ ] **Calibration no longer fails on a weak look up.** It failed with "Look up not seen" and left the blink lines unset. One good look up of the two is now enough, and if none is seen the current look up line is kept while everything else is still set. Code: `setup/Calibration.kt`. Tests: `CalibrationTest` "one good look up is enough", "no look up keeps the current look line and still sets the blink lines" (replaces "no look up fails and says so", on purpose).
 
 ## Wink control and easier look up (owner request)
 

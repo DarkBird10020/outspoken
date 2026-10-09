@@ -65,11 +65,32 @@ class CalibrationTest {
     }
 
     @Test
-    fun `no look up fails and says so`() {
+    fun `no look up keeps the current look line and still sets the blink lines`() {
         run(upGaze = 0.48f)
-        val result = calibration.result(Tuning())
-        assertTrue(result is Calibration.Result.Failed)
-        assertTrue((result as Calibration.Result.Failed).reason.startsWith("Look up not seen"))
+        val before = Tuning()
+        val result = calibration.result(before) as Calibration.Result.Ok
+        assertEquals(before.gaze.lookStrength, result.tuning.gaze.lookStrength, 0.0001f)
+        assertEquals(0.65f, result.tuning.blink.closedBelow, 0.001f)
+    }
+
+    @Test
+    fun `one good look up is enough`() {
+        calibration.start(time)
+        step(0.9f, 0.5f)
+        step(0.9f, 0f)
+        step(0.9f, 0.5f)
+        step(0.9f, 0.48f)
+        step(0.9f, 0.5f)
+        step(0.7f, 0.9f)
+        step(0.9f, 0.5f)
+        step(0.7f, 0.9f)
+        step(0.9f, 0.5f)
+        step(0.4f, 0.6f)
+        step(0.9f, 0.5f)
+        step(0.4f, 0.6f)
+        step(0.9f, 0.5f)
+        val result = calibration.result(Tuning()) as Calibration.Result.Ok
+        assertEquals(0.175f, result.tuning.gaze.lookStrength, 0.001f)
     }
 
     @Test

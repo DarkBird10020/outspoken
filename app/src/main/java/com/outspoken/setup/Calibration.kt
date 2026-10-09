@@ -85,8 +85,11 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
             if (frames.size < MIN_FRAMES) return Result.Failed("Face not seen while looking up")
             frames.mapNotNull { it.gaze?.y }.maxOfOrNull { restGaze - it } ?: 0f
         }
-        val upReach = reaches.min()
-        if (upReach < MIN_UP_REACH) return Result.Failed("Look up not seen; look higher above the phone")
+        // One good look up is enough. Requiring both made the whole calibration fail on the phone
+        // ("Look up not seen") and left the blink lines unset; now a missed look up only keeps the
+        // current look up line.
+        val upReach = reaches.max()
+        val upSeen = upReach >= MIN_UP_REACH
 
         val restIris = median(rests.mapNotNull { it.irisY })
         val irisDownReach = restIris?.let { rest ->
@@ -127,7 +130,7 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
                 shapeOpenAbove = if (useGap) closedGap!! + gapRange!! * GAP_OPEN_SHARE else null,
             ),
             gaze = current.gaze.copy(
-                lookStrength = upReach * LOOK_SHARE,
+                lookStrength = if (upSeen) upReach * LOOK_SHARE else current.gaze.lookStrength,
                 downStrength = if (downReach >= MIN_DOWN_REACH) downReach * DOWN_SHARE else null,
                 irisDownStrength = irisDownReach?.takeIf { it >= MIN_IRIS_DOWN_REACH }?.let { maxOf(it * DOWN_SHARE, MIN_IRIS_DOWN_LINE) },
             ),

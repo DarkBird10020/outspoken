@@ -161,4 +161,17 @@ class EyeModeTest {
         blink()
         assertEquals(listOf("I am in pain"), said)
     }
+
+    @Test
+    fun `a wink moves exactly once even when it shifts the gaze`() {
+        frames(500)
+        // Closing one eye pushes the gaze reading down as well.
+        val end = time + 500
+        while (time < end) {
+            controller.onSample(EyeSample(time, true, 0.05f, 0.95f, gaze = Dot(0f, 0.6f)))
+            time += 33
+        }
+        frames(800)
+        assertEquals(1, highlighted)
+    }
 }
