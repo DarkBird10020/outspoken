@@ -6,7 +6,7 @@ The listener asks a question, an on-device Gemma model suggests four replies, an
 
 ## Status
 
-M0 (skeleton): camera preview with live eye-open values, plus checks for the model file and an offline voice.
+M1: blink at the highlighted card and the phone says it, using a built-in phrase bank. The model comes in M2.
 
 ## Setup
 
