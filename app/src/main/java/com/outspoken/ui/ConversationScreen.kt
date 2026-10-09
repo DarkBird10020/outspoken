@@ -49,6 +49,8 @@ fun ConversationScreen(
     onPractice: () -> Unit,
     onStats: () -> Unit,
     onSelect: (Int) -> Unit,
+    eyeHint: String? = null,
+    eyeView: (@Composable (Modifier) -> Unit)? = null,
 ) {
     DesignScreen(Modifier.dottedCanvas(), gap = 14.dp) {
         Row(
@@ -66,6 +68,15 @@ fun ConversationScreen(
                 CircleIconButton(R.drawable.ic_stats, "Session stats", onStats)
             }
         }
+        // Not in the design yet (listed as a design gap): the live camera with the eye dots, so the
+        // person can see their eyes are being read while they choose.
+        eyeView?.invoke(
+            Modifier
+                .fillMaxWidth()
+                .height(150.dp)
+                .clip(RoundedCornerShape(24.dp))
+        )
+        eyeHint?.let { Text(it, style = type(15, color = InkSoft)) }
         ui.heard?.let { HeardCard(it) }
         Column(
             Modifier
