@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: looking down is read from the iris position between the eye corners, so it works as easily as looking up even with the phone below eye level. Waiting for the phone test.
+Latest: looks no longer bounce back: the eyes returning from a look are not counted as a look the other way, holding a look does not move the resting point, and a look must last 0.35 s. Waiting for the phone test.
 
 ## Phone test history
 
@@ -14,6 +14,16 @@ Latest: looking down is read from the iris position between the eye corners, so 
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
+
+## Steadier looks (owner report: "too fast up and down")
+
+- [ ] **The way back from a look is not a look.** In the 00:31 phone run every look down was followed by an "up" 0.4 to 0.8 s later (00:31:56 down, 00:31:56.6 up, 00:31:57.3 down, 00:31:57.7 up...): the eyes passing rest on the way back. For 0.7 s after a step, a look the other way is ignored. Code: `scan/GazeStepper.kt` (`REBOUND_MS`).
+- [ ] **Holding a look no longer moves the resting point.** After 3 s of looking one way the rest jumped there ("new resting gaze 0.75", then "-0.19"), so normal gaze afterwards read as a look the other way. The rest now only follows slowly while the eyes are near it.
+- [ ] **A look must last 0.35 s** (was 0.25 s), so quick glances do not step.
+
+Unit tests:
+- `GazeStepperTest`: holding a look steps once and does not move the rest; coming back from a look is not a look the other way; a real opposite look after the rebound time still steps. The old test "holding one way for long becomes the new rest" was replaced on purpose.
+- `EyeModeTest`: helpers pause 0.8 s between looks, longer than the rebound guard.
 
 ## Look down read from the iris (owner report)
 

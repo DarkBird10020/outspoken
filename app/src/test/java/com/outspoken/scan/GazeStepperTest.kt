@@ -85,10 +85,26 @@ class GazeStepperTest {
     }
 
     @Test
-    fun `holding one way for long becomes the new rest`() {
+    fun `holding a look steps once and does not move the rest`() {
         look(500)
-        look(3_500, y = -0.7f)
-        assertEquals(emptyList<GazeStep>(), look(1_000, y = -0.7f))
+        assertEquals(listOf(GazeStep.Previous), look(4_000, y = -0.7f))
+        // Back at the old rest: nothing, because the rest did not move to the held look.
+        assertEquals(emptyList<GazeStep>(), look(1_000))
+    }
+
+    @Test
+    fun `coming back from a look is not a look the other way`() {
+        look(500)
+        // Look down, then the eyes overshoot upward on the way back.
+        val steps = look(400, y = 0.5f) + look(450, y = -0.6f) + look(500)
+        assertEquals(listOf(GazeStep.Next), steps)
+    }
+
+    @Test
+    fun `a real look the other way after the rebound time still steps`() {
+        look(500)
+        val steps = look(400, y = 0.5f) + look(800) + look(500, y = -0.7f)
+        assertEquals(listOf(GazeStep.Next, GazeStep.Previous), steps)
     }
 
     @Test
