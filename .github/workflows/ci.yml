@@ -55,6 +55,17 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
+      # One fixed debug key, so each new APK installs over the last one and keeps the logs on the phone.
+      - name: Use the shared debug key
+        env:
+          DEBUG_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$DEBUG_KEYSTORE_B64" ]; then
+            echo "::warning::DEBUG_KEYSTORE_B64 is not set, the APK gets a new random debug key"
+            exit 0
+          fi
+          mkdir -p ~/.android
+          base64 -d <<< "$DEBUG_KEYSTORE_B64" > ~/.android/debug.keystore
       - run: ./gradlew assembleDebug
       - name: Check the APK has no INTERNET permission
         run: |

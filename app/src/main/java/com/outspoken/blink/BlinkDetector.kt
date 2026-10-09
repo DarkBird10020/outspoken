@@ -1,7 +1,10 @@
 package com.outspoken.blink
 
 import com.outspoken.eye.EyeSample
+import com.outspoken.log.EventLog
+import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * Shut and open lines are fractions of the person's own open-eye level, so droopy lids or a
@@ -13,7 +16,9 @@ data class BlinkSettings(
     val openRatio: Float = 0.65f,
     val minBlinkMs: Long = 500,
     val maxBlinkMs: Long = 1500,
-    val maxYawDeg: Float = 30f,
+    // ML Kit only gives eye-open values for faces turned left or right at most 18 degrees.
+    val maxYawDeg: Float = 18f,
+    // Looking down at a phone on a table tilts the head, and ML Kit sets no limit for it.
     val maxPitchDeg: Float = 35f,
     val faceLostAfterMs: Long = 500,
     val openFramesToEnd: Int = 2,
@@ -38,7 +43,10 @@ data class Closure(val durationMs: Long, val accepted: Boolean)
  * cannot split a blink, and a face missing for less than [BlinkSettings.faceLostAfterMs] is
  * ignored.
  */
-class BlinkDetector(var settings: BlinkSettings = BlinkSettings()) {
+class BlinkDetector(
+    var settings: BlinkSettings = BlinkSettings(),
+    private val log: EventLog = EventLog.None,
+) {
 
     /** The person's open-eye level, 0 to 1. Learned while the eyes are open; calibration sets it. */
     var openLevel = DEFAULT_OPEN_LEVEL
@@ -70,6 +78,8 @@ class BlinkDetector(var settings: BlinkSettings = BlinkSettings()) {
         if (!sample.faceFound || left == null || right == null || !facingCamera(sample)) {
             val lastSeen = lastUsableMs ?: return null
             if (!tracking || sample.timeMs - lastSeen < settings.faceLostAfterMs) return null
+            if (closedSinceMs != null) log.write("blink", "closure cancelled, face lost")
+            log.write("blink", "face lost: ${lostReason(sample)}")
             tracking = false
             closedSinceMs = null
             openStreak = 0
@@ -81,6 +91,7 @@ class BlinkDetector(var settings: BlinkSettings = BlinkSettings()) {
         eyeLevel = (left + right) / 2
         val wasTracking = tracking
         tracking = true
+        if (!wasTracking) log.write("blink", "face found")
         val event = eyes(sample.timeMs, left, right)
         return event ?: if (wasTracking) null else BlinkEvent.FaceFound
     }
@@ -89,6 +100,7 @@ class BlinkDetector(var settings: BlinkSettings = BlinkSettings()) {
         val closedSince = closedSinceMs
         if (closedSince == null) {
             if (left < closedBelow && right < closedBelow) {
+                log.write("blink", "eyes shut (left ${open(left)}, right ${open(right)}, line ${open(closedBelow)})")
                 closedSinceMs = timeMs
                 openStreak = 0
                 lastLearnMs = null
@@ -104,6 +116,7 @@ class BlinkDetector(var settings: BlinkSettings = BlinkSettings()) {
             if (timeMs - closedSince > STUCK_MS) {
                 closedSinceMs = null
                 openLevel = eyeLevel / settings.openRatio
+                log.write("blink", "shut for over ${STUCK_MS / 1000} s, taking ${open(eyeLevel)} as open eyes")
             }
             return null
         }
@@ -117,7 +130,13 @@ class BlinkDetector(var settings: BlinkSettings = BlinkSettings()) {
         val duration = openSinceMs - closedSince
         val accepted = duration in settings.minBlinkMs..settings.maxBlinkMs
         remember(Closure(duration, accepted))
-        return if (accepted) BlinkEvent.Blink(closedSince, duration) else BlinkEvent.Rejected(closedSince, duration)
+        if (accepted) {
+            log.write("blink", "blink $duration ms")
+            return BlinkEvent.Blink(closedSince, duration)
+        }
+        val why = if (duration < settings.minBlinkMs) "shorter than ${settings.minBlinkMs} ms" else "longer than ${settings.maxBlinkMs} ms"
+        log.write("blink", "ignored $duration ms, $why")
+        return BlinkEvent.Rejected(closedSince, duration)
     }
 
     private fun learnOpenLevel(timeMs: Long) {
@@ -135,6 +154,14 @@ class BlinkDetector(var settings: BlinkSettings = BlinkSettings()) {
 
     private fun facingCamera(sample: EyeSample) =
         abs(sample.yawDeg) <= settings.maxYawDeg && abs(sample.pitchDeg) <= settings.maxPitchDeg
+
+    private fun lostReason(sample: EyeSample) = when {
+        !sample.faceFound -> "no face"
+        sample.leftOpen == null || sample.rightOpen == null -> "eyes not read"
+        else -> "head turned (yaw ${sample.yawDeg.roundToInt()}, pitch ${sample.pitchDeg.roundToInt()})"
+    }
+
+    private fun open(value: Float) = String.format(Locale.US, "%.2f", value)
 
     companion object {
         const val DEFAULT_OPEN_LEVEL = 0.9f

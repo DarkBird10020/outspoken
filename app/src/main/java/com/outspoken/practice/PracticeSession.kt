@@ -3,6 +3,7 @@ package com.outspoken.practice
 import com.outspoken.blink.BlinkDetector
 import com.outspoken.blink.BlinkEvent
 import com.outspoken.eye.EyeSample
+import com.outspoken.log.EventLog
 import com.outspoken.ui.PracticeUi
 import java.util.Locale
 
@@ -19,7 +20,7 @@ class PracticeSession(
     private val litMs: Long = 2_500,
     private val gapMs: Long = 1_200,
     val needed: Int = 3,
-    private val log: (timeMs: Long, text: String) -> Unit = { _, _ -> },
+    private val log: EventLog = EventLog.None,
 ) {
     private val levels = mutableListOf<Float>()
     private val naturalBlinks = mutableListOf<Long>()
@@ -53,11 +54,11 @@ class PracticeSession(
         if (done || event !is BlinkEvent.Blink) return
         if (starLit(event.startMs) || starLit(now)) {
             caught++
-            log(now, "practice: caught ${event.durationMs} ms blink, $caught of $needed")
+            log.write("practice", "caught ${event.durationMs} ms blink, $caught of $needed")
             nextRound(now)
         } else {
             falseBlinks++
-            log(now, "practice: blink ${event.durationMs} ms with no star")
+            log.write("practice", "blink ${event.durationMs} ms with no star lit")
         }
     }
 
@@ -103,8 +104,8 @@ class PracticeSession(
             val hold = (longest + HOLD_MARGIN_MS).coerceIn(MIN_HOLD_MS, MAX_HOLD_MS)
             detector.settings = detector.settings.copy(minBlinkMs = hold)
         }
-        log(
-            nowMs,
+        log.write(
+            "practice",
             "calibrated: open level ${"%.2f".format(Locale.US, detector.openLevel)}, " +
                 "natural blinks ${naturalBlinks}, hold ${detector.settings.minBlinkMs} ms",
         )

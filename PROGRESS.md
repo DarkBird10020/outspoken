@@ -4,19 +4,30 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: blink detection rebuilt after the first phone test felt random. The app now starts with calibration and the practice round, and saves a session log on the phone. Waiting for the next phone test.
+Latest: blink detection rebuilt after the first phone test felt random, and merged with the run logs from the other branch. The app now starts with calibration and the practice round. Waiting for the next phone test.
 
 ## Phone test history
 
 | Date | What was tested | Result | What changed |
 |---|---|---|---|
-| 2026-10-09 | M0 to M2 | Not working properly, picks felt random | Hold time 0.5 s, lines set from each person's own eyes, calibration and practice round first, noise tolerance, scanning waits for new replies, session log added |
+| 2026-10-09 | M0 to M2 | Not working properly, picks felt random | Hold time 0.5 s, lines set from each person's own eyes, calibration and practice round first, noise tolerance, scanning waits for new replies, run logs |
 
-## Session log (for finding problems)
+## Logs
 
-Every session writes a file on the phone with the eye values of each camera frame and every event (blink, ignored closure, card picked, sentence said, model replies, calibration result). It stays on the phone; only the last 5 are kept.
+Every run writes a log, so a failed phone test can be explained without guessing. Code: `log/`.
 
-To send one: connect the phone and run `adb pull /sdcard/Android/data/com.outspoken/files/logs/`, then share the newest `session-*.csv`.
+- [ ] **What is logged.** One line per second with camera fps, face found, eye-open values and the lowest value in that second. Every blink with its length and why it was ignored (too short, too long, face lost), and the blink line it was measured against. Calibration and practice results, model loading, reply times and fallbacks, and waits for new replies. Face lost with the reason (no face, head turned). Each highlight, pick, tap and sentence. Speech start, finish and errors. Camera start, permission, model and voice checks, screen changes.
+- [ ] **Crashes.** The full error is written to the log before the app closes.
+- [ ] **Where.** One file per app start in `Android/data/com.outspoken/files/logs/` (last 10 kept), and logcat with the tag `Outspoken`. Nothing leaves the phone.
+- [ ] **Same key for every build.** CI signs the APK with one shared debug key (repo secret `DEBUG_KEYSTORE_B64`). Without it each build has a new key, the phone refuses the update, and uninstalling first deletes the logs.
+
+How to read them (phone on USB):
+- Live: `adb logcat -s Outspoken`
+- Files: `adb pull /sdcard/Android/data/com.outspoken/files/logs`
+
+Unit tests:
+- `EyeSummaryTest`: the once-per-second eye line.
+- `LogLinesTest`: blink picked and said, fast blink and long closure explained, face lost reasons, taps and card changes.
 
 ## M0. Skeleton
 
@@ -78,6 +89,7 @@ Extras beyond the PRD:
 - If the speech engine never says it finished, scanning starts again after 10 s anyway.
 
 Changed from the PRD, with reason:
+- A face turned more than 18 degrees left or right counts as lost, since ML Kit gives no eye-open values past that. Head tilt is allowed up to 35 degrees for looking down at a phone.
 - PRD says a blink is roughly 0.3 to 0.9 s. On the phone, normal blinks measured up to about 0.4 s and were picking cards, so the default is now 0.5 to 1.5 s, as the PRD risk table suggests ("Raise the hold time"). Calibration sets it from the person's own blinks.
 
 For later milestones:
@@ -132,7 +144,6 @@ How to test on the phone:
 
 Unit tests:
 - `PracticeSessionTest`: measuring, waiting for the face, hold time from natural blinks, rounds, accuracy, no misses while the face is away.
-- `SessionLogTest`: CSV lines, keeping the newest 5 files.
 - `BlinkDetectorTest`: rewritten for the person-based lines, noise, short dropouts and long closures.
 
 ## Design (from the teammate)

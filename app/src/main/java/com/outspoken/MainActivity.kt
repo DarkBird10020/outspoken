@@ -22,7 +22,7 @@ import com.outspoken.conversation.ConversationController
 import com.outspoken.eye.EyeReader
 import com.outspoken.eye.EyeSample
 import com.outspoken.eye.FrontCamera
-import com.outspoken.log.SessionLog
+import com.outspoken.log.AppLog
 import com.outspoken.practice.PracticeSession
 import com.outspoken.scan.Scanner
 import com.outspoken.setup.checkOfflineVoice
@@ -45,7 +45,6 @@ import com.outspoken.ui.theme.OutspokenTheme
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.io.File
 import java.time.LocalTime
 import java.util.Locale
 import java.util.concurrent.Executors
@@ -56,16 +55,15 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var speaker: Speaker
     private lateinit var camera: FrontCamera
-    private lateinit var sessionLog: SessionLog
 
-    private val detector = BlinkDetector()
+    private val detector = BlinkDetector(log = AppLog)
     private val scanner = Scanner()
     private val controller = ConversationController(
         speak = { speaker.speak(it) },
         requestReplies = ::requestReplies,
         detector = detector,
         scanner = scanner,
-        log = { time, text -> sessionLog.event(time, text) },
+        log = AppLog,
     )
     private val eyeReader = EyeReader(onSample = ::onSample)
     private val analyzerExecutor = Executors.newSingleThreadExecutor()
@@ -84,6 +82,7 @@ class MainActivity : ComponentActivity() {
     private val cameraPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             cameraGranted = granted
+            AppLog.write("app", "camera permission ${if (granted) "granted" else "denied"}")
             if (granted) camera.start(eyeReader, analyzerExecutor)
         }
 
@@ -92,11 +91,11 @@ class MainActivity : ComponentActivity() {
         // The speaker cannot touch the phone, so it must never sleep mid-conversation.
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        sessionLog = SessionLog(getExternalFilesDir("logs") ?: File(filesDir, "logs"))
         speaker = Speaker(this) { controller.onSpeechDone(now()) }
         camera = FrontCamera(this, this)
         cameraGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
+        AppLog.write("app", "camera permission ${if (cameraGranted) "already granted" else "requested"}")
         if (cameraGranted) {
             camera.start(eyeReader, analyzerExecutor)
         } else {
@@ -104,12 +103,15 @@ class MainActivity : ComponentActivity() {
         }
         startPractice()
 
-        checkOfflineVoice(this) { offlineVoice = it }
+        checkOfflineVoice(this) {
+            AppLog.write("app", "offline voice ${if (it) "ready" else "missing"}")
+            offlineVoice = it
+        }
         val modelDir = getExternalFilesDir(null)
         OnDeviceModel.loadOnce(findModelFile(modelDir), cacheDir)
         lifecycleScope.launch {
             OnDeviceModel.state.collect { state ->
-                sessionLog.event(now(), "model ${state.javaClass.simpleName}")
+                AppLog.write("model", modelLine(state, modelDir?.absolutePath))
                 if (state is ModelState.Ready && suggestionEngine == null) {
                     suggestionEngine = ModelSuggestionEngine(state.model, ::now)
                     controller.refreshReplies()
@@ -127,7 +129,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
             BackHandler(enabled = screen != Screen.Conversation) {
-                if (screen == Screen.Practice) finishPractice() else screen = Screen.Conversation
+                if (screen == Screen.Practice) finishPractice() else show(Screen.Conversation)
             }
             when {
                 !cameraGranted || screen == Screen.EyeCheck -> {
@@ -164,7 +166,7 @@ class MainActivity : ComponentActivity() {
                             onPractice = ::startPractice,
                             onStats = {},
                             onSelect = { controller.onTap(it, now()) },
-                            onStatusLongPress = { screen = Screen.EyeCheck },
+                            onStatusLongPress = { show(Screen.EyeCheck) },
                         )
                     }
                 }
@@ -172,44 +174,47 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        AppLog.write("app", "resumed")
+    }
+
     override fun onPause() {
         super.onPause()
-        sessionLog.flush()
+        AppLog.write("app", "paused")
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        AppLog.write("app", "closed")
         speaker.shutdown()
         eyeReader.close()
         analyzerExecutor.shutdown()
-        sessionLog.close()
     }
 
     private fun onSample(sample: EyeSample) {
-        sessionLog.sample(sample)
         val session = practice
         if (screen == Screen.Practice && session != null) session.onSample(sample) else controller.onSample(sample)
     }
 
     private fun startPractice() {
         val now = now()
-        sessionLog.event(now, "practice started")
         practice = PracticeSession(
             detector = detector,
             startMs = now,
             scanIntervalMs = scanner.intervalMs,
-            log = sessionLog::event,
+            log = AppLog,
         ).also { practiceUi = it.update(now) }
-        screen = Screen.Practice
+        show(Screen.Practice)
     }
 
     private fun finishPractice() {
         practice?.let { session ->
             practiceAccuracy = session.accuracyPercent ?: practiceAccuracy
-            sessionLog.event(now(), "practice ended: ${session.caught} caught, ${session.missed} missed, ${session.falseBlinks} stray")
+            AppLog.write("practice", "ended: ${session.caught} caught, ${session.missed} missed, ${session.falseBlinks} stray")
         }
         practice = null
-        screen = Screen.Conversation
+        show(Screen.Conversation)
     }
 
     private fun requestReplies(requestId: Int, turns: List<Turn>): Boolean {
@@ -218,13 +223,18 @@ class MainActivity : ComponentActivity() {
         replyJob = lifecycleScope.launch {
             val suggestions = engine.suggest(SuggestionRequest(turns, LocalTime.now().hour))
             lastReplyLine = describeReplies(suggestions.elapsedMs, suggestions.fromModel, suggestions.tokensPerSecond)
-            sessionLog.event(now(), "reply time ${suggestions.elapsedMs} ms, ${suggestions.tokensPerSecond ?: "-"} tok/s")
+            AppLog.write("model", "replies in ${suggestions.elapsedMs} ms, ${suggestions.tokensPerSecond ?: "-"} tok/s, ${if (suggestions.fromModel) "from the model" else "phrase bank fallback"}")
             controller.onReplies(requestId, suggestions.replies, suggestions.fromModel, now())
         }
         return true
     }
 
     private fun now() = SystemClock.elapsedRealtime()
+
+    private fun show(next: Screen) {
+        AppLog.write("ui", "screen $next")
+        screen = next
+    }
 
     private fun detectorLines(): List<String> {
         val closures = detector.recentClosures.joinToString { "${it.durationMs} ms ${if (it.accepted) "picked" else "ignored"}" }
@@ -233,7 +243,6 @@ class MainActivity : ComponentActivity() {
             "Blink must last ${detector.settings.minBlinkMs} to ${detector.settings.maxBlinkMs} ms",
             "Last closures: ${closures.ifEmpty { "none" }}",
             "Practice accuracy: ${formatWhole(practiceAccuracy, "%")}",
-            "Session log: ${sessionLog.file.absolutePath}",
         )
     }
 

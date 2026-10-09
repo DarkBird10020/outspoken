@@ -3,6 +3,7 @@ package com.outspoken.conversation
 import com.outspoken.blink.BlinkDetector
 import com.outspoken.blink.BlinkEvent
 import com.outspoken.eye.EyeSample
+import com.outspoken.log.EventLog
 import com.outspoken.scan.Scanner
 import com.outspoken.suggest.Turn
 import com.outspoken.ui.ConversationUi
@@ -27,13 +28,14 @@ class ConversationController(
     private val board: Board = Board(),
     private val replyWaitMs: Long = 2_500,
     private val maxSpeakMs: Long = 10_000,
-    private val log: (timeMs: Long, text: String) -> Unit = { _, _ -> },
+    private val log: EventLog = EventLog.None,
 ) {
     private val turns = mutableListOf<Turn>()
     private var latestRequest = 0
     private var repliesPending = false
     private var speakingSinceMs: Long? = null
     private var waitUntilMs: Long? = null
+    private var lastHighlighted = -1
 
     /** The conversation this session, oldest first. */
     val history: List<Turn> get() = turns
@@ -46,15 +48,8 @@ class ConversationController(
 
     fun onSample(sample: EyeSample) {
         when (val event = detector.onSample(sample)) {
-            is BlinkEvent.Blink -> {
-                val card = if (scanning) scanner.cardAt(event.startMs) else null
-                log(sample.timeMs, "blink ${event.durationMs} ms, card ${card ?: "none"}")
-                card?.let { choose(it, sample.timeMs) }
-            }
-            is BlinkEvent.Rejected -> log(sample.timeMs, "closure ${event.durationMs} ms ignored")
-            BlinkEvent.FaceFound -> log(sample.timeMs, "face found")
-            BlinkEvent.FaceLost -> log(sample.timeMs, "face lost")
-            null -> Unit
+            is BlinkEvent.Blink -> onBlink(event, sample.timeMs)
+            is BlinkEvent.Rejected, BlinkEvent.FaceFound, BlinkEvent.FaceLost, null -> Unit
         }
         publish(sample.timeMs)
     }
@@ -63,8 +58,10 @@ class ConversationController(
 
     /** A tap on a card, for the person at the bedside. */
     fun onTap(card: Int, nowMs: Long) {
-        if (!speaking) {
-            log(nowMs, "tap card $card")
+        if (speaking) {
+            log.write("scan", "tap on ${label(card)} ignored while speaking")
+        } else {
+            log.write("scan", "tap on ${label(card)}")
             choose(card, nowMs)
         }
         publish(nowMs)
@@ -78,7 +75,7 @@ class ConversationController(
 
     fun onReplies(requestId: Int, replies: List<String>, fromModel: Boolean, nowMs: Long) {
         if (requestId != latestRequest) return
-        log(nowMs, "replies from ${if (fromModel) "model" else "phrase bank"}: ${replies.joinToString(" | ")}")
+        log.write("scan", "new cards from ${if (fromModel) "the model" else "the phrase bank"}: $replies")
         repliesPending = false
         waitUntilMs = null
         board.showSuggestions(if (fromModel) replies else null)
@@ -89,18 +86,38 @@ class ConversationController(
     fun onSpeechDone(nowMs: Long) {
         if (!speaking) return
         speakingSinceMs = null
-        if (repliesPending) waitUntilMs = nowMs + replyWaitMs
+        if (repliesPending) {
+            waitUntilMs = nowMs + replyWaitMs
+            log.write("scan", "speech done, waiting up to $replyWaitMs ms for new replies")
+        } else {
+            log.write("scan", "speech done, scanning again")
+        }
         scanner.restart(board.cards, nowMs)
         publish(nowMs)
+    }
+
+    private fun onBlink(blink: BlinkEvent.Blink, nowMs: Long) {
+        if (!scanning) {
+            log.write("scan", "blink ignored, ${if (speaking) "speaking" else "waiting for new replies"}")
+            return
+        }
+        val card = scanner.cardAt(blink.startMs)
+        if (card == null) {
+            log.write("scan", "blink ignored, it began before the cards changed")
+            return
+        }
+        log.write("scan", "blink picked ${label(card)}")
+        choose(card, nowMs)
     }
 
     private fun choose(card: Int, nowMs: Long) {
         val sentence = board.choose(card)
         if (sentence == null) {
+            log.write("scan", "cards now ${board.replies}")
             scanner.restart(board.cards, nowMs)
             return
         }
-        log(nowMs, "say \"$sentence\"")
+        log.write("scan", "say \"$sentence\"")
         turns += Turn(fromListener = false, text = sentence)
         // The phrase bank shows at once while the model writes the next replies.
         board.showSuggestions(null)
@@ -112,20 +129,35 @@ class ConversationController(
 
     private fun publish(nowMs: Long) {
         // Some speech engines never report done; do not let that freeze the board.
-        speakingSinceMs?.let { if (nowMs - it > maxSpeakMs) onSpeechDone(nowMs) }
+        speakingSinceMs?.let {
+            if (nowMs - it > maxSpeakMs) {
+                log.write("scan", "speech never reported done, carrying on")
+                onSpeechDone(nowMs)
+            }
+        }
         waitUntilMs?.let {
             if (nowMs >= it) {
+                log.write("scan", "no new replies yet, scanning the phrase bank")
                 waitUntilMs = null
                 scanner.restart(board.cards, nowMs)
             }
         }
         if (scanner.cards != board.cards) scanner.restart(board.cards, nowMs)
         if (scanning) scanner.resume(nowMs) else scanner.pause(nowMs)
+        val highlighted = if (speaking || waitUntilMs != null) -1 else scanner.cardAt(nowMs) ?: -1
+        if (scanning && highlighted != lastHighlighted && highlighted != -1) log.write("scan", "highlight ${label(highlighted)}")
+        lastHighlighted = if (scanning) highlighted else -1
         _ui.value = ConversationUi(
             faceFound = detector.tracking,
             heard = null,
             replies = board.replies,
-            highlighted = if (speaking || waitUntilMs != null) -1 else scanner.cardAt(nowMs) ?: -1,
+            highlighted = highlighted,
         )
+    }
+
+    private fun label(card: Int) = when (card) {
+        Board.MORE_OPTIONS -> "More options"
+        Board.YES_NO -> "Yes / No"
+        else -> "\"${board.replies.getOrNull(card)}\""
     }
 }
