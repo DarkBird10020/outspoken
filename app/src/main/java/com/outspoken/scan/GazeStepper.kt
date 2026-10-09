@@ -10,8 +10,8 @@ data class GazeSettings(
     val lookStrength: Float = 0.45f,
     /** How far the eyes must move down from rest to count as a look; null turns looking down off. */
     val downStrength: Float? = 0.3f,
-    /** How long a look must last before the highlight moves. */
-    val lookHoldMs: Long = 250,
+    /** How long a look must last before the highlight moves. 250 ms let quick glances step. */
+    val lookHoldMs: Long = 350,
     /**
      * How far the iris must drop between the eye corners from rest to count as a look down
      * (`FaceMesh.irisDrop`). When set it replaces [downStrength]: with the phone below eye level
@@ -41,6 +41,8 @@ class GazeStepper(
     private var looking: GazeStep? = null
     private var lookingSinceMs = 0L
     private var stepped = false
+    private var lastStep: GazeStep? = null
+    private var lastStepMs = Long.MIN_VALUE / 2
 
     /** Where the eyes rest up and down, the centre that looks are measured from; null until seen. */
     val restGaze: Float? get() = restY
@@ -95,6 +97,12 @@ class GazeStepper(
             stepped = false
             return null
         }
+        // The eyes coming back from a look pass rest and read as a short look the other way; on the
+        // phone every look down was undone by an "up" about half a second later.
+        if (direction != lastStep && timeMs - lastStepMs < REBOUND_MS) {
+            looking = null
+            return null
+        }
         if (direction != looking) {
             looking = direction
             lookingSinceMs = timeMs
@@ -102,17 +110,10 @@ class GazeStepper(
             return null
         }
         val heldMs = timeMs - lookingSinceMs
-        if (heldMs >= REST_RESET_MS) {
-            // Looking one way this long is a new posture, not a look.
-            log.write("gaze", "new resting gaze ${format(gaze.y)}")
-            restY = gaze.y
-            if (direction == GazeStep.Next && irisY != null) restIris = irisY
-            looking = null
-            stepped = false
-            return null
-        }
         if (stepped || heldMs < settings.lookHoldMs) return null
         stepped = true
+        lastStep = direction
+        lastStepMs = timeMs
         val words = when {
             direction == GazeStep.Previous -> "up ${format(-dy)} held $heldMs ms -> previous"
             irisLine != null -> "down (iris ${format((irisY ?: 0f) - (restIris ?: 0f))}) held $heldMs ms -> next"
@@ -130,6 +131,8 @@ class GazeStepper(
     private companion object {
         /** Share of the way the resting gaze moves toward the current one per frame at rest. */
         const val REST_FOLLOW = 0.05f
-        const val REST_RESET_MS = 3_000L
+
+        /** After a step, a look the other way this soon is the eyes coming back, not a new look. */
+        const val REBOUND_MS = 700L
     }
 }
