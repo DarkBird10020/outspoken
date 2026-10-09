@@ -20,6 +20,32 @@ fun parseReplies(output: String): List<String>? {
     return replies
 }
 
+/**
+ * Best effort: up to four usable replies from any model output, so a near miss never costs a
+ * second generation. Tries the JSON list, then quoted strings, then numbered or bulleted lines.
+ * Empty, too long and repeated replies are dropped; the caller fills any gap from the phrase bank.
+ */
+fun extractReplies(output: String): List<String> {
+    parseReplies(output)?.let { return it }
+    val start = output.indexOf('[')
+    val end = output.lastIndexOf(']')
+    val fromList = if (start >= 0 && end > start) parseStringList(output.substring(start, end + 1)) else null
+    val quoted = QUOTED.findAll(output).map { it.groupValues[1] }.toList()
+    val lines = output.lines().mapNotNull { LIST_LINE.matchEntire(it.trim())?.groupValues?.get(1) }
+    for (candidates in listOf(fromList.orEmpty(), quoted, lines)) {
+        val usable = candidates
+            .map { it.trim().trim('"').trim() }
+            .filter { it.isNotEmpty() && it.split(Regex("\\s+")).size <= MAX_REPLY_WORDS }
+            .distinctBy { it.lowercase() }
+            .take(REPLY_COUNT)
+        if (usable.isNotEmpty()) return usable
+    }
+    return emptyList()
+}
+
+private val QUOTED = Regex("\"([^\"\n]{2,80})\"")
+private val LIST_LINE = Regex("(?:[-*•]|\\d+[.)])\\s+(.+)")
+
 /** Parses a JSON array of strings. Returns null for anything else. */
 fun parseStringList(json: String): List<String>? {
     var i = 0

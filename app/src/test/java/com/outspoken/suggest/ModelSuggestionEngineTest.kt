@@ -33,20 +33,30 @@ class ModelSuggestionEngineTest {
     }
 
     @Test
-    fun `bad format is retried once`() = runBlocking {
-        val model = FakeModel(listOf({ "My back hurts" }, { good }))
+    fun `a near miss is used and topped up without asking again`() = runBlocking {
+        val model = FakeModel(listOf({ "1. My back hurts\n2. My head hurts" }, { good }))
         val result = ModelSuggestionEngine(model) { clock }.suggest(request)
         assertTrue(result.fromModel)
-        assertEquals(2, model.calls)
+        assertEquals(listOf("My back hurts", "My head hurts", PhraseBank.phrases[0], PhraseBank.phrases[1]), result.replies)
+        assertEquals(1, model.calls)
     }
 
     @Test
-    fun `two bad answers fall back to the phrase bank`() = runBlocking {
-        val model = FakeModel(listOf({ "no" }, { "still no" }))
+    fun `an unusable answer falls back to the phrase bank without asking again`() = runBlocking {
+        val model = FakeModel(listOf({ "no" }, { good }))
         val result = ModelSuggestionEngine(model) { clock }.suggest(request)
         assertFalse(result.fromModel)
         assertEquals(PhraseBank.phrases.take(4), result.replies)
-        assertEquals(2, model.calls)
+        assertEquals(1, model.calls)
+    }
+
+    @Test
+    fun `top up skips phrases the model already gave`() = runBlocking {
+        val model = FakeModel(listOf({ """["I need water", "Thank you"]""" }))
+        val result = ModelSuggestionEngine(model) { clock }.suggest(request)
+        assertEquals(4, result.replies.size)
+        assertEquals(4, result.replies.map { it.lowercase() }.toSet().size)
+        assertEquals(listOf("I need water", "Thank you"), result.replies.take(2))
     }
 
     @Test

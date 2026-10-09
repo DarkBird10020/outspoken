@@ -1,6 +1,8 @@
 package com.outspoken.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +25,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.outspoken.R
 import com.outspoken.conversation.Board
+import com.outspoken.listen.QuickTopics
 import com.outspoken.ui.theme.EyesFoundDot
 import com.outspoken.ui.theme.InkFaint
 import com.outspoken.ui.theme.InkSoft
@@ -51,6 +54,7 @@ fun ConversationScreen(
     onSelect: (Int) -> Unit,
     eyeHint: String? = null,
     eyeView: (@Composable (Modifier) -> Unit)? = null,
+    onAsk: ((String) -> Unit)? = null,
 ) {
     DesignScreen(Modifier.dottedCanvas(), gap = 14.dp) {
         Row(
@@ -99,6 +103,27 @@ fun ConversationScreen(
             }
             FixedCard("Yes / No", ui.highlighted == Board.YES_NO, Modifier.weight(1f)) {
                 onSelect(Board.YES_NO)
+            }
+        }
+        // Not in the design yet (listed as a design gap): one-tap questions for the visitor when
+        // the room is too loud for the microphone (PRD F7 fallback).
+        onAsk?.let { ask ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                QuickTopics.all.forEach { (label, question) ->
+                    Text(
+                        label,
+                        style = type(15, 500),
+                        modifier = Modifier
+                            .surface(Surfaces.Glass, RoundedCornerShape(20.dp))
+                            .clickable(role = Role.Button, onClickLabel = question) { ask(question) }
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                    )
+                }
             }
         }
         FooterNote("Runs on this phone. No internet.")

@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: faster choosing: a close chooses as soon as it reaches 0.3 s, with the eyes still shut, and camera frames are analysed at 640x480. Waiting for the phone test.
+Latest: the gaze box is centred on the resting gaze with the look lines drawn, and calibration sets the resting gaze directly. Waiting for the phone test.
 
 ## Phone test history
 
@@ -14,6 +14,32 @@ Latest: faster choosing: a close chooses as soon as it reaches 0.3 s, with the e
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
+
+## Gaze box centred on the resting gaze (owner report)
+
+- [ ] **Still eyes sit in the middle of the gaze box.** The owner saw the dot pinned to the bottom with the eyes still: the box drew the raw gaze, and with the phone below eye level the resting gaze reads about 0.5 down. It now draws the gaze up and down from the resting gaze, the same measure the highlight uses, with the look up and look down lines dashed; crossing a line moves the highlight. The word under it says "up: move up", "down: move down" or "at rest" with the distance. Code: `ui/EyeCheckScreen.kt` (`GazeBox`), `scan/GazeStepper.kt` (`restGaze`).
+- [ ] **Calibration sets the resting gaze directly**, so looks are measured from the right centre from the first frame instead of re-learning it. Code: `scan/GazeStepper.kt` (`restAt`), `MainActivity.kt`.
+
+Unit tests:
+- `GazeStepperTest`: a measured rest is the centre from the first frame.
+
+## Reply speed and accuracy brief
+
+- [ ] **Gemma answers in one call, under the 2 s target.** Temperature 0.8 to 0.3 so small models keep the four-item JSON shape; one worked example in the prompt, which ends on "Answer:". A badly formatted answer used to get a second generation, doubling the reply time; now `extractReplies` takes what it can (JSON list, quoted strings, numbered or bulleted lines), drops long and repeated replies, and the phrase bank fills the rest. Nothing usable or a model error gives the phrase bank. Code: `suggest/LiteRtLmModel.kt`, `suggest/Prompt.kt`, `suggest/ReplyParser.kt`, `suggest/ModelSuggestionEngine.kt`. The tests "bad format is retried once" and "two bad answers fall back to the phrase bank" were replaced on purpose: there is no retry any more.
+- [ ] **Quick topics on the main page** (PRD F7 fallback): one-tap questions under the cards for when the room is too loud for the microphone. Code: `ui/ConversationScreen.kt`, `listen/QuickTopics.kt`.
+- [ ] **Blink smoothing.** A running average of the eye-open values (newest frame weighted 0.65) evens out single-frame jitter; it adds about 15 ms. The shut and open lines already give the hysteresis. Code: `blink/BlinkDetector.kt` (`smoothing`), `setup/Tuning.kt`.
+- Not done from the brief, with the reason from the phone logs:
+  - Subtracting a share of the downward gaze from the blink score: real closes also read gaze down 0.73 to 0.76, the same as looking down (0.60 to 0.81), so it shifts both and separates neither.
+  - Averaging the lid gap (40%) into the eye-open value: the lid gap is already used as a second check that must also say shut, which is stricter than an average where one reading can cover for the other.
+- Already in place: the on-device offline speech recognizer (`listen/Listener.kt`: `createOnDeviceSpeechRecognizer`, `EXTRA_PREFER_OFFLINE`, free form, one result) and `RECORD_AUDIO`; no INTERNET permission (CI checks it).
+
+Unit tests:
+- `ReplyParserTest`: lenient extraction keeps a short list, pulls quoted strings and numbered or bulleted lines, drops long and repeated replies, empty when nothing usable.
+- `ModelSuggestionEngineTest`: a near miss is used and topped up with one model call, an unusable answer falls back with one call, top up skips phrases already given.
+- `PromptTest`: one worked example, ends on "Answer:".
+- `BlinkDetectorTest`: smoothing ignores a single jittery frame, a real close still counts.
+
+Design gaps: quick-topic chips on the main page use the glass surface and a 15 pt label.
 
 ## Faster choosing (owner request)
 

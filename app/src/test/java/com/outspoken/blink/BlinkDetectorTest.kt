@@ -175,4 +175,15 @@ class BlinkDetectorTest {
         detector.settings = BlinkSettings(minBlinkMs = 300, chooseWhileShut = true)
         assertEquals(emptyList<BlinkEvent>(), blink(150))
     }
+
+    @Test
+    fun `smoothing ignores a single jittery frame`() {
+        detector.settings = BlinkSettings(smoothing = 0.65f)
+        hold(500) { eyes(0.95f) }
+        val events = hold(33) { eyes(0.1f) } + hold(500) { eyes(0.95f) }
+        assertEquals(emptyList<BlinkEvent>(), events)
+        hold(500) { eyes(0.95f) }
+        // A real half-second close still counts.
+        assertTrue((hold(500) { eyes(0.05f) } + hold(300) { eyes(0.95f) }).single() is BlinkEvent.Blink)
+    }
 }
