@@ -14,7 +14,9 @@ data class Tuning(
         openAbove = 0.55f,
         // Spontaneous blinks last about 100 to 150 ms (published blink studies); 0.3 s plus the
         // lid gap check keeps them out and is quicker than the 0.4 s used before.
-        minBlinkMs = 300,
+        // Owner's deliberate quick closes on the phone lasted 160 to 240 ms (01:35 run) and were
+        // all ignored at 300 ms. Normal blinks are about 100 to 150 ms.
+        minBlinkMs = 200,
         maxBlinkMs = 1_500,
         chooseWhileShut = true,
         smoothing = 0.65f,

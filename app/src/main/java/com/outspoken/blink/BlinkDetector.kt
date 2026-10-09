@@ -140,6 +140,18 @@ class BlinkDetector(
         return left < settings.closedBelow && right < settings.closedBelow && lidsShut(sample)
     }
 
+    /**
+     * Whether at least one eye reads shut: its eye-open value below the line and, when the lid gap
+     * check is on, its lid gap below the gap line. Looking down lowers the eye-open value but not
+     * the lid gap, so it does not count; a wink does.
+     */
+    fun eitherEyeShut(sample: EyeSample): Boolean {
+        val gapLine = settings.shapeClosedBelow
+        fun shut(open: Float?, gap: Float?) =
+            open != null && open < settings.closedBelow && (gapLine == null || gap == null || gap < gapLine)
+        return shut(sample.leftOpen, sample.dots?.leftShape) || shut(sample.rightOpen, sample.dots?.rightShape)
+    }
+
     /** Both lid gaps below the shut line, or true when there is no gap check or no gap reading. */
     private fun lidsShut(sample: EyeSample): Boolean {
         val line = settings.shapeClosedBelow ?: return true

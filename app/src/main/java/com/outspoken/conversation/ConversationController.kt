@@ -94,7 +94,9 @@ class ConversationController(
                 Wink.Right -> moveCursor(cursor - 1, nowMs)
                 null -> Unit
             }
-            val eyesOpen = !detector.eyesShut(sample)
+            // Either eye shut pauses looks: closing one eye for a wink shifts the gaze and iris
+            // readings, and on the phone a left wink also fired a "look down" (01:35:38).
+            val eyesOpen = !detector.eitherEyeShut(sample)
             when (gaze.onSample(sample.gaze, eyesOpen, nowMs, sample.irisY)) {
                 GazeStep.Next -> moveCursor(cursor + 1, nowMs)
                 GazeStep.Previous -> moveCursor(cursor - 1, nowMs)

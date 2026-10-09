@@ -187,4 +187,11 @@ class BlinkDetectorTest {
         assertTrue((hold(500) { eyes(0.05f) } + hold(300) { eyes(0.95f) }).single() is BlinkEvent.Blink)
     }
 
+
+    @Test
+    fun `one eye shut counts for either eye shut, looking down with open lids does not`() {
+        detector.settings = gapSettings
+        assertTrue(detector.eitherEyeShut(EyeSample(0, true, 0.4f, 0.95f, dots = FaceDots(emptyList(), emptyList(), 0.75f, 0.05f, 0.30f))))
+        assertFalse(detector.eitherEyeShut(withGap(0.6f, 0.15f)))
+    }
 }
