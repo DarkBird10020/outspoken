@@ -86,10 +86,11 @@ class GazeStepperTest {
     }
 
     @Test
-    fun `holding a look steps once and does not move the rest`() {
+    fun `holding a look steps once and coming back does not step`() {
         look(500)
         assertEquals(listOf(GazeStep.Previous), look(4_000, y = -0.7f))
-        // Back at the old rest: nothing, because the rest did not move to the held look.
+        // Back at the old rest: nothing. After 2.5 s the held look became the rest, and coming
+        // back to the old one restores it without a step.
         assertEquals(emptyList<GazeStep>(), look(1_000))
     }
 
@@ -104,7 +105,7 @@ class GazeStepperTest {
     @Test
     fun `a real look the other way after the rebound time still steps`() {
         look(500)
-        val steps = look(400, y = 0.5f) + look(800) + look(500, y = -0.7f)
+        val steps = look(400, y = 0.5f) + look(1_000) + look(500, y = -0.7f)
         assertEquals(listOf(GazeStep.Next, GazeStep.Previous), steps)
     }
 
@@ -186,5 +187,67 @@ class GazeStepperTest {
         val steps = mutableListOf<GazeStep>()
         repeat(40) { n -> stepper.onSample(Dot(0f, if (n % 3 == 0) -0.5f else -0.05f), true, time)?.let(steps::add); time += 50 }
         assertEquals(emptyList<GazeStep>(), steps)
+    }
+
+    @Test
+    fun `many looks down in a row all register`() {
+        stepper.settings = stepper.settings.copy(irisDownStrength = 0.02f)
+        repeat(10) { stepper.onSample(Dot(0f, 0.5f), true, time, irisY = -0.03f); time += 50 }
+        val steps = mutableListOf<GazeStep>()
+        repeat(8) {
+            // Look down (iris 0.035 below rest) for 0.8 s, back to centre for 0.8 s.
+            repeat(16) { stepper.onSample(Dot(0f, 0.55f), true, time, irisY = 0.005f)?.let(steps::add); time += 50 }
+            repeat(16) { stepper.onSample(Dot(0f, 0.5f), true, time, irisY = -0.03f)?.let(steps::add); time += 50 }
+        }
+        assertEquals(List(8) { GazeStep.Next }, steps)
+    }
+
+    @Test
+    fun `a wobble under the line during a look down does not stop it registering`() {
+        stepper.settings = stepper.settings.copy(irisDownStrength = 0.02f)
+        repeat(10) { stepper.onSample(Dot(0f, 0.5f), true, time, irisY = -0.03f); time += 50 }
+        val steps = mutableListOf<GazeStep>()
+        // Looking down, but every other frame dips back under the line (above half of it).
+        repeat(20) { n -> stepper.onSample(Dot(0f, 0.5f), true, time, irisY = if (n % 2 == 0) 0f else -0.018f)?.let(steps::add); time += 50 }
+        assertEquals(listOf(GazeStep.Next), steps)
+    }
+
+    @Test
+    fun `hovering around the line steps only once`() {
+        stepper.settings = stepper.settings.copy(irisDownStrength = 0.02f)
+        repeat(10) { stepper.onSample(Dot(0f, 0.5f), true, time, irisY = -0.03f); time += 50 }
+        val steps = mutableListOf<GazeStep>()
+        // Drop wobbling between 0.9 and 1.3 of the line for three seconds.
+        repeat(60) { n -> stepper.onSample(Dot(0f, 0.5f), true, time, irisY = if (n % 4 < 2) -0.004f else -0.012f)?.let(steps::add); time += 50 }
+        assertEquals(listOf(GazeStep.Next), steps)
+    }
+
+    @Test
+    fun `just after the face comes back nothing steps while the rest is learned`() {
+        look(500)
+        stepper.forgetRest()
+        // First frames after the face is found are still moving; the eyes then settle at 0.3.
+        val steps = look(200, y = 0.9f) + look(1_500, y = 0.3f)
+        assertEquals(emptyList<GazeStep>(), steps)
+        assertEquals(listOf(GazeStep.Previous), look(600, y = -0.3f))
+    }
+
+    @Test
+    fun `a look left over from before a pause in readings does not step`() {
+        look(500)
+        look(200, y = -0.7f)
+        // No readings for 2 s, as while the phone speaks; the eyes now rest higher.
+        time += 2_000
+        assertEquals(emptyList<GazeStep>(), look(2_000, y = -0.7f))
+        assertEquals(listOf(GazeStep.Next), look(600, y = -0.2f))
+    }
+
+    @Test
+    fun `eyes resting somewhere new become the rest`() {
+        look(500)
+        // Phone 02:39:24: the resting gaze moved and looks up kept firing on their own.
+        val steps = look(6_000, y = -0.7f) + look(400, y = -0.6f) + look(400, y = -0.8f)
+        assertEquals(listOf(GazeStep.Previous), steps)
+        assertEquals(listOf(GazeStep.Previous), look(1_000, y = -1.4f))
     }
 }

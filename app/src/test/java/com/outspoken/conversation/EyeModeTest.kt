@@ -9,7 +9,10 @@ import org.junit.Test
 class EyeModeTest {
 
     private val said = mutableListOf<String>()
-    private val controller = ConversationController(speak = { said += it }).apply { moveByEyes = true }
+    private val controller = ConversationController(speak = { said += it }).apply {
+        moveByEyes = true
+        winks = true
+    }
     private var time = 10_000L
 
     /** One frame per 33 ms. Up is negative gaze y. */
@@ -24,12 +27,12 @@ class EyeModeTest {
     /** A look, then a pause at rest longer than the rebound guard. */
     private fun lookDown() {
         frames(500, gazeY = 0.5f)
-        frames(800)
+        frames(1_100)
     }
 
     private fun lookUp() {
         frames(500, gazeY = -0.7f)
-        frames(800)
+        frames(1_100)
     }
 
     private fun blink() {
@@ -193,7 +196,10 @@ class EyeModeTest {
         val detector = com.outspoken.blink.BlinkDetector(
             com.outspoken.blink.BlinkSettings(closedBelow = 0.6f, openAbove = 0.75f, shapeClosedBelow = 0.10f, shapeOpenAbove = 0.14f),
         )
-        val c = ConversationController(speak = {}, detector = detector, gaze = stepper).apply { moveByEyes = true }
+        val c = ConversationController(speak = {}, detector = detector, gaze = stepper).apply {
+            moveByEyes = true
+            winks = true
+        }
         var t = 10_000L
         fun frame(left: Float, right: Float, leftGap: Float, gazeY: Float) {
             val dots = com.outspoken.eye.FaceDots(emptyList(), emptyList(), 0.75f, leftGap, 0.30f)
@@ -205,5 +211,83 @@ class EyeModeTest {
         repeat(16) { frame(0.33f, 0.98f, 0.18f, 0.6f) }
         repeat(30) { frame(0.95f, 0.95f, 0.30f, 0f) }
         assertEquals(1, c.ui.value.highlighted)
+    }
+
+    @Test
+    fun `coming back in a new position does not move by itself and looks still work`() {
+        frames(500)
+        // Face leaves for two seconds.
+        val end = time + 2_000
+        while (time < end) {
+            controller.onSample(EyeSample(time, false))
+            time += 33
+        }
+        // Back, now resting with the gaze 0.5 lower than before.
+        frames(1_500, gazeY = 0.5f)
+        assertEquals(0, highlighted)
+        frames(500, gazeY = 1.0f)
+        frames(800, gazeY = 0.5f)
+        assertEquals(1, highlighted)
+    }
+
+    @Test
+    fun `the eye reopening after a wink is not a look up`() {
+        frames(500)
+        // Left wink, then as the eye reopens the gaze reading jumps up for half a second.
+        val end = time + 450
+        while (time < end) {
+            controller.onSample(EyeSample(time, true, 0.05f, 0.95f, gaze = Dot(0f, 0f)))
+            time += 33
+        }
+        frames(500, gazeY = -0.7f)
+        frames(800)
+        // Phone 02:23:51: wink down, then "look up" 0.45 s later. Now only the wink moves.
+        assertEquals(1, highlighted)
+    }
+
+    private fun eyes(ms: Long, left: Float, right: Float, gazeY: Float = 0f) {
+        val end = time + ms
+        while (time < end) {
+            controller.onSample(EyeSample(time, true, left, right, gaze = Dot(0f, gazeY)))
+            time += 33
+        }
+    }
+
+    @Test
+    fun `an eye left half shut between winks is not a look up`() {
+        frames(500)
+        eyes(500, 0.05f, 0.95f)
+        // Phone 02:29:36: the winking eye stayed at 0.5 and the gaze read up for over a second.
+        eyes(1_200, 0.55f, 0.90f, gazeY = -0.7f)
+        frames(1_100)
+        assertEquals(1, highlighted)
+    }
+
+    @Test
+    fun `a look fired just before a wink is taken back`() {
+        frames(500)
+        // Phone 02:29:49: the eye starting to close read as a look up 0.4 s before the wink.
+        frames(500, gazeY = -0.7f)
+        assertEquals(Board.YES_NO, highlighted)
+        eyes(500, 0.05f, 0.95f)
+        frames(1_100)
+        assertEquals(1, highlighted)
+    }
+
+    @Test
+    fun `looks still work when one eye always reads lower`() {
+        eyes(500, 0.95f, 0.70f)
+        eyes(500, 0.95f, 0.70f, gazeY = 0.5f)
+        eyes(1_100, 0.95f, 0.70f)
+        assertEquals(1, highlighted)
+    }
+
+    @Test
+    fun `winks do nothing while the setting is off`() {
+        controller.winks = false
+        frames(500)
+        wink(left = 0.05f, right = 0.95f)
+        wink(left = 0.95f, right = 0.05f)
+        assertEquals(0, highlighted)
     }
 }
