@@ -10,7 +10,7 @@ import kotlin.math.hypot
  * ellipse, so it uses every point and does not depend on which point is which. An open eye
  * measures roughly 0.25 to 0.4, a shut one close to 0. Null when the outline cannot be measured.
  *
- * [outline] must be in pixels and in order around the eye, as ML Kit returns it.
+ * [outline] must be in pixels and in order around the eye, as [FaceMesh] lists it.
  */
 fun eyeShape(outline: List<Dot>): Float? {
     if (outline.size < 3) return null

@@ -78,16 +78,33 @@ class BlinkDetectorTest {
     fun `losing the face cancels a blink`() {
         hold(500) { eyes(0.95f) }
         val events = hold(200) { eyes(0.05f) } +
-            hold(100) { EyeSample(time, faceFound = false) } +
+            hold(500) { EyeSample(time, faceFound = false) } +
             hold(200) { eyes(0.05f) } +
             hold(100) { eyes(0.95f) }
         assertEquals(listOf(BlinkEvent.FaceLost, BlinkEvent.FaceFound), events)
     }
 
     @Test
+    fun `a short face dropout keeps the blink going`() {
+        hold(500) { eyes(0.95f) }
+        val events = hold(200) { eyes(0.05f) } +
+            hold(100) { EyeSample(time, faceFound = false) } +
+            hold(200) { eyes(0.05f) } +
+            hold(100) { eyes(0.95f) }
+        assertTrue(events.single() is BlinkEvent.Blink)
+    }
+
+    @Test
+    fun `a short face dropout is not face lost`() {
+        hold(100) { eyes(0.95f) }
+        assertEquals(emptyList<BlinkEvent>(), hold(300) { EyeSample(time, faceFound = false) })
+        assertTrue(detector.tracking)
+    }
+
+    @Test
     fun `turning away counts as face lost`() {
         hold(100) { eyes(0.95f) }
-        assertEquals(listOf(BlinkEvent.FaceLost), hold(100) { eyes(0.95f, yaw = 40f) })
+        assertEquals(listOf(BlinkEvent.FaceLost), hold(500) { eyes(0.95f, yaw = 40f) })
         assertFalse(detector.tracking)
     }
 

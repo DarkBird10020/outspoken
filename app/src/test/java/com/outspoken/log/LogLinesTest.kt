@@ -63,11 +63,11 @@ class LogLinesTest {
     @Test
     fun `losing the face logs the reason`() {
         frames(100, open = 0.95f)
-        frames(100, open = 0.95f, yaw = 40f)
+        frames(500, open = 0.95f, yaw = 40f)
         assertLogged("blink: face lost: head turned (yaw 40, pitch 0)")
         frames(100, open = 0.95f, faceFound = false)
         frames(100, open = 0.95f)
-        frames(100, open = 0.95f, faceFound = false)
+        frames(500, open = 0.95f, faceFound = false)
         assertLogged("blink: face lost: no face")
     }
 

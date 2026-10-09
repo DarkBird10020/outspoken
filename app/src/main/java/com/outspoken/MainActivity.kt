@@ -21,6 +21,10 @@ import com.outspoken.conversation.ConversationController
 import com.outspoken.eye.EyeReader
 import com.outspoken.eye.FrontCamera
 import com.outspoken.log.AppLog
+import com.outspoken.scan.GazeStepper
+import com.outspoken.scan.Scanner
+import com.outspoken.setup.Tuning
+import com.outspoken.setup.TuningStore
 import com.outspoken.setup.checkOfflineVoice
 import com.outspoken.setup.findModelFile
 import com.outspoken.speech.Speaker
@@ -38,18 +42,24 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var speaker: Speaker
     private lateinit var camera: FrontCamera
+    private lateinit var tuningStore: TuningStore
+    private lateinit var eyeReader: EyeReader
     private val blinkDetector = BlinkDetector(log = AppLog)
+    private val scanner = Scanner()
+    private val gazeStepper = GazeStepper(log = AppLog)
     private val controller = ConversationController(
         speak = { speaker.speak(it) },
         detector = blinkDetector,
+        scanner = scanner,
         log = AppLog,
+        gaze = gazeStepper,
     )
-    private val eyeReader = EyeReader(onSample = { controller.onSample(it) })
     private val analyzerExecutor = Executors.newSingleThreadExecutor()
 
     private var cameraGranted by mutableStateOf(false)
     private var offlineVoice by mutableStateOf<Boolean?>(null)
     private var screen by mutableStateOf(Screen.Conversation)
+    private var tuning by mutableStateOf(Tuning())
 
     private val cameraPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -63,6 +73,10 @@ class MainActivity : ComponentActivity() {
         // The speaker cannot touch the phone, so it must never sleep mid-conversation.
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
+        tuningStore = TuningStore(this)
+        applyTuning(tuningStore.load())
+        AppLog.write("app", "tuning $tuning")
+        eyeReader = EyeReader(this) { controller.onSample(it) }
         speaker = Speaker(this) { controller.onSpeechDone(now()) }
         camera = FrontCamera(this, this)
         cameraGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
@@ -98,9 +112,17 @@ class MainActivity : ComponentActivity() {
                         cameraGranted = cameraGranted,
                         sample = sample,
                         fps = fps,
-                        settings = blinkDetector.settings,
+                        tuning = tuning,
                         recentLines = recent,
                         setup = SetupStatus(modelLine, offlineVoice),
+                        onTuningChange = {
+                            applyTuning(it)
+                            tuningStore.save(it)
+                        },
+                        onTuningReset = {
+                            tuningStore.clear()
+                            applyTuning(Tuning())
+                        },
                         onRequestCamera = { cameraPermission.launch(Manifest.permission.CAMERA) },
                         onPreviewReady = camera::showPreview,
                         onPreviewGone = camera::hidePreview,
@@ -140,6 +162,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun now() = SystemClock.elapsedRealtime()
+
+    private fun applyTuning(next: Tuning) {
+        tuning = next
+        blinkDetector.settings = next.blink
+        scanner.intervalMs = next.scanMs
+        gazeStepper.settings = next.gaze
+        if (controller.moveByEyes != next.moveByEyes) controller.moveByEyes = next.moveByEyes
+    }
 
     private fun show(next: Screen) {
         AppLog.write("ui", "screen $next")

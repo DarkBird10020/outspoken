@@ -4,9 +4,31 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: eye detection fixes (18° head turn limit, sharper camera feed) and a debug view with dots on the eyes. M1 is waiting for the phone test.
+Latest: the highlight now moves with the eyes (look down / up), eye reading switched to MediaPipe, tuning sliders on the eye check screen. M1 is waiting for the phone test.
 
-## Eye detection fixes and debug view
+## Eyes move the highlight (owner decision)
+
+The owner asked for the highlight to follow the eyes instead of moving on a timer. This replaces PRD F2 timed scanning as the default; the timer stays as a switch.
+
+- [ ] **Look down = next card, look up = previous, blink = say it.** One look is one step; the eyes come back to rest before the next. Looks are measured from where the eyes rest, which slowly follows posture, because the phone sits below eye level. Sideways looks do nothing. Shut eyes never count as looking down. Code: `scan/GazeStepper.kt`, `conversation/ConversationController.kt`.
+- [ ] **Eye reading switched from ML Kit to MediaPipe Face Landmarker.** Phone logs showed ML Kit could not do this: its dots trace the eyelids, not the eyeball, so they never moved with the eyes; one eye often read 0.01 while the other read 0.3; and it lost the face for single frames 16 times in a minute. MediaPipe gives 478 face points including both irises, a blink score per eye and gaze scores (look up, down, in, out). Model: `assets/face_landmarker.task` (Google, Apache 2.0). Code: `eye/EyeReader.kt`, `eye/FaceMesh.kt`.
+- [ ] **Face lost only after 0.4 s.** Single dropped frames no longer flip "Eyes found" off and on, and a face dropout during a blink no longer cancels it. Code: `blink/BlinkDetector.kt`.
+- [ ] **Tuning on the phone.** Eye check screen sliders: shut line, open line, shortest and longest blink, look distance, look hold, eyes or timer. Saved on the phone, reset button. No rebuild needed to tune. Code: `setup/Tuning.kt`, `ui/EyeCheckScreen.kt`.
+- [ ] **Cleaner debug dots.** Small dots on the eyelids, a ring on each iris (green open, yellow unsure, red shut), and a gaze box showing where the eyes look.
+
+How to test on the phone:
+1. Main screen: the highlight stays on the first card until you move your eyes.
+2. Look down at the bottom of the phone for a moment, then back: the highlight moves down one card. Look up and back: it moves up one.
+3. On the card you want, shut your eyes for about half a second: the phone says it.
+4. If looks are missed or too easy, open the eye check screen and move "Look distance" and "Look hold". If blinks are missed, watch the graph and move the shut line.
+
+Unit tests:
+- `GazeStepperTest`: rest does nothing, down and up step once, sideways and short glances do nothing, closing eyes is not a look, rest follows posture.
+- `EyeModeTest`: highlight waits for the eyes, down moves, up wraps, blink says the card the eyes moved to, back to top after speaking.
+- `FaceMeshTest`: head turn from the nose position, gaze direction, point lists.
+- `BlinkDetectorTest`: short face dropout keeps the blink and is not face lost. The tests "losing the face cancels a blink" and "turning away counts as face lost" now hold the face away for 0.5 s, since a shorter gap is ignored on purpose.
+
+## Eye detection fixes and debug view (earlier, ML Kit)
 
 The highlight is meant to move on its own, one card every 1.2 s (PRD F2, "scanning"). The app does not follow where you look; it waits for a deliberate blink while the right card is lit. These changes make the blink part reliable and visible.
 

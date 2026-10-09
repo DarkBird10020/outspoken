@@ -33,6 +33,11 @@ android {
     buildFeatures {
         compose = true
     }
+
+    androidResources {
+        // MediaPipe maps the face model straight from the APK, which needs it stored uncompressed.
+        noCompress += "task"
+    }
 }
 
 kotlin {
@@ -56,7 +61,7 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
 
-    implementation(libs.mlkit.face.detection)
+    implementation(libs.mediapipe.tasks.vision)
 
     testImplementation(libs.junit)
 }

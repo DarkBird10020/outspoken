@@ -16,10 +16,13 @@ data class BlinkSettings(
     val openAbove: Float = 0.5f,
     val minBlinkMs: Long = 300,
     val maxBlinkMs: Long = 900,
-    // ML Kit only gives eye-open values for faces turned left or right at most 18 degrees.
+    // Faces turned further left or right than this count as looking away.
     val maxHeadTurnDeg: Float = 18f,
-    // Looking down at a phone on a table tilts the head, and ML Kit sets no limit for it.
+    // Looking down at a phone on a table tilts the head, so tilt gets more room.
     val maxHeadTiltDeg: Float = 25f,
+    // Face trackers drop single frames, often while the eyes are shut. Only a longer gap counts
+    // as the face being gone.
+    val faceLostAfterMs: Long = 400,
 )
 
 sealed interface BlinkEvent {
@@ -42,19 +45,22 @@ class BlinkDetector(
         private set
 
     private var closedSinceMs: Long? = null
+    private var missingSinceMs: Long? = null
 
     fun onSample(sample: EyeSample): BlinkEvent? {
         val left = sample.leftOpen
         val right = sample.rightOpen
         if (!sample.faceFound || left == null || right == null || !facingCamera(sample)) {
+            val missingSince = missingSinceMs ?: sample.timeMs.also { missingSinceMs = it }
+            if (!tracking || sample.timeMs - missingSince < settings.faceLostAfterMs) return null
             if (closedSinceMs != null) log.write("blink", "closure cancelled, face lost")
             closedSinceMs = null
-            if (!tracking) return null
             tracking = false
             log.write("blink", "face lost: ${lostReason(sample)}")
             return BlinkEvent.FaceLost
         }
 
+        missingSinceMs = null
         val wasTracking = tracking
         tracking = true
         if (!wasTracking) log.write("blink", "face found")

@@ -36,7 +36,7 @@ Stand the phone on a table or holder at arm's length, front camera facing the sp
 - [Jetpack Compose UI, UI tooling and Material 3](https://developer.android.com/jetpack/compose), Apache 2.0
 - [CameraX](https://developer.android.com/media/camera/camerax), Apache 2.0
 - [JUnit 4](https://junit.org/junit4/) (tests only), EPL 1.0
-- [ML Kit Face Detection](https://developers.google.com/ml-kit/vision/face-detection) (bundled model), [ML Kit Terms](https://developers.google.com/ml-kit/terms)
+- [MediaPipe Tasks Vision](https://github.com/google-ai-edge/mediapipe), Apache 2.0, with the [Face Landmarker model](https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker) (`app/src/main/assets/face_landmarker.task`), Apache 2.0
 
 ## Fonts
 

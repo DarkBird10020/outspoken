@@ -30,6 +30,7 @@ class FrontCamera(private val context: Context, private val owner: LifecycleOwne
             val provider = providerFuture.get().also { this.provider = it }
             val analysis = ImageAnalysis.Builder()
                 .setResolutionSelector(fourByThree(CAMERA_SIZE))
+                .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
                 .also { it.setAnalyzer(analyzerExecutor, analyzer) }
@@ -51,9 +52,9 @@ class FrontCamera(private val context: Context, private val owner: LifecycleOwne
     }
 
     private companion object {
-        // ML Kit wants a face at least 100 px wide for eye-open values and 200 px for the eye
-        // outline. With the phone at arm's length the face is about a quarter of the frame, so
-        // 640x480 is too small. Preview and analysis share 4:3 so the debug dots line up.
+        // The face is about a quarter of the frame at arm's length; 1280x960 keeps the eyes
+        // detailed enough for the face mesh. Preview and analysis share 4:3 so the debug dots
+        // line up.
         val CAMERA_SIZE = Size(1280, 960)
 
         fun fourByThree(size: Size) = ResolutionSelector.Builder()
