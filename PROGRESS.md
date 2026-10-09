@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: when the face comes back after being lost, the resting gaze is taken afresh, so looks work again at once. Waiting for the phone test.
+Latest: looks have hysteresis (start at the line, end below half of it) and the look up line has a 0.2 floor, so looks down register reliably without extra steps. Repeated-looks-down fix merged with the demo-reliability changes. Waiting for the phone test.
 
 ## Phone test history
 
@@ -27,6 +27,16 @@ The app now launches with an interactive practice round on first use, teaches th
 - [x] **Stale preferences guard.** `TuningStore` upgrades hyper-sensitive legacy values (`minBlinkMs < 350` or `lookStrength < 0.35`) to recommended stable defaults. Code: `setup/Tuning.kt`.
 - [x] **Live transcript mirrored to laptop via Office Kit (PRD S2).** High-contrast, large-font full-screen transcript view accessible via top bar icon button. Renders real-time visitor speech (22sp) and speaker eye-blink replies (26sp pink card), live listening status pill, and session sentence counters. Zero internet used. Code: `ui/TranscriptScreen.kt`, `conversation/ConversationController.kt`, `MainActivity.kt`.
 - [x] **Frequent phrases in-session learning (PRD S3).** Dynamically learns sentences chosen by the speaker and prioritizes them to earlier phrase-bank pages and LLM top-up/fallback candidates, reducing eye movements required for habitual needs. Code: `conversation/Board.kt`, `conversation/ConversationController.kt`, `suggest/ModelSuggestionEngine.kt`.
+
+## Looks with hysteresis (owner report: down "too fast, hard to register, extra steps")
+
+- [ ] **A look starts at its line and ends only below half of it.** With one line both ways, a single wobbly frame under the line restarted the 0.35 s hold (hard to register), and hovering near the line stepped twice (extra steps). Code: `scan/GazeStepper.kt` (`REARM`). Tests: `GazeStepperTest` "a wobble under the line during a look down does not stop it registering", "hovering around the line steps only once".
+- [ ] **Look up line at least 0.2.** The 02:14 calibration set it at 0.15 and resting wobble of 0.16 to 0.24 read as looks up (three in 1.4 s at 02:16:03), undoing looks down; real looks up measured 0.4 to 0.7. Code: `setup/Calibration.kt` (`MIN_UP_LINE`).
+- Merged with the demo-reliability changes (#32). The repeated-looks-down fix had not reached main because of that merge; Atul's absolute "look up must reach gaze 0.2" rule is replaced by the relative 0.2 floor, which works at any phone height.
+
+## Repeated looks down (owner report)
+
+- [ ] **Looking down many times in a row keeps working.** Owner: centre to down, many times, and sometimes it stopped going down. During each look down the iris resting point crept 1% a frame toward the look, so over several looks it moved down and later looks no longer reached the line. The creep is gone; the resting point follows only near rest (within 3/4 of the line) and more gently (3% a frame). Code: `scan/GazeStepper.kt`. Test: `GazeStepperTest` "many looks down in a row all register" (8 of 8).
 
 ## Face coming back (owner report)
 

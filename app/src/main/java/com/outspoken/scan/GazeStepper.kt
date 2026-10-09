@@ -116,30 +116,38 @@ class GazeStepper(
         val gazeY = smooth(smoothY, gaze.y).also { smoothY = it }
         smoothX = smooth(smoothX, gaze.x)
         if (iris != null && restIris == null) restIris = iris
-        val irisDown = irisLooksDown(iris)
         val y = gazeY
         val centre = restY ?: y.also { restY = it }
         val dy = y - centre
         val down = settings.downStrength
+        val restI = restIris
+        // How far each way, in "line units": 1 is on the line. Shut eyes read a huge iris drop.
+        val upScore = -dy / settings.lookStrength
+        val downScore = when {
+            irisLine != null && iris != null && restI != null ->
+                (iris - restI).let { drop -> if (drop >= IRIS_SHUT_ABOVE) 0f else drop / irisLine }
+            down != null -> dy / down
+            else -> 0f
+        }
         val direction = when {
-            -dy >= settings.lookStrength && gaze.y < LOOK_UP_MAX_Y -> GazeStep.Previous
-            // Iris when it is read; the blendshape look down only when this frame has no iris.
-            irisLine != null && iris != null -> if (irisDown) GazeStep.Next else null
-            down != null && dy >= down -> GazeStep.Next
+            upScore >= 1f -> GazeStep.Previous
+            downScore >= 1f -> GazeStep.Next
             else -> null
         }
+        // Hysteresis: a look starts at the line but only ends below half of it. With one line
+        // for both, a wobble under the line restarted the hold (looks were hard to register) and
+        // hovering near it stepped twice (extra steps), owner report 02:16.
+        val nearRest = upScore < REARM && downScore < REARM
 
         if (direction == null) {
-            if (abs(dy) < restBand()) restY = centre + dy * REST_FOLLOW
-            // The resting iris drifts by about 0.04 while the eyes rest (phone log 00:51). Follow it
-            // across the whole band below the line; following only within half the line left the
-            // rest behind and resting eyes read as a look down again and again.
-            val rest = restIris
-            if (irisLine != null && iris != null && rest != null && abs(iris - rest) < irisLine) {
-                restIris = rest + (iris - rest) * REST_FOLLOW
+            if (nearRest) {
+                restY = centre + dy * REST_FOLLOW
+                if (irisLine != null && iris != null && restI != null && abs(iris - restI) < irisLine * IRIS_REST_BAND) {
+                    restIris = restI + (iris - restI) * IRIS_REST_FOLLOW
+                }
+                looking = null
+                stepped = false
             }
-            looking = null
-            stepped = false
             return null
         }
         // The eyes coming back from a look pass rest and read as a short look the other way; on the
@@ -147,12 +155,6 @@ class GazeStepper(
         if (direction != lastStep && timeMs - lastStepMs < REBOUND_MS) {
             looking = null
             return null
-        }
-        // During a look the iris rest still creeps toward the eyes, so an offset that lasts
-        // seconds is absorbed instead of stepping again each time the gaze wobbles.
-        val rest = restIris
-        if (direction == GazeStep.Next && irisLine != null && iris != null && rest != null) {
-            restIris = rest + (iris - rest) * LOOK_CREEP
         }
         if (direction != looking) {
             looking = direction
@@ -178,14 +180,15 @@ class GazeStepper(
 
     private fun smooth(previous: Float?, value: Float) = previous?.let { it + SMOOTHING * (value - it) } ?: value
 
-    /** Gaze this close to rest counts as resting and slowly moves the rest point. */
-    private fun restBand() = minOf(settings.lookStrength, settings.downStrength ?: settings.lookStrength) / 2
 
     private fun format(value: Float) = String.format(Locale.US, "%.2f", value)
 
     private companion object {
         /** Share of the way the resting gaze moves toward the current one per frame at rest. */
         const val REST_FOLLOW = 0.05f
+        /** Both scores under this share of their line count as back at rest, which re-arms a look. */
+        const val REARM = 0.5f
+
         /** After a step, a look the other way this soon is the eyes coming back, not a new look. */
         const val REBOUND_MS = 700L
 
@@ -195,10 +198,14 @@ class GazeStepper(
         /** No two steps closer than this, so the highlight never jitters. */
         const val MIN_STEP_GAP_MS = 600L
 
-        /** Eyes must look toward or above the top bezel, not just glance within the screen cards. */
-        const val LOOK_UP_MAX_Y = 0.20f
-        /** Share of the way the iris rest creeps toward the eyes per frame during a look down. */
-        const val LOOK_CREEP = 0.01f
+        /**
+         * The iris rest follows only within this share of the line, and gently. Following during
+         * looks (1% a frame) moved the rest toward each look down, so after several looks down in
+         * a row they stopped reaching the line (owner report).
+         */
+        const val IRIS_REST_BAND = 0.75f
+        const val IRIS_REST_FOLLOW = 0.03f
+
         /** Iris drop beyond this is shut eyes, not a look down. */
         const val IRIS_SHUT_ABOVE = 0.15f
     }
