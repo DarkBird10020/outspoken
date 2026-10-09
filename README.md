@@ -6,7 +6,7 @@ The listener asks a question, an on-device Gemma model suggests four replies, an
 
 ## Status
 
-M1: blink at the highlighted card and the phone says it, using a built-in phrase bank. The model comes in M2.
+M2: blink at the highlighted card and the phone says it. After each sentence, Gemma on the phone writes four new replies that follow on; the built-in phrase bank shows while it thinks and whenever it fails.
 
 ## Setup
 
@@ -16,7 +16,7 @@ Every push builds a debug APK on GitHub Actions. Download `outspoken-debug-apk` 
    ```
    ./gradlew installDebug
    ```
-2. Open the app once so it creates its files folder, then push the Gemma model (a `.litertlm` file):
+2. Open the app once so it creates its files folder, then push a Gemma model in LiteRT-LM format (a `.litertlm` file, for example Gemma3-1B-IT from the [LiteRT community on Hugging Face](https://huggingface.co/litert-community)). The model is not in this repo; it comes under the Gemma terms of use.
    ```
    adb push <model>.litertlm /sdcard/Android/data/com.outspoken/files/
    ```
@@ -36,6 +36,7 @@ Stand the phone on a table or holder at arm's length, front camera facing the sp
 - [Jetpack Compose UI, UI tooling and Material 3](https://developer.android.com/jetpack/compose), Apache 2.0
 - [CameraX](https://developer.android.com/media/camera/camerax), Apache 2.0
 - [JUnit 4](https://junit.org/junit4/) (tests only), EPL 1.0
+- [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM), runs the Gemma model on the phone, Apache 2.0. Brings in [Gson](https://github.com/google/gson), Apache 2.0
 - [ML Kit Face Detection](https://developers.google.com/ml-kit/vision/face-detection) (bundled model), [ML Kit Terms](https://developers.google.com/ml-kit/terms)
 
 ## Fonts

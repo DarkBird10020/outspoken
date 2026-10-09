@@ -2,6 +2,7 @@ package com.outspoken.conversation
 
 import com.outspoken.eye.EyeSample
 import com.outspoken.scan.Scanner
+import com.outspoken.suggest.Turn
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -10,7 +11,12 @@ import org.junit.Test
 class ConversationControllerTest {
 
     private val said = mutableListOf<String>()
-    private val controller = ConversationController(speak = { said += it }, scanner = Scanner(intervalMs = 1_200))
+    private val requests = mutableListOf<Pair<Int, List<Turn>>>()
+    private val controller = ConversationController(
+        speak = { said += it },
+        requestReplies = { id, turns -> requests += id to turns },
+        scanner = Scanner(intervalMs = 1_200),
+    )
     private var time = 10_000L
 
     private fun frames(ms: Long, open: Float, faceFound: Boolean = true) {
@@ -31,7 +37,7 @@ class ConversationControllerTest {
         frames(100, open = 0.95f)
         blink()
         assertEquals(listOf("I need water"), said)
-        assertEquals(listOf("I need water"), controller.history)
+        assertEquals(listOf(Turn(fromListener = false, text = "I need water")), controller.history)
     }
 
     @Test
@@ -88,5 +94,41 @@ class ConversationControllerTest {
         controller.onTap(Board.YES_NO, time)
         assertEquals(listOf("Yes", "No"), controller.ui.value.replies)
         assertTrue(said.isEmpty())
+    }
+
+    @Test
+    fun `speaking asks for new replies with the conversation so far`() {
+        frames(100, open = 0.95f)
+        blink()
+        assertEquals(listOf(Turn(false, "I need water")), requests.single().second)
+    }
+
+    @Test
+    fun `model replies replace the cards and scanning starts at the top`() {
+        frames(100, open = 0.95f)
+        blink()
+        controller.onSpeechDone(time)
+        frames(1_300, open = 0.95f)
+        val replies = listOf("Cold water please", "Just a sip", "With a straw", "Thank you")
+        controller.onReplies(requests.last().first, replies, fromModel = true, nowMs = time)
+        assertEquals(replies, controller.ui.value.replies)
+        assertEquals(0, controller.ui.value.highlighted)
+        blink()
+        assertEquals("Cold water please", said.last())
+    }
+
+    @Test
+    fun `an old answer is ignored`() {
+        controller.refreshReplies()
+        controller.refreshReplies()
+        controller.onReplies(requests.first().first, listOf("A", "B", "C", "D"), fromModel = true, nowMs = time)
+        assertEquals("I need water", controller.ui.value.replies.first())
+    }
+
+    @Test
+    fun `a fallback answer keeps the phrase bank`() {
+        controller.refreshReplies()
+        controller.onReplies(requests.last().first, listOf("x", "y", "z", "w"), fromModel = false, nowMs = time)
+        assertEquals("I need water", controller.ui.value.replies.first())
     }
 }

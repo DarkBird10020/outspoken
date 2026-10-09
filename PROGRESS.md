@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: M1 built. Blink on a card and the phone says it. Waiting for the phone test (M0 and M1 together).
+Latest: M2 built. After each sentence, Gemma on the phone writes four new replies. Waiting for phone tests of M0, M1 and M2.
 
 ## M0. Skeleton
 
@@ -68,6 +68,37 @@ For later milestones:
 - Scan speed is fixed at 1.2 s in code. The design shows it but has no control to change it yet (design gap).
 - The eye button opens the M0 number screen until the practice round (M3). The stats button does nothing until M4.
 
+## M2. Model replies
+
+PRD pass test: after choosing "I am in pain", the next four cards are relevant (for example where it hurts), and they appear within 2 seconds.
+Status: not passed yet. Needs M1 to pass first.
+
+- [ ] **Model on the phone** (F4). Gemma runs through LiteRT-LM, loaded once when the app starts. Tries the GPU, falls back to the CPU. Any `.litertlm` file in the app folder is used. Code: `suggest/LiteRtLmModel.kt`, `suggest/OnDeviceModel.kt`.
+- [ ] **Suggestion engine** (F4). Sends the last few lines of the conversation and the time of day, asks for exactly four replies as a JSON list (first person, at most 8 words). Code: `suggest/Prompt.kt`, `suggest/ModelSuggestionEngine.kt`. The `SuggestionEngine` interface is the swap point if another runtime is needed.
+- [ ] **Reply checking.** Exactly four, different, short replies, or the answer is rejected. A bad answer gets one retry, then the phrase bank is used. Code: `suggest/ReplyParser.kt`.
+- [ ] **Instant fallback** (F5). The phrase bank shows at once after each sentence while the model thinks, and stays if the model fails. "More options" pages from the model's replies into the phrase bank.
+- [ ] **Measured.** The M0 screen (eye button) shows the model state (loading, ready on GPU or CPU, failed) and the last reply time with tokens per second.
+
+How to test on the phone:
+1. Download a Gemma `.litertlm` model (Gemma3-1B-IT from the LiteRT community on Hugging Face is a good start) and push it with the `adb push` line in the README.
+2. Open the app, then the eye button. Wait until "Model: ... ready on GPU" (or CPU). Back.
+3. Blink "I am in pain". The phrase bank shows while it thinks, then four new cards should be about the pain.
+4. Open the eye button again and read "Last replies". It should say under 2 s from the model.
+5. If it says phrase bank, the model failed or answered badly twice. Tell me what it says.
+
+Unit tests:
+- `ReplyParserTest`: good lists, code fences, trailing comma, escapes, wrong count, long, empty or repeated replies, junk.
+- `PromptTest`: asks for four short replies as JSON, time of day, who said what, only recent lines.
+- `ModelSuggestionEngineTest`: good answer, one retry, fallback after two bad answers, fallback on error, timing.
+- `ConversationControllerTest` and `BoardTest`: new replies after speaking, model page first, old answers ignored.
+
+Extras beyond the PRD:
+- The model starts writing the next replies while the phone is still speaking, which saves time.
+- Only the answer to the latest request is used, so a slow answer can never replace newer cards.
+- Output is capped at 96 tokens so a rambling answer cannot hold up the reply time.
+
+To tune on the phone (PRD: pick the largest model that meets 2 s): try Gemma3-1B-IT first, then a larger Gemma if it stays under 2 s.
+
 ## Design (from the teammate)
 
 The four designed screens are built exactly from the design file, as stand-alone screens. Each one is wired up in the milestone that needs it. See them in Android Studio with the Preview pane.
@@ -103,4 +134,4 @@ Run on every push and pull request (`.github/workflows/ci.yml`). The `main` rule
 
 ## Next
 
-M2: Gemma writes the four replies, with the phrase bank as fallback. Starts after M1 passes on the phone.
+M3: listening (the visitor's question becomes text for the model), calibration and the practice round. Starts after M1 and M2 pass on the phone.

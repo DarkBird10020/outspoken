@@ -16,11 +16,14 @@ object PhraseBank {
 
 /**
  * What the reply cards show. Card ids 0 to 3 are replies; [MORE_OPTIONS] and [YES_NO] are the
- * two fixed cards.
+ * two fixed cards. Model suggestions, when there are any, are the first page and the phrase bank
+ * follows.
  */
 class Board(phrases: List<String> = PhraseBank.phrases) {
 
-    private val pages = phrases.chunked(REPLY_COUNT)
+    private val phrasePages = phrases.chunked(REPLY_COUNT)
+    private var suggestions: List<String>? = null
+    private val pages get() = listOfNotNull(suggestions) + phrasePages
     private var page = 0
     private var showingYesNo = false
 
@@ -45,7 +48,9 @@ class Board(phrases: List<String> = PhraseBank.phrases) {
         else -> replies.getOrNull(card)
     }
 
-    fun home() {
+    /** Shows [replies] as the first page, or only the phrase bank when null. Goes to the first page. */
+    fun showSuggestions(replies: List<String>?) {
+        suggestions = replies?.takeIf { it.isNotEmpty() }
         page = 0
         showingYesNo = false
     }

@@ -19,6 +19,7 @@ import java.util.Locale
 data class SetupStatus(
     val modelLine: String,
     val offlineVoice: Boolean?,
+    val lastReplyLine: String,
 )
 
 /** M0 check screen: live eye-open numbers plus the setup items that must be on the phone. */
@@ -52,6 +53,7 @@ fun EyeCheckScreen(
             }
             EyeNumbers(sample, fps)
             Text("Model: ${setup.modelLine}")
+            Text("Last replies: ${setup.lastReplyLine}")
             Text(
                 "Offline voice: " + when (setup.offlineVoice) {
                     null -> "checking"

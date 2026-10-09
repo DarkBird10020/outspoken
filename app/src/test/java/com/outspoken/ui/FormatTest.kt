@@ -1,6 +1,7 @@
 package com.outspoken.ui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FormatTest {
@@ -29,5 +30,12 @@ class FormatTest {
         assertEquals("00:00", formatClock(0))
         assertEquals("04:12", formatClock(252_000))
         assertEquals("61:01", formatClock(3_661_000))
+    }
+
+    @Test
+    fun `reply line says where replies came from`() {
+        assertEquals("1.4 s from the model, 24 tok/s", describeReplies(1_400, fromModel = true, tokensPerSecond = 23.8f))
+        assertEquals("2.1 s from the model", describeReplies(2_100, fromModel = true, tokensPerSecond = null))
+        assertTrue(describeReplies(300, fromModel = false, tokensPerSecond = null).startsWith("0.3 s, phrase bank"))
     }
 }

@@ -16,17 +16,28 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import com.outspoken.conversation.ConversationController
 import com.outspoken.eye.EyeReader
 import com.outspoken.eye.FrontCamera
 import com.outspoken.setup.checkOfflineVoice
 import com.outspoken.setup.findModelFile
 import com.outspoken.speech.Speaker
+import com.outspoken.suggest.ModelState
+import com.outspoken.suggest.ModelSuggestionEngine
+import com.outspoken.suggest.OnDeviceModel
+import com.outspoken.suggest.SuggestionEngine
+import com.outspoken.suggest.SuggestionRequest
+import com.outspoken.suggest.Turn
 import com.outspoken.ui.ConversationScreen
 import com.outspoken.ui.EyeCheckScreen
 import com.outspoken.ui.SetupStatus
+import com.outspoken.ui.describeReplies
 import com.outspoken.ui.theme.OutspokenTheme
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.time.LocalTime
 import java.util.Locale
 import java.util.concurrent.Executors
 
@@ -36,13 +47,20 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var speaker: Speaker
     private lateinit var camera: FrontCamera
-    private val controller = ConversationController(speak = { speaker.speak(it) })
+    private val controller = ConversationController(
+        speak = { speaker.speak(it) },
+        requestReplies = ::requestReplies,
+    )
     private val eyeReader = EyeReader(onSample = { controller.onSample(it) })
     private val analyzerExecutor = Executors.newSingleThreadExecutor()
 
     private var cameraGranted by mutableStateOf(false)
     private var offlineVoice by mutableStateOf<Boolean?>(null)
     private var screen by mutableStateOf(Screen.Conversation)
+    private var lastReplyLine by mutableStateOf("none yet")
+
+    private var suggestionEngine: SuggestionEngine? = null
+    private var replyJob: Job? = null
 
     private val cameraPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -66,7 +84,17 @@ class MainActivity : ComponentActivity() {
         }
 
         checkOfflineVoice(this) { offlineVoice = it }
-        val modelLine = modelStatusLine()
+        val modelDir = getExternalFilesDir(null)
+        val modelFile = findModelFile(modelDir)
+        OnDeviceModel.loadOnce(modelFile, cacheDir)
+        lifecycleScope.launch {
+            OnDeviceModel.state.collect { state ->
+                if (state is ModelState.Ready && suggestionEngine == null) {
+                    suggestionEngine = ModelSuggestionEngine(state.model, ::now)
+                    controller.refreshReplies()
+                }
+            }
+        }
 
         setContent {
             LaunchedEffect(Unit) {
@@ -79,12 +107,13 @@ class MainActivity : ComponentActivity() {
                 BackHandler(enabled = screen == Screen.EyeCheck) { screen = Screen.Conversation }
                 val sample by eyeReader.samples.collectAsStateWithLifecycle()
                 val fps by eyeReader.fps.collectAsStateWithLifecycle()
+                val modelState by OnDeviceModel.state.collectAsStateWithLifecycle()
                 MaterialTheme {
                     EyeCheckScreen(
                         cameraGranted = cameraGranted,
                         sample = sample,
                         fps = fps,
-                        setup = SetupStatus(modelLine, offlineVoice),
+                        setup = SetupStatus(modelLine(modelState, modelDir?.absolutePath), offlineVoice, lastReplyLine),
                         onRequestCamera = { cameraPermission.launch(Manifest.permission.CAMERA) },
                         onPreviewReady = camera::showPreview,
                         onPreviewGone = camera::hidePreview,
@@ -112,13 +141,28 @@ class MainActivity : ComponentActivity() {
         analyzerExecutor.shutdown()
     }
 
+    private fun requestReplies(requestId: Int, turns: List<Turn>) {
+        val engine = suggestionEngine ?: return
+        replyJob?.cancel()
+        replyJob = lifecycleScope.launch {
+            val suggestions = engine.suggest(SuggestionRequest(turns, LocalTime.now().hour))
+            lastReplyLine = describeReplies(suggestions.elapsedMs, suggestions.fromModel, suggestions.tokensPerSecond)
+            controller.onReplies(requestId, suggestions.replies, suggestions.fromModel, now())
+        }
+    }
+
     private fun now() = SystemClock.elapsedRealtime()
 
-    private fun modelStatusLine(): String {
-        val dir = getExternalFilesDir(null)
-        val model = findModelFile(dir) ?: return "missing, push a .litertlm file to ${dir?.absolutePath}"
-        val gb = model.length() / 1_000_000_000.0
-        return "${model.name} (${"%.2f".format(Locale.US, gb)} GB)"
+    private fun modelLine(state: ModelState, dir: String?): String = when (state) {
+        ModelState.Missing -> "missing, push a .litertlm file to $dir"
+        is ModelState.Loading -> "${state.name}, loading"
+        is ModelState.Ready -> "${state.name}, ready on ${state.backend}, ${modelSize()}"
+        is ModelState.Failed -> "${state.name}, failed to load: ${state.reason}"
+    }
+
+    private fun modelSize(): String {
+        val gb = (findModelFile(getExternalFilesDir(null))?.length() ?: 0) / 1_000_000_000.0
+        return "%.2f GB".format(Locale.US, gb)
     }
 
     private companion object {
