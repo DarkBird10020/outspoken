@@ -49,7 +49,6 @@ fun ConversationScreen(
     onPractice: () -> Unit,
     onStats: () -> Unit,
     onSelect: (Int) -> Unit,
-    onStatusLongPress: () -> Unit = {},
 ) {
     DesignScreen(Modifier.dottedCanvas(), gap = 14.dp) {
         Row(
@@ -58,9 +57,9 @@ fun ConversationScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (ui.faceFound) {
-                DotPill("Eyes found", EyesFoundDot, onLongClick = onStatusLongPress)
+                DotPill("Eyes found", EyesFoundDot)
             } else {
-                DotPill("Looking for you", InkFaint, onLongClick = onStatusLongPress)
+                DotPill("Looking for you", InkFaint)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 CircleIconButton(R.drawable.ic_eye, "Practice round", onPractice)

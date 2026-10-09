@@ -11,7 +11,7 @@
 
     <uses-permission android:name="android.permission.CAMERA" />
 
-    <!-- ML Kit's logging transport merges these in. The app must stay fully offline. -->
+    <!-- Libraries can merge these in. The app must stay fully offline. -->
     <uses-permission
         android:name="android.permission.INTERNET"
         tools:node="remove" />

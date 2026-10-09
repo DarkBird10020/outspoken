@@ -6,7 +6,7 @@ The listener asks a question, an on-device Gemma model suggests four replies, an
 
 ## Status
 
-M2: a short blink moves the highlight to the next card, a long blink (a tick sounds at 1 second) chooses it, and the phone says it. After each sentence, Gemma on the phone writes four new replies that follow on; the built-in phrase bank shows while it thinks and whenever it fails.
+M2: look down at the phone for the next card, up for the previous one, and blink to say the lit card. After each sentence, Gemma on the phone writes four new replies that follow on; the built-in phrase bank shows while it thinks and whenever it fails.
 
 ## Setup
 
@@ -34,7 +34,7 @@ Stand the phone on a table or holder at arm's length, front camera facing the sp
 - [CameraX](https://developer.android.com/media/camera/camerax), Apache 2.0
 - [JUnit 4](https://junit.org/junit4/) (tests only), EPL 1.0
 - [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM), runs the Gemma model on the phone, Apache 2.0. Brings in [Gson](https://github.com/google/gson), Apache 2.0
-- [ML Kit Face Detection](https://developers.google.com/ml-kit/vision/face-detection) (bundled model), [ML Kit Terms](https://developers.google.com/ml-kit/terms)
+- [MediaPipe Tasks Vision](https://github.com/google-ai-edge/mediapipe), Apache 2.0, with the [Face Landmarker model](https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker) (`app/src/main/assets/face_landmarker.task`), Apache 2.0
 
 ## Fonts
 

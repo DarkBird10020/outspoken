@@ -3,6 +3,7 @@ package com.outspoken.log
 import com.outspoken.blink.BlinkDetector
 import com.outspoken.conversation.ConversationController
 import com.outspoken.eye.EyeSample
+import com.outspoken.scan.Scanner
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -14,6 +15,7 @@ class LogLinesTest {
     private val controller = ConversationController(
         speak = {},
         detector = BlinkDetector(log = log),
+        scanner = Scanner(intervalMs = 1_200),
         log = log,
     )
     private var time = 10_000L
@@ -30,24 +32,16 @@ class LogLinesTest {
         assertTrue("missing \"$line\" in\n${lines.joinToString("\n")}", line in lines)
 
     @Test
-    fun `a long blink logs what was chosen and said`() {
-        frames(100, open = 0.95f)
-        frames(1_100, open = 0.05f)
-        frames(100, open = 0.95f)
-        assertLogged("blink: face found")
-        assertTrue(lines.any { it.startsWith("blink: eyes shut (left 0.05, right 0.05") })
-        assertTrue(lines.any { it.startsWith("blink: long blink") })
-        assertLogged("scan: long blink chose \"I need water\"")
-        assertLogged("scan: say \"I need water\"")
-    }
-
-    @Test
-    fun `a short blink logs where the highlight went`() {
+    fun `an intentional blink logs what was picked and said`() {
         frames(100, open = 0.95f)
         frames(500, open = 0.05f)
         frames(100, open = 0.95f)
-        assertLogged("blink: short blink 528 ms")
-        assertLogged("scan: short blink, now on \"I am in pain\"")
+        assertLogged("blink: face found")
+        assertLogged("scan: highlight \"I need water\"")
+        assertLogged("blink: eyes shut (left 0.05, right 0.05)")
+        assertLogged("blink: blink 528 ms")
+        assertLogged("scan: blink picked \"I need water\"")
+        assertLogged("scan: say \"I need water\"")
     }
 
     @Test
@@ -55,24 +49,25 @@ class LogLinesTest {
         frames(100, open = 0.95f)
         frames(99, open = 0.05f)
         frames(100, open = 0.95f)
-        assertLogged("blink: ignored 99 ms, shorter than 500 ms")
+        assertLogged("blink: ignored 99 ms, shorter than 300 ms")
     }
 
     @Test
     fun `a long closure logs why it was ignored`() {
         frames(100, open = 0.95f)
-        frames(2_100, open = 0.05f)
+        frames(1_500, open = 0.05f)
         frames(100, open = 0.95f)
-        assertTrue(lines.any { it.startsWith("blink: ignored") && it.endsWith("longer than 1900 ms") })
+        assertTrue(lines.any { it.startsWith("blink: ignored") && it.endsWith("longer than 900 ms") })
     }
 
     @Test
     fun `losing the face logs the reason`() {
         frames(100, open = 0.95f)
-        frames(600, open = 0.95f, yaw = 40f)
+        frames(500, open = 0.95f, yaw = 40f)
         assertLogged("blink: face lost: head turned (yaw 40, pitch 0)")
+        frames(100, open = 0.95f, faceFound = false)
         frames(100, open = 0.95f)
-        frames(600, open = 0.95f, faceFound = false)
+        frames(500, open = 0.95f, faceFound = false)
         assertLogged("blink: face lost: no face")
     }
 

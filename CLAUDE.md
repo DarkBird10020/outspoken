@@ -43,7 +43,8 @@ Follow the milestones in PRD section 9 in order (M0 to M5). Do not start a miles
 ## 5. Stack
 
 - Kotlin, Jetpack Compose, single activity, Gradle Kotlin DSL with a version catalog.
-- CameraX + ML Kit Face Detection (bundled model, classification on) for eye-open values.
+- CameraX + MediaPipe Face Landmarker (`assets/face_landmarker.task`) for eye-open values (blink blendshapes), gaze (eye-look blendshapes) and the iris and eyelid points on the debug screen. ML Kit was replaced: it cannot see where the eyes look and its eye values flickered on the phone.
+- Owner decision (overrides PRD F2 timed scanning as the default): the highlight moves with the eyes. Look down = next card, look up = previous, deliberate blink = say it (`scan/GazeStepper.kt`). Timed scanning stays as a switch on the eye check screen. Blink and gaze settings are tuned on the phone with sliders and saved (`setup/Tuning.kt`).
 - Blink detection is our own state machine with calibrated thresholds. Keep it pure Kotlin with no Android imports so it can be unit tested.
 - On-device Gemma through LiteRT-LM, behind a `SuggestionEngine` interface. Load once at startup. Exactly four replies as a JSON list, retry once, then fall back to the phrase bank.
 - Android on-device `SpeechRecognizer` for listening, Android `TextToSpeech` with an offline voice for speech.

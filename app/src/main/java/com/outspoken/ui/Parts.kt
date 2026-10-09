@@ -2,7 +2,6 @@ package com.outspoken.ui
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -74,20 +73,8 @@ fun Pill(
 }
 
 @Composable
-fun DotPill(
-    text: String,
-    dot: Color,
-    style: SurfaceStyle = Surfaces.Glass,
-    onLongClick: (() -> Unit)? = null,
-) {
-    val modifier = if (onLongClick == null) {
-        Modifier
-    } else {
-        Modifier
-            .clip(RoundedCornerShape(24.dp))
-            .combinedClickable(onClick = {}, onLongClick = onLongClick)
-    }
-    Pill(style, modifier) {
+fun DotPill(text: String, dot: Color, style: SurfaceStyle = Surfaces.Glass) {
+    Pill(style) {
         Box(
             Modifier
                 .size(10.dp)
