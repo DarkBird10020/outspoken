@@ -65,7 +65,7 @@ private val BarFill = SurfaceStyle(
 
 @Composable
 fun PracticeScreen(ui: PracticeUi, onBack: () -> Unit, onStart: () -> Unit) {
-    DesignScreen(Modifier.dottedCanvas(), gap = 18.dp) {
+    DesignScreen(Modifier.dottedCanvas(), gap = 12.dp) {
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -77,12 +77,12 @@ fun PracticeScreen(ui: PracticeUi, onBack: () -> Unit, onStart: () -> Unit) {
         ScreenHeading(
             title = "Blink when the star lights up",
             subtitle = "Close your eyes for about half a second, then open them.",
-            gap = 8.dp,
+            gap = 6.dp,
         )
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 10.dp),
+                .padding(horizontal = 4.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {

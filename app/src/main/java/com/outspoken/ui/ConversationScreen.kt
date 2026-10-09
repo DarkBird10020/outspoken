@@ -52,6 +52,7 @@ fun ConversationScreen(
     onPractice: () -> Unit,
     onStats: () -> Unit,
     onSelect: (Int) -> Unit,
+    onTranscript: () -> Unit = {},
     eyeHint: String? = null,
     eyeView: (@Composable (Modifier) -> Unit)? = null,
     onAsk: ((String) -> Unit)? = null,
@@ -69,6 +70,7 @@ fun ConversationScreen(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 CircleIconButton(R.drawable.ic_eye, "Practice round", onPractice)
+                CircleIconButton(R.drawable.ic_transcript, "Live transcript (Office Kit)", onTranscript)
                 CircleIconButton(R.drawable.ic_stats, "Session stats", onStats)
             }
         }

@@ -10,6 +10,7 @@ import kotlin.coroutines.cancellation.CancellationException
  */
 class ModelSuggestionEngine(
     private val model: TextModel,
+    private val frequentPhrases: () -> List<String> = { emptyList() },
     private val clockMs: () -> Long,
 ) : SuggestionEngine {
 
@@ -28,10 +29,14 @@ class ModelSuggestionEngine(
         return Suggestions(topUp(replies), fromModel = true, clockMs() - startMs, generation.tokensPerSecond)
     }
 
-    private fun topUp(replies: List<String>): List<String> =
-        (replies + PhraseBank.phrases.filter { phrase -> replies.none { it.equals(phrase, ignoreCase = true) } })
-            .take(REPLY_COUNT)
+    private fun topUp(replies: List<String>): List<String> {
+        val pool = frequentPhrases() + PhraseBank.phrases
+        val candidates = pool.filter { phrase -> replies.none { it.equals(phrase, ignoreCase = true) } }.distinct()
+        return (replies + candidates).take(REPLY_COUNT)
+    }
 
-    private fun fallback(startMs: Long) =
-        Suggestions(PhraseBank.phrases.take(REPLY_COUNT), fromModel = false, clockMs() - startMs)
+    private fun fallback(startMs: Long): Suggestions {
+        val pool = (frequentPhrases() + PhraseBank.phrases).distinct()
+        return Suggestions(pool.take(REPLY_COUNT), fromModel = false, clockMs() - startMs)
+    }
 }

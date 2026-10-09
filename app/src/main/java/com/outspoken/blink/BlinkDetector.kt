@@ -83,7 +83,13 @@ class BlinkDetector(
     fun onSample(sample: EyeSample): BlinkEvent? {
         val rawLeft = sample.leftOpen
         val rawRight = sample.rightOpen
-        if (!sample.faceFound || rawLeft == null || rawRight == null || !facingCamera(sample)) {
+        val facing = facingCamera(sample)
+        // Eyelid closure deforms the face mesh landmarks, causing transient yaw jumps.
+        // If a closure is already in progress, tolerate this deformation while the face is still found.
+        val inClosure = closedSinceMs != null
+        val acceptableOrientation = facing || (inClosure && sample.faceFound && abs(sample.yawDeg) <= 60f)
+
+        if (!sample.faceFound || rawLeft == null || rawRight == null || !acceptableOrientation) {
             val missingSince = missingSinceMs ?: sample.timeMs.also { missingSinceMs = it }
             if (!tracking || sample.timeMs - missingSince < settings.faceLostAfterMs) return null
             if (closedSinceMs != null) log.write("blink", "closure cancelled, face lost")
@@ -103,14 +109,17 @@ class BlinkDetector(
         tracking = true
         if (!wasTracking) log.write("blink", "face found")
         val closedSince = closedSinceMs
+        val avgOpen = (left + right) / 2f
         if (closedSince == null) {
-            if (left < settings.closedBelow && right < settings.closedBelow && lidsShut(sample)) {
+            val bothShut = ((left < settings.closedBelow && right < settings.closedBelow) ||
+                (avgOpen < settings.closedBelow && minOf(left, right) < settings.closedBelow + 0.08f)) && lidsShut(sample)
+            if (bothShut) {
                 closedSinceMs = sample.timeMs
                 val gaze = sample.gaze?.let { ", gaze up/down ${open(it.y)}" } ?: ""
                 val shape = sample.dots?.let { d -> ", lid gap ${d.leftShape?.let { open(it) }} / ${d.rightShape?.let { open(it) }}" } ?: ""
                 log.write("blink", "eyes shut (left ${open(left)}, right ${open(right)}$shape$gaze)")
             }
-        } else if (maxOf(left, right) > settings.openAbove || lidsOpen(sample)) {
+        } else if (avgOpen > settings.openAbove || maxOf(left, right) > settings.openAbove || lidsOpen(sample)) {
             closedSinceMs = null
             val duration = sample.timeMs - closedSince
             if (chosen) {

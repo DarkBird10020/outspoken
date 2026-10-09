@@ -107,7 +107,7 @@ class GazeStepper(
         val dy = y - centre
         val down = settings.downStrength
         val direction = when {
-            -dy >= settings.lookStrength -> GazeStep.Previous
+            -dy >= settings.lookStrength && gaze.y < LOOK_UP_MAX_Y -> GazeStep.Previous
             // Iris when it is read; the blendshape look down only when this frame has no iris.
             irisLine != null && iris != null -> if (irisDown) GazeStep.Next else null
             down != null && dy >= down -> GazeStep.Next
@@ -171,7 +171,6 @@ class GazeStepper(
     private companion object {
         /** Share of the way the resting gaze moves toward the current one per frame at rest. */
         const val REST_FOLLOW = 0.05f
-
         /** After a step, a look the other way this soon is the eyes coming back, not a new look. */
         const val REBOUND_MS = 700L
 
@@ -181,9 +180,10 @@ class GazeStepper(
         /** No two steps closer than this, so the highlight never jitters. */
         const val MIN_STEP_GAP_MS = 600L
 
+        /** Eyes must look toward or above the top bezel, not just glance within the screen cards. */
+        const val LOOK_UP_MAX_Y = 0.20f
         /** Share of the way the iris rest creeps toward the eyes per frame during a look down. */
         const val LOOK_CREEP = 0.01f
-
         /** Iris drop beyond this is shut eyes, not a look down. */
         const val IRIS_SHUT_ABOVE = 0.15f
     }

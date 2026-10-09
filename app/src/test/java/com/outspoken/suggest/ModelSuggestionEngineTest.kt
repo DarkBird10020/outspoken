@@ -66,4 +66,15 @@ class ModelSuggestionEngineTest {
         assertFalse(result.fromModel)
         assertEquals(1, model.calls)
     }
+
+    @Test
+    fun `frequent phrases are prioritized in top up and fallback`() = runBlocking {
+        val model = FakeModel(listOf({ """["My back hurts"]""" }, { "bad" }))
+        val engine = ModelSuggestionEngine(model, frequentPhrases = { listOf("Thank you") }) { clock }
+        val toppedUp = engine.suggest(request)
+        assertEquals(listOf("My back hurts", "Thank you", PhraseBank.phrases[0], PhraseBank.phrases[1]), toppedUp.replies)
+
+        val fallback = engine.suggest(request)
+        assertEquals("Thank you", fallback.replies.first())
+    }
 }

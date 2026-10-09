@@ -14,6 +14,19 @@ Latest: a double blink (two quick closes within 0.8 s) also chooses, for quick c
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
+| 2026-10-09 | Reading options / accuracy test | Jitter when reading options, accidental selection blinks, no tutorial | Practice round tutorial screen wired up, asymmetric eyelid detection, yaw jitter tolerance, upward gaze boundary |
+
+## Tutorial onboarding and accuracy fixes
+
+The app now launches with an interactive practice round on first use, teaches the user how to step and blink, catches 3 stars, and auto-calibrates the eye thresholds to their personal eyes. Inaccurate automatic card hopping and premature selections have been resolved.
+
+- [x] **Tutorial practice round (PRD F6).** First launch opens `PracticeScreen`: 3 star targets, catch stars with deliberate blinks (~0.4 s), personalized calibration of `closedBelow` and `openAbove`, spoken audio feedback, and transition to ConversationScreen. The eye icon on ConversationScreen returns to practice anytime. Code: `ui/PracticeScreen.kt`, `practice/PracticeController.kt`, `MainActivity.kt`.
+- [x] **Asymmetric eyelid detection.** Average aperture `(left + right) / 2` and combined recovery ensure users with eyelid asymmetry (e.g. one lid closing to 0.50 and the other to 0.31) trigger deliberate blinks reliably without single-frame flicker cutoffs. Code: `blink/BlinkDetector.kt`.
+- [x] **Yaw jitter tolerance during eye closure.** When eyes shut, MediaPipe facial mesh points contract and yaw temporarily jumps up to -50°. In-progress closures are no longer cancelled by transient yaw spikes while the face remains detected. Code: `blink/BlinkDetector.kt`.
+- [x] **Reading glance isolation in GazeStepper.** Gaze stepping now requires eyes to look towards or above the top bezel (`gaze.y < 0.20f`) in addition to `-dy >= lookStrength`, preventing glances between cards on the screen from triggering unintended card jumps. Code: `scan/GazeStepper.kt`.
+- [x] **Stale preferences guard.** `TuningStore` upgrades hyper-sensitive legacy values (`minBlinkMs < 350` or `lookStrength < 0.35`) to recommended stable defaults. Code: `setup/Tuning.kt`.
+- [x] **Live transcript mirrored to laptop via Office Kit (PRD S2).** High-contrast, large-font full-screen transcript view accessible via top bar icon button. Renders real-time visitor speech (22sp) and speaker eye-blink replies (26sp pink card), live listening status pill, and session sentence counters. Zero internet used. Code: `ui/TranscriptScreen.kt`, `conversation/ConversationController.kt`, `MainActivity.kt`.
+- [x] **Frequent phrases in-session learning (PRD S3).** Dynamically learns sentences chosen by the speaker and prioritizes them to earlier phrase-bank pages and LLM top-up/fallback candidates, reducing eye movements required for habitual needs. Code: `conversation/Board.kt`, `conversation/ConversationController.kt`, `suggest/ModelSuggestionEngine.kt`.
 
 ## Double blink chooses (owner report: glasses)
 

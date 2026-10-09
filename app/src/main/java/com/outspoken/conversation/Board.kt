@@ -19,13 +19,28 @@ object PhraseBank {
  * two fixed cards. Model suggestions, when there are any, are the first page and the phrase bank
  * follows.
  */
-class Board(phrases: List<String> = PhraseBank.phrases) {
+class Board(private val defaultPhrases: List<String> = PhraseBank.phrases) {
 
-    private val phrasePages = phrases.chunked(REPLY_COUNT)
+    private var frequentPhrases: List<String> = emptyList()
+
+    private val effectivePhrases: List<String>
+        get() {
+            if (frequentPhrases.isEmpty()) return defaultPhrases
+            val frequent = frequentPhrases.filter { it in defaultPhrases }
+            val remainder = defaultPhrases.filter { it !in frequent }
+            return frequent + remainder
+        }
+
+    private val phrasePages get() = effectivePhrases.chunked(REPLY_COUNT)
     private var suggestions: List<String>? = null
     private val pages get() = listOfNotNull(suggestions) + phrasePages
     private var page = 0
     private var showingYesNo = false
+
+    /** Updates the frequent phrases learned in this session to show them sooner (PRD S3). */
+    fun updateFrequent(frequent: List<String>) {
+        frequentPhrases = frequent
+    }
 
     val replies: List<String>
         get() = if (showingYesNo) PhraseBank.yesNo else pages[page]

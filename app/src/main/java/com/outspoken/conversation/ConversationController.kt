@@ -66,6 +66,15 @@ class ConversationController(
     /** Sentences said this session, oldest first. Memory only. */
     val history: List<String> get() = turns.filter { !it.fromListener }.map { it.text }
 
+    /** All conversation turns this session, both visitor and speaker (PRD S2). */
+    val allTurns: List<Turn> get() = turns.toList()
+
+    private val phraseFrequencies = mutableMapOf<String, Int>()
+
+    /** Phrases spoken this session, most frequent first (PRD S3). */
+    val frequentPhrases: List<String>
+        get() = phraseFrequencies.entries.sortedByDescending { it.value }.map { it.key }
+
     private val speaking get() = speakingSinceMs != null
     private val waiting get() = waitUntilMs != null
 
@@ -203,6 +212,8 @@ class ConversationController(
             return
         }
         turns += Turn(fromListener = false, text = sentence)
+        phraseFrequencies[sentence] = (phraseFrequencies[sentence] ?: 0) + 1
+        board.updateFrequent(frequentPhrases)
         // The question has its answer now.
         heard = null
         // The phrase bank shows at once while the model writes the next replies.
