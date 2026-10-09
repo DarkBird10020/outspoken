@@ -12,14 +12,15 @@ data class Tuning(
         // phone alone drops the value to about 0.6, so the open line sits below that.
         closedBelow = 0.45f,
         openAbove = 0.55f,
-        // Spontaneous blinks last about 100 to 150 ms (published blink studies); 0.3 s plus the
-        // lid gap check keeps them out and is quicker than the 0.4 s used before.
-        // Owner's deliberate quick closes on the phone lasted 160 to 240 ms (01:35 run) and were
-        // all ignored at 300 ms. Normal blinks are about 100 to 150 ms.
-        minBlinkMs = 200,
+        // Phone logs 2026-10-10 (02:37, 02:28, 03:11, 03:23 runs): unprompted closes lasted 74 to
+        // 242 ms, and at 200 ms every one from 200 to 242 ms picked a card ("I need water" five
+        // times in 11 s). Quick deliberate closes are the same length, so a pick needs a longer
+        // hold; with choosing while shut, the phone starts speaking the moment it is reached.
+        minBlinkMs = 400,
         maxBlinkMs = 1_500,
         chooseWhileShut = true,
-        doubleBlink = true,
+        // Two unprompted blinks in a row picked "Good evening, how are you?" (03:21:10 run).
+        doubleBlink = false,
         smoothing = 0.65f,
         // MediaPipe reads eyes further round than ML Kit's 18°.
         maxHeadTurnDeg = 30f,
@@ -46,6 +47,9 @@ data class Tuning(
 /** Longest shortest-blink the practice round may set. */
 const val MAX_PRACTICE_BLINK_MS = 400L
 
+/** No pick hold below this: unprompted blinks on the phone reached 242 ms. */
+const val MIN_PICK_HOLD_MS = 350L
+
 /** Keeps [Tuning] across app restarts. */
 class TuningStore(context: Context) {
 
@@ -60,7 +64,7 @@ class TuningStore(context: Context) {
         // Builds before version 2 let the practice round save up to 600 ms, which then threw away
         // deliberate closes (phone log 01:30:06 "blink ignored 595 ms, shorter than 600 ms").
         val oldPractice = prefs.getInt("version", 1) < VERSION && rawMinBlink > MAX_PRACTICE_BLINK_MS
-        val safeMinBlink = if (rawMinBlink < 250L || oldPractice) blink.minBlinkMs else rawMinBlink
+        val safeMinBlink = if (rawMinBlink < MIN_PICK_HOLD_MS || oldPractice) blink.minBlinkMs else rawMinBlink
         val safeLookStrength = if (rawLookStrength < 0.35f) default.gaze.lookStrength else rawLookStrength
         return Tuning(
             blink = blink.copy(

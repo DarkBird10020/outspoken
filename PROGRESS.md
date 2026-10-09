@@ -4,7 +4,9 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: laptop builds can sign with the shared key (`~/.android/outspoken-debug.keystore`), so any APK installs over the last one and nothing is uninstalled; a model picked with "Choose model file" is found at every start. Models stay in Downloads across reinstalls. Waiting for the phone test.
+Latest: choosing now needs the eyes held shut for 0.4 s; the phone starts speaking the moment it is reached. The phone logs of 2026-10-10 showed unprompted blinks of 200 to 242 ms picking cards ("I need water" five times in 11 s) and a double blink picking one, so the hold went up from 0.2 s and double blinks are off by default. Listening no longer drops the working on-device recogniser when the phone speaks. Waiting for the phone test.
+
+Also: laptop builds can sign with the shared key (`~/.android/outspoken-debug.keystore`), so any APK installs over the last one and nothing is uninstalled; a model picked with "Choose model file" is found at every start. Models stay in Downloads across reinstalls. Waiting for the phone test.
 
 ## Phone test history
 
@@ -15,6 +17,7 @@ Latest: laptop builds can sign with the shared key (`~/.android/outspoken-debug.
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
 | 2026-10-10 | Logs of the 01:13 run on this iQOO (read from the phone) | 3 blinks chose; 13 closes ignored, including 595 ms and 554 ms ones, because the saved shortest blink was 600 ms. Looks fired about 40 times in 15 min | Shortest blink over 400 ms from old builds cleared; practice round sets 200 to 400 ms; look down off by default; blink only mode |
+| 2026-10-10 | Logs of the 02:28 to 03:34 runs (sent from the phone) | Cards picked on their own: every pick came from a close of 200 to 242 ms, the same length as the unprompted blinks that were ignored (74 to 197 ms); a double blink picked "Good evening, how are you?". Listening stopped after the first sentence was spoken (error 5 dropped the working on-device recogniser, then error 13 every 5 s). Gemma 4 E2B replied in 1.5 to 2.3 s | Pick hold 0.4 s by default and never below 0.35 s (saved lower values and the slider included); double blink off by default; listening keeps the on-device recogniser and only restarts it after error 5 |
 | 2026-10-09 | Reading options / accuracy test | Jitter when reading options, accidental selection blinks, no tutorial | Practice round tutorial screen wired up, asymmetric eyelid detection, yaw jitter tolerance, upward gaze boundary |
 
 ## Models: download and switch in the app (owner request)
