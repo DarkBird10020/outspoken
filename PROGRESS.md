@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: Gemma replies in one call (temperature 0.3, worked example, lenient parser, phrase bank top-up), quick topics on the main page, blink smoothing. Waiting for the phone test.
+Latest: the gaze box is centred on the resting gaze with the look lines drawn, and calibration sets the resting gaze directly. Waiting for the phone test.
 
 ## Phone test history
 
@@ -14,6 +14,14 @@ Latest: Gemma replies in one call (temperature 0.3, worked example, lenient pars
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
+
+## Gaze box centred on the resting gaze (owner report)
+
+- [ ] **Still eyes sit in the middle of the gaze box.** The owner saw the dot pinned to the bottom with the eyes still: the box drew the raw gaze, and with the phone below eye level the resting gaze reads about 0.5 down. It now draws the gaze up and down from the resting gaze, the same measure the highlight uses, with the look up and look down lines dashed; crossing a line moves the highlight. The word under it says "up: move up", "down: move down" or "at rest" with the distance. Code: `ui/EyeCheckScreen.kt` (`GazeBox`), `scan/GazeStepper.kt` (`restGaze`).
+- [ ] **Calibration sets the resting gaze directly**, so looks are measured from the right centre from the first frame instead of re-learning it. Code: `scan/GazeStepper.kt` (`restAt`), `MainActivity.kt`.
+
+Unit tests:
+- `GazeStepperTest`: a measured rest is the centre from the first frame.
 
 ## Reply speed and accuracy brief
 

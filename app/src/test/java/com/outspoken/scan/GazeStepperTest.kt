@@ -89,4 +89,13 @@ class GazeStepperTest {
         look(3_500, y = -0.7f)
         assertEquals(emptyList<GazeStep>(), look(1_000, y = -0.7f))
     }
+
+    @Test
+    fun `a measured rest is the centre from the first frame`() {
+        stepper.restAt(0.5f)
+        assertEquals(0.5f, stepper.restGaze!!, 0.0001f)
+        // Still eyes at the measured rest do nothing; a look down from there steps.
+        assertEquals(emptyList<GazeStep>(), look(500, y = 0.5f))
+        assertEquals(listOf(GazeStep.Next), look(500, y = 0.85f))
+    }
 }

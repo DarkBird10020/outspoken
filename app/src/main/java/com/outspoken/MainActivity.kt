@@ -275,6 +275,7 @@ class MainActivity : ComponentActivity() {
                         onRequestCamera = { cameraPermission.launch(Manifest.permission.CAMERA) },
                         onPreviewReady = camera::showPreview,
                         onPreviewGone = camera::hidePreview,
+                        restGaze = gazeStepper.restGaze,
                         onChooseModel = { modelPicker.launch(arrayOf("*/*")) },
                         onSaveLogs = { logSaver.launch("outspoken-logs.txt") },
                         onCalibrate = ::startCalibration,
@@ -333,6 +334,7 @@ class MainActivity : ComponentActivity() {
             is Calibration.Result.Ok -> {
                 applyTuning(result.tuning)
                 tuningStore.save(result.tuning)
+                gazeStepper.restAt(result.measured.restGaze)
                 val m = result.measured
                 AppLog.write(
                     "calibration",
