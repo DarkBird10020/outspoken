@@ -24,19 +24,28 @@ class ModelSuggestionEngine(
         } catch (e: Exception) {
             return fallback(startMs)
         }
-        val replies = extractReplies(generation.text)
+        // The line just said came straight back on the phone ("Fruit sounds good now.", 04:23:03).
+        val lastSaid = request.turns.lastOrNull { !it.fromListener }?.text?.let(::words)
+        val replies = extractReplies(generation.text).filterNot { words(it) == lastSaid }
         if (replies.isEmpty()) return fallback(startMs)
-        return Suggestions(topUp(replies), fromModel = true, clockMs() - startMs, generation.tokensPerSecond)
+        return Suggestions(topUp(replies, lastSaid), fromModel = true, clockMs() - startMs, generation.tokensPerSecond)
     }
 
-    private fun topUp(replies: List<String>): List<String> {
-        val pool = frequentPhrases() + PhraseBank.phrases
+    private fun topUp(replies: List<String>, lastSaid: String?): List<String> {
+        val pool = (frequentPhrases() + PhraseBank.phrases).filterNot { words(it) == lastSaid }
         val candidates = pool.filter { phrase -> replies.none { it.equals(phrase, ignoreCase = true) } }.distinct()
         return (replies + candidates).take(REPLY_COUNT)
     }
 
+    private fun words(text: String) = text.lowercase().replace(NOT_A_WORD, " ").trim().replace(SPACES, " ")
+
     private fun fallback(startMs: Long): Suggestions {
         val pool = (frequentPhrases() + PhraseBank.phrases).distinct()
         return Suggestions(pool.take(REPLY_COUNT), fromModel = false, clockMs() - startMs)
+    }
+
+    private companion object {
+        val NOT_A_WORD = Regex("[^a-z0-9' ]")
+        val SPACES = Regex(" +")
     }
 }

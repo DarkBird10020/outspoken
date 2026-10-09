@@ -3,8 +3,7 @@ package com.outspoken.suggest
 /** One line of the conversation. */
 data class Turn(val fromListener: Boolean, val text: String)
 
-/** [offered] are the replies on the cards before this request. */
-data class SuggestionRequest(val turns: List<Turn>, val hourOfDay: Int, val offered: List<String> = emptyList())
+data class SuggestionRequest(val turns: List<Turn>, val hourOfDay: Int)
 
 /** Four replies, and where they came from. [elapsedMs] runs from request to replies ready. */
 data class Suggestions(

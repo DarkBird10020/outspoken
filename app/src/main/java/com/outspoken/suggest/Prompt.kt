@@ -25,9 +25,6 @@ fun buildPrompt(request: SuggestionRequest): String = buildString {
         appendLine("Conversation so far:")
         turns.forEach { appendLine("${if (it.fromListener) "Visitor" else "Person"}: ${it.text}") }
     }
-    // "What is happening now?" came back in four sets of cards in a row on the phone.
-    val passedOver = request.offered.filter { offered -> turns.none { it.text == offered } }
-    if (passedOver.isNotEmpty()) appendLine("Offered just before and not picked, so try others: ${passedOver.joinToString("; ")}")
     append("Answer:")
 }
 
