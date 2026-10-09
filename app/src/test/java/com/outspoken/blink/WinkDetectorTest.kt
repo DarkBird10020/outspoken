@@ -1,6 +1,7 @@
 package com.outspoken.blink
 
 import com.outspoken.eye.EyeSample
+import com.outspoken.eye.FaceDots
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -56,5 +57,27 @@ class WinkDetectorTest {
         hold(300, 0.95f, 0.95f)
         val winks = hold(500, 0.05f, 0.95f) + hold(300, 0.95f, 0.95f) + hold(500, 0.05f, 0.95f)
         assertEquals(listOf(Wink.Left, Wink.Left), winks)
+    }
+
+    @Test
+    fun `a wink counts even when the lid gap of the winking eye stays shallow`() {
+        // Phone run 01:56:48: winking eye 0.33 with a lid gap of 0.18 against a 0.10 gap line.
+        val calibrated = BlinkSettings(closedBelow = 0.6f, openAbove = 0.75f, shapeClosedBelow = 0.10f, shapeOpenAbove = 0.14f)
+        val winks = mutableListOf<Wink>()
+        repeat(15) {
+            val dots = FaceDots(emptyList(), emptyList(), 0.75f, 0.18f, 0.30f)
+            detector.onSample(EyeSample(time, true, 0.33f, 0.98f, dots = dots), calibrated)?.let(winks::add)
+            time += 33
+        }
+        assertEquals(listOf(Wink.Left), winks)
+    }
+
+    @Test
+    fun `both eyes lowered together is not a wink`() {
+        val calibrated = BlinkSettings(closedBelow = 0.6f, openAbove = 0.75f)
+        hold(300, 0.95f, 0.95f)
+        val winks = mutableListOf<Wink>()
+        repeat(30) { detector.onSample(EyeSample(time, true, 0.55f, 0.78f), calibrated)?.let(winks::add); time += 33 }
+        assertEquals(emptyList<Wink>(), winks)
     }
 }

@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: a double blink (two quick closes within 0.8 s) also chooses, for quick closes with glasses on. Waiting for the phone test.
+Latest: winks work again after calibration: they use the difference between the eyes instead of the lid gap. Waiting for the phone test.
 
 ## Phone test history
 
@@ -14,6 +14,10 @@ Latest: a double blink (two quick closes within 0.8 s) also chooses, for quick c
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
+
+## Winks after calibration (owner report)
+
+- [ ] **Winks no longer use the lid gap check.** After calibrating with glasses the gap shut line was 0.10 (full closes 0.08), but a winking eye's gap stayed at about 0.18 (01:56:48: left 0.33, right 0.98, left gap 0.18), so no wink registered. A wink is now the winking eye under the shut line, the other above the open line, at least 0.35 apart. Looking down lowers both eyes together and is not a wink. Code: `blink/WinkDetector.kt`. Tests: `WinkDetectorTest` "a wink counts even when the lid gap of the winking eye stays shallow", "both eyes lowered together is not a wink".
 
 ## Double blink chooses (owner report: glasses)
 
