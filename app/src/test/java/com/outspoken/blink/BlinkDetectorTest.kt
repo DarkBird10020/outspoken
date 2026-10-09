@@ -194,4 +194,28 @@ class BlinkDetectorTest {
         assertTrue(detector.eitherEyeShut(EyeSample(0, true, 0.4f, 0.95f, dots = FaceDots(emptyList(), emptyList(), 0.75f, 0.05f, 0.30f))))
         assertFalse(detector.eitherEyeShut(withGap(0.6f, 0.15f)))
     }
+
+    @Test
+    fun `two quick closes in a row choose`() {
+        detector.settings = BlinkSettings(minBlinkMs = 200, doubleBlink = true)
+        hold(500) { eyes(0.95f) }
+        val events = hold(130) { eyes(0.05f) } + hold(250) { eyes(0.95f) } +
+            hold(130) { eyes(0.05f) } + hold(300) { eyes(0.95f) }
+        assertTrue(events.single() is BlinkEvent.Blink)
+    }
+
+    @Test
+    fun `one quick close alone does not choose`() {
+        detector.settings = BlinkSettings(minBlinkMs = 200, doubleBlink = true)
+        assertEquals(emptyList<BlinkEvent>(), blink(130))
+    }
+
+    @Test
+    fun `two quick closes far apart do not choose`() {
+        detector.settings = BlinkSettings(minBlinkMs = 200, doubleBlink = true)
+        hold(500) { eyes(0.95f) }
+        val events = hold(130) { eyes(0.05f) } + hold(2_000) { eyes(0.95f) } +
+            hold(130) { eyes(0.05f) } + hold(300) { eyes(0.95f) }
+        assertEquals(emptyList<BlinkEvent>(), events)
+    }
 }

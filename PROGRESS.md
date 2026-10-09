@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: quick deliberate closes count (0.2 s), a wink moves exactly once, and calibration no longer fails on a weak look up. Waiting for the phone test.
+Latest: a double blink (two quick closes within 0.8 s) also chooses, for quick closes with glasses on. Waiting for the phone test.
 
 ## Phone test history
 
@@ -14,6 +14,11 @@ Latest: quick deliberate closes count (0.2 s), a wink moves exactly once, and ca
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
+
+## Double blink chooses (owner report: glasses)
+
+- [ ] **Two quick closes within 0.8 s choose**, each at least 60 ms, however short. In the 01:44 run with glasses winks worked (13 in a row) but six closes of 109 to 168 ms were ignored as shorter than 0.2 s; with glasses the lid gap only reached 0.09 to 0.14 when closed. One close of 0.2 s or more still chooses. Code: `blink/BlinkDetector.kt` (`doubleBlink`), `setup/Tuning.kt`. Tests: `BlinkDetectorTest` "two quick closes in a row choose", "one quick close alone does not choose", "two quick closes far apart do not choose".
+- Glasses: lens reflections make the eye points less precise; no software change removes them. Tilting the phone so room lights do not reflect in the lenses helps.
 
 ## Wink and blink fixes from the 01:35 phone run
 
