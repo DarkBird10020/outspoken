@@ -34,8 +34,7 @@ class ModelSuggestionEngineTest {
 
     @Test
     fun `a near miss is used and topped up without asking again`() = runBlocking {
-        val model = FakeModel(listOf({ "1. My back hurts
-2. My head hurts" }, { good }))
+        val model = FakeModel(listOf({ "1. My back hurts\n2. My head hurts" }, { good }))
         val result = ModelSuggestionEngine(model) { clock }.suggest(request)
         assertTrue(result.fromModel)
         assertEquals(listOf("My back hurts", "My head hurts", PhraseBank.phrases[0], PhraseBank.phrases[1]), result.replies)

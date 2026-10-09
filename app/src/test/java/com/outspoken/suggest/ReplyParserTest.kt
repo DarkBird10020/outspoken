@@ -75,10 +75,8 @@ class ReplyParserTest {
 
     @Test
     fun `lenient extraction reads numbered and bulleted lines`() {
-        assertEquals(listOf("Yes please", "Not now"), extractReplies("1. Yes please
-2) Not now"))
-        assertEquals(listOf("Water", "Juice"), extractReplies("- Water
-* Juice"))
+        assertEquals(listOf("Yes please", "Not now"), extractReplies("1. Yes please\n2) Not now"))
+        assertEquals(listOf("Water", "Juice"), extractReplies("- Water\n* Juice"))
     }
 
     @Test
