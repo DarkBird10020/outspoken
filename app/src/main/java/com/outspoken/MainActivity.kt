@@ -61,6 +61,8 @@ import com.outspoken.ui.HelpAlertScreen
 import com.outspoken.ui.SetupStatus
 import com.outspoken.ui.StatsScreen
 import com.outspoken.ui.StatsUi
+import com.outspoken.ui.TranscriptScreen
+import com.outspoken.ui.TranscriptUi
 import com.outspoken.ui.describeReplies
 import com.outspoken.ui.theme.OutspokenTheme
 import kotlinx.coroutines.Dispatchers
@@ -74,7 +76,7 @@ import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
 
-    private enum class Screen { Conversation, Practice, EyeCheck, Calibrate, Help, Stats }
+    private enum class Screen { Conversation, Practice, EyeCheck, Calibrate, Help, Stats, Transcript }
 
     private lateinit var speaker: Speaker
     private lateinit var camera: FrontCamera
@@ -164,8 +166,8 @@ class MainActivity : ComponentActivity() {
             when (screen) {
                 Screen.Practice -> practiceController.onSample(sample)
                 Screen.Calibrate -> onCalibrationSample(sample)
-                // While the alarm screen is up, eyes pick nothing.
-                Screen.Help -> Unit
+                // While the alarm screen or mirrored transcript is up, eyes pick nothing.
+                Screen.Help, Screen.Transcript -> Unit
                 else -> controller.onSample(sample)
             }
         }
@@ -212,7 +214,7 @@ class MainActivity : ComponentActivity() {
             OnDeviceModel.state.collect { state ->
                 AppLog.write("model", modelLine(state))
                 if (state is ModelState.Ready && suggestionEngine == null) {
-                    suggestionEngine = ModelSuggestionEngine(state.model, ::now)
+                    suggestionEngine = ModelSuggestionEngine(state.model, frequentPhrases = { controller.frequentPhrases }, clockMs = ::now)
                     controller.refreshReplies()
                 }
             }
@@ -318,6 +320,14 @@ class MainActivity : ComponentActivity() {
                         },
                     )
                 }
+            } else if (screen == Screen.Transcript) {
+                BackHandler { show(Screen.Conversation) }
+                OutspokenTheme {
+                    TranscriptScreen(
+                        ui = transcriptUi(),
+                        onBack = { show(Screen.Conversation) },
+                    )
+                }
             } else {
                 val conversation by controller.ui.collectAsStateWithLifecycle()
                 OutspokenTheme {
@@ -328,6 +338,7 @@ class MainActivity : ComponentActivity() {
                             show(Screen.Practice)
                         },
                         onStats = { show(Screen.Stats) },
+                        onTranscript = { show(Screen.Transcript) },
                         onSelect = { controller.onTap(it, now()) },
                         eyeHint = if (tuning.moveByEyes) "Look down or up: move.  Close eyes: choose." else "Close your eyes when your choice lights up.",
                         onAsk = { question ->
@@ -488,10 +499,16 @@ class MainActivity : ComponentActivity() {
         if (micGranted) updateListening() else micPermission.launch(Manifest.permission.RECORD_AUDIO)
     }
 
-    /** Listens only on the conversation page while the app is on screen. */
+    /** Listens on the conversation and mirrored transcript pages while the app is on screen. */
     private fun updateListening() {
-        if (micGranted && visible && screen == Screen.Conversation) listener.start() else listener.stop()
+        if (micGranted && visible && (screen == Screen.Conversation || screen == Screen.Transcript)) listener.start() else listener.stop()
     }
+
+    private fun transcriptUi() = TranscriptUi(
+        turns = controller.allTurns,
+        isListening = micGranted && visible && (screen == Screen.Conversation || screen == Screen.Transcript),
+        totalSentences = controller.history.size,
+    )
 
     private fun show(next: Screen) {
         AppLog.write("ui", "screen $next")

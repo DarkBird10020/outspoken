@@ -78,4 +78,11 @@ class BoardTest {
         board.showSuggestions(null)
         assertEquals("I need water", board.replies.first())
     }
+
+    @Test
+    fun `frequent phrases in session are prioritized on earlier pages`() {
+        val testBoard = Board()
+        testBoard.updateFrequent(listOf("Thank you"))
+        assertEquals("Thank you", testBoard.replies.first())
+    }
 }
