@@ -252,8 +252,6 @@ private fun EyeGraph(history: List<EyeSample>, settings: BlinkSettings, modifier
     }
 }
 
-/** A box with a dot where the eyes look, as seen in the mirrored preview. */
-@Composable
 /**
  * Where the eyes look, measured the way the highlight uses it: up and down from the resting gaze,
  * so still eyes sit in the middle. The dashed lines are the look up and look down lines; crossing
