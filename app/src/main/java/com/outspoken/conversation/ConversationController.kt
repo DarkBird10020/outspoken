@@ -48,6 +48,7 @@ class ConversationController(
     private var cursorMovedMs = Long.MIN_VALUE
 
     private val turns = mutableListOf<Turn>()
+    private var heard: String? = null
     private var speakingSinceMs: Long? = null
     private var waitUntilMs: Long? = null
     private var latestRequest = 0
@@ -117,6 +118,20 @@ class ConversationController(
     }
 
     /** Asks for replies that fit the conversation so far. */
+    /** A question from the visitor, heard or typed. The replies are asked for at once. */
+    fun onHeard(question: String, timeMs: Long) {
+        val nowMs = advance(timeMs)
+        if (speaking) {
+            log.write("listen", "ignored \"$question\" while speaking")
+            return
+        }
+        log.write("listen", "heard \"$question\"")
+        heard = question
+        turns += Turn(fromListener = true, text = question)
+        refreshReplies()
+        publish(nowMs)
+    }
+
     fun refreshReplies() {
         latestRequest++
         repliesPending = requestReplies(latestRequest, turns.toList())
@@ -166,6 +181,8 @@ class ConversationController(
             return
         }
         turns += Turn(fromListener = false, text = sentence)
+        // The question has its answer now.
+        heard = null
         // The phrase bank shows at once while the model writes the next replies.
         board.showSuggestions(null)
         speakingSinceMs = nowMs
@@ -208,7 +225,7 @@ class ConversationController(
         lastHighlighted = highlighted
         _ui.value = ConversationUi(
             faceFound = detector.tracking,
-            heard = null,
+            heard = heard,
             replies = board.replies,
             highlighted = highlighted,
         )
