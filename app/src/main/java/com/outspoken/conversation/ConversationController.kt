@@ -14,8 +14,8 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * The blink-to-speech loop: eye samples in, highlighted card and spoken sentences out.
- * The highlight moves either by the eyes (look down for the next card, up for the previous) or
- * on a timer, see [moveByEyes]. All times share one clock. Call every method from the same thread.
+ * The highlight moves either by the eyes (look up for the next card) or on a timer, see
+ * [moveByEyes]. All times share one clock. Call every method from the same thread.
  */
 class ConversationController(
     private val speak: (String) -> Unit,
@@ -25,7 +25,7 @@ class ConversationController(
     private val log: EventLog = EventLog.None,
     private val gaze: GazeStepper = GazeStepper(log = log),
 ) {
-    /** True: the highlight only moves when the eyes look down or up. False: it moves on a timer. */
+    /** True: the highlight only moves when the eyes look up. False: it moves on a timer. */
     var moveByEyes = false
         set(value) {
             field = value
@@ -62,7 +62,7 @@ class ConversationController(
             null -> Unit
         }
         if (moveByEyes && !speaking && detector.tracking) {
-            // Looking down lowers the lids a little, so only shut eyes stop a look.
+            // Only shut eyes stop a look; half-lowered lids still count as open here.
             val eyesOpen = minOf(sample.leftOpen ?: 0f, sample.rightOpen ?: 0f) > detector.settings.closedBelow
             when (gaze.onSample(sample.gaze, eyesOpen, nowMs)) {
                 GazeStep.Next -> moveCursor(cursor + 1, nowMs)

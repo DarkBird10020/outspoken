@@ -6,8 +6,8 @@ import java.util.Locale
 import kotlin.math.abs
 
 data class GazeSettings(
-    /** How far the eyes must move up or down from where they rest to count as a look (0..1). */
-    val lookStrength: Float = 0.25f,
+    /** How far the eyes must move up from where they rest to count as a look (0..1). */
+    val lookStrength: Float = 0.45f,
     /** How long a look must last before the highlight moves. */
     val lookHoldMs: Long = 250,
 )
@@ -15,10 +15,11 @@ data class GazeSettings(
 enum class GazeStep { Next, Previous }
 
 /**
- * Turns up and down eye movement into single steps: looking down moves to the next card, up to
- * the previous one. Sideways looks are ignored. One look is one step; the eyes must come back to
- * rest before the next. Looks are measured from the resting gaze, which slowly follows posture,
- * because the phone sits below eye level and "straight at the phone" is not the gaze centre.
+ * Turns a look up, above the phone, into one step to the next card. Only up counts: on the phone,
+ * looking down drops the upper lids and the face tracker reads it as the eyes closing (seen in the
+ * logs: gaze down 0.81 to 0.87 arrived as "eyes shut"), so down looks would both miss and fake
+ * blinks. Sideways looks are ignored too. One look is one step; the eyes come back to rest before
+ * the next. Looks are measured from the resting gaze, which slowly follows posture.
  */
 class GazeStepper(
     var settings: GazeSettings = GazeSettings(),
@@ -37,11 +38,7 @@ class GazeStepper(
         }
         val centre = restY ?: gaze.y.also { restY = it }
         val dy = gaze.y - centre
-        val direction = when {
-            abs(dy) < settings.lookStrength -> null
-            dy > 0 -> GazeStep.Next
-            else -> GazeStep.Previous
-        }
+        val direction = if (-dy >= settings.lookStrength) GazeStep.Next else null
 
         if (direction == null) {
             if (abs(dy) < settings.lookStrength / 2) restY = centre + dy * REST_FOLLOW
@@ -66,7 +63,7 @@ class GazeStepper(
         }
         if (stepped || heldMs < settings.lookHoldMs) return null
         stepped = true
-        log.write("gaze", "look ${if (dy > 0) "down" else "up"} ${format(dy)} held $heldMs ms -> ${direction.name.lowercase()}")
+        log.write("gaze", "look up ${format(-dy)} held $heldMs ms -> next")
         return direction
     }
 

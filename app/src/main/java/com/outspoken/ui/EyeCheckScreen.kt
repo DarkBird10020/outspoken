@@ -285,14 +285,14 @@ private fun TuningSliders(tuning: Tuning, onChange: (Tuning) -> Unit, onReset: (
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            if (tuning.moveByEyes) "Highlight moves with the eyes (look down / up)" else "Highlight moves on a timer",
+            if (tuning.moveByEyes) "Highlight moves with the eyes (look up = next)" else "Highlight moves on a timer",
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.weight(1f),
         )
         Switch(checked = tuning.moveByEyes, onCheckedChange = { onChange(tuning.copy(moveByEyes = it)) })
     }
     if (tuning.moveByEyes) {
-        LabeledSlider("Look distance: ${tuning.gaze.lookStrength.formatOpen()}", tuning.gaze.lookStrength, 0.05f..0.6f) {
+        LabeledSlider("Look distance: ${tuning.gaze.lookStrength.formatOpen()}", tuning.gaze.lookStrength, 0.1f..0.9f) {
             onChange(tuning.copy(gaze = tuning.gaze.copy(lookStrength = it)))
         }
         LabeledSlider("Look hold: ${tuning.gaze.lookHoldMs} ms", tuning.gaze.lookHoldMs.toFloat(), 100f..1_000f) {
