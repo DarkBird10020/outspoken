@@ -7,6 +7,7 @@ import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.ExperimentalApi
 import com.google.ai.edge.litertlm.ExperimentalFlags
 import com.google.ai.edge.litertlm.SamplerConfig
+import com.outspoken.log.AppLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -31,8 +32,13 @@ class LiteRtLmModel(private val modelPath: String, private val cacheDir: String)
             ExperimentalFlags.enableBenchmark = true
             engine = try {
                 start(Backend.GPU()).also { backendName = "GPU" }
-            } catch (e: Exception) {
-                start(Backend.CPU()).also { backendName = "CPU" }
+            } catch (gpu: Exception) {
+                AppLog.write("model", "could not start on the GPU: ${reason(gpu)}")
+                try {
+                    start(Backend.CPU()).also { backendName = "CPU" }
+                } catch (cpu: Exception) {
+                    throw IllegalStateException("GPU: ${reason(gpu)}; CPU: ${reason(cpu)}", cpu)
+                }
             }
         }
     }
@@ -64,11 +70,15 @@ class LiteRtLmModel(private val modelPath: String, private val cacheDir: String)
         try {
             engine.initialize()
         } catch (e: Exception) {
-            engine.close()
+            // Closing an engine that never started throws "Engine is not initialized", which
+            // used to replace the real reason the start failed.
+            runCatching { engine.close() }
             throw e
         }
         return engine
     }
+
+    private fun reason(e: Exception): String = e.message ?: e.javaClass.simpleName
 
     private companion object {
         // Low temperature: small Gemma models at 0.8 drifted from the four-item JSON format, and

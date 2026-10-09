@@ -11,6 +11,8 @@ data class ModelChoice(
     val repo: String,
     val fileName: String,
     val sizeBytes: Long,
+    /** The file's SHA-256 as Hugging Face lists it (the LFS object id). */
+    val sha256: String,
 ) {
     val url: String get() = "https://huggingface.co/litert-community/$repo/resolve/main/$fileName?download=true"
     val sizeGb: String get() = "%.1f GB".format(java.util.Locale.US, sizeBytes / 1_000_000_000.0)
@@ -25,6 +27,7 @@ object ModelCatalog {
         repo = "gemma-4-E2B-it-litert-lm",
         fileName = "gemma-4-E2B-it.litertlm",
         sizeBytes = 2_588_147_712,
+        sha256 = "181938105e0eefd105961417e8da75903eacda102c4fce9ce90f50b97139a63c",
     )
     val E4B = ModelChoice(
         title = "Gemma 4 E4B",
@@ -32,6 +35,7 @@ object ModelCatalog {
         repo = "gemma-4-E4B-it-litert-lm",
         fileName = "gemma-4-E4B-it.litertlm",
         sizeBytes = 3_659_530_240,
+        sha256 = "0b2a8980ce155fd97673d8e820b4d29d9c7d99b8fa6806f425d969b145bd52e0",
     )
     val all = listOf(E2B, E4B)
 
@@ -51,10 +55,13 @@ object ModelCatalog {
      * browser adds " (1)" to a repeated name and keeps an unfinished download under another name,
      * so a match needs the model's name, the .litertlm ending and the exact size.
      */
-    fun findDownload(choice: ModelChoice, files: List<Pair<String, Long>>): String? {
+    fun findDownload(choice: ModelChoice, files: List<Pair<String, Long>>): String? = findDownloads(choice, files).firstOrNull()
+
+    /** Every finished download of [choice] among [files], in the order given. */
+    fun findDownloads(choice: ModelChoice, files: List<Pair<String, Long>>): List<String> {
         val stem = choice.fileName.removeSuffix(".litertlm")
-        return files.firstOrNull { (name, size) ->
+        return files.filter { (name, size) ->
             name.startsWith(stem) && name.endsWith(".litertlm") && size == choice.sizeBytes
-        }?.first
+        }.map { it.first }
     }
 }

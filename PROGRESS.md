@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: laptop builds can sign with the shared key (`~/.android/outspoken-debug.keystore`), so any APK installs over the last one and nothing is uninstalled; a model picked with "Choose model file" is found at every start. Models stay in Downloads across reinstalls. Waiting for the phone test.
+Latest: a damaged model download is caught by its checksum and named plainly, instead of "Engine is not initialized" every 3 s. Download the model again; the app checks it once (about 2 s). Waiting for the phone test.
 
 ## Phone test history
 
@@ -39,6 +39,18 @@ How to test on the phone:
   - Built from different commits, or with uncommitted edits. The "Build:" line shows it.
   - Settings are saved on each phone: shortest blink, look lines, winks, look down, mode, scan speed. A new APK keeps them. "Reset to defaults" on the eye check page, then calibrate, puts both phones on the same start.
   - Each laptop signs its own build with its own debug key, so one person's APK cannot install over the other's without uninstalling, which also deletes the downloaded model. The CI APK (`outspoken-debug-apk`) is signed with the shared key: install that on both phones for exactly the same app.
+
+## Damaged model downloads (owner report: "Engine is not initialized" on Use)
+
+- Cause, from the phone (04:04 run): `gemma-4-E2B-it.litertlm` in Downloads had the right size (2,588,147,712 bytes) but SHA-256 `3b711ceb...` instead of Hugging Face's `18193810...`, so LiteRT-LM could not read it ("Invalid flatbuffer") on the GPU or the CPU. The app only checked the size.
+- [ ] **The real error is shown.** When a start failed, closing the half-made engine threw "Engine is not initialized" and hid the real reason. The log now says why the GPU failed, then why the CPU failed. Code: `suggest/LiteRtLmModel.kt`.
+- [ ] **Each model file is checked against Hugging Face's SHA-256 before loading.** Done once per file (about 2 s on the iQOO for E2B), remembered by path, size and time. A damaged file fails at once with "the download is damaged ... download it again". A damaged copy is skipped, so a fresh download saved as "gemma-4-E2B-it (1).litertlm" is used instead. Models not in the catalog cannot be checked and still load. Code: `setup/ModelCheck.kt`, `setup/ModelCatalog.kt` (`sha256`, `findDownloads`), `setup/ModelShelf.kt`, `suggest/OnDeviceModel.kt`. Tests: `ModelCheckTest`, `ModelCatalogTest` "every finished copy is listed...".
+- [ ] **A failed model is not loaded again every 3 s.** The download watcher retried a failed file every 3 s (04:04 log), using CPU the camera needs. It now retries only a new or changed file. Code: `MainActivity.kt` (`watchDownloads`).
+
+How to test on the phone:
+1. Delete `gemma-4-E2B-it.litertlm` from Downloads (Files app), or leave it: the damaged copy is skipped.
+2. Tap Download next to Gemma 4 E2B on the eye check page and wait for the browser to finish.
+3. The model line goes "loading", then "ready on GPU". If it says the download is damaged again, the browser download itself breaks; send the logs.
 
 ## Reinstalls keep everything (owner report: the model had to be downloaded again after each reinstall)
 

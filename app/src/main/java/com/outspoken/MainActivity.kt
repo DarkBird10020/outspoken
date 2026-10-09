@@ -615,13 +615,23 @@ class MainActivity : ComponentActivity() {
                 }
                 val state = OnDeviceModel.state.value
                 if (state is ModelState.Missing || state is ModelState.Failed) {
-                    modelShelf.fileToLoad()?.let { OnDeviceModel.load(it, cacheDir) }
+                    // A failed file is not tried again every few seconds (it was, on the phone at
+                    // 04:04, every 3 s); a new or changed file is.
+                    modelShelf.fileToLoad()?.let { file ->
+                        val key = "${file.path}|${file.length()}|${file.lastModified()}"
+                        if (key != lastAutoLoad) {
+                            lastAutoLoad = key
+                            OnDeviceModel.load(file, cacheDir)
+                        }
+                    }
                 }
                 refreshModelRows()
                 delay(DOWNLOAD_CHECK_MS)
             }
         }
     }
+
+    private var lastAutoLoad: String? = null
 
     private fun downloadModel(choice: ModelChoice) {
         AppLog.write("model", "download ${choice.title} in the browser")

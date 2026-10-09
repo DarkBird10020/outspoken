@@ -1,5 +1,7 @@
 package com.outspoken.suggest
 
+import com.outspoken.log.AppLog
+import com.outspoken.setup.ModelCheck
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -48,6 +50,13 @@ object OnDeviceModel {
     private fun start(file: File, cacheDir: File) {
         _state.value = ModelState.Loading(file.name)
         scope.launch {
+            val started = System.currentTimeMillis()
+            val problem = runCatching { ModelCheck.at(cacheDir).problem(file) }.getOrNull()
+            AppLog.write("model", "checked ${file.name} in ${System.currentTimeMillis() - started} ms: ${problem ?: "ok"}")
+            if (problem != null) {
+                _state.value = ModelState.Failed(file.name, problem)
+                return@launch
+            }
             val model = LiteRtLmModel(file.path, cacheDir.path)
             _state.value = try {
                 model.load()
