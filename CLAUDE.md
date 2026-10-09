@@ -106,7 +106,7 @@ The owner tests on the phone and is new to this, so `PROGRESS.md` is their recor
 Every run the app writes a new log file to `Android/data/com.outspoken/files/logs/` on the phone (the last 10 runs are kept), crashes included. Every bug fix starts from these logs, never from a guess.
 
 Getting them:
-- **Phone only, no laptop:** eye check page → "Share logs" → pick the Claude app (or Drive, Gmail) and send the file into the chat. "Save logs" saves the same file to a folder instead.
+- **Phone only, no laptop:** eye check page → "Share logs" → pick a chat app (or Drive, Gmail) and send the file. "Save logs" saves the same file to a folder instead.
 - **Laptop, live:** `powershell -ExecutionPolicy Bypass -File tools\phone-logs.ps1`. While the phone is connected it copies the run logs, `logcat-outspoken.txt` and `logcat-crash.txt` into `phone-logs/` every 30 s. Add `-Once` for a single copy.
 - **Connecting the phone:** turn on Developer options (Settings → About phone → tap the build or software version number seven times), then USB debugging for a cable. Without a cable (same Wi-Fi): Developer options → Wireless debugging → on → "Pair device with pairing code"; on the laptop run `adb pair <ip>:<pairing port> <code>`, then `adb connect <ip>:<port>` with the port shown on the Wireless debugging screen.
 

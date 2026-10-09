@@ -78,11 +78,11 @@ How to test on the phone:
 
 ## Getting the phone logs (owner request: "so you can check what is going on")
 
-- [ ] **"Share logs" on the eye check page.** One tap puts every run log in one file and opens the phone's share sheet; pick the Claude app and send it into the chat. No laptop needed, and the app itself still sends nothing (no INTERNET permission). Code: `MainActivity.kt` (`shareLogs`), `ui/EyeCheckScreen.kt`, `AndroidManifest.xml` (file provider: lets the picked app read that one file), `res/xml/log_paths.xml`.
+- [ ] **"Share logs" on the eye check page.** One tap puts every run log in one file and opens the phone's share sheet; pick a chat app, Drive or Gmail and send it. No laptop needed, and the app itself still sends nothing (no INTERNET permission). Code: `MainActivity.kt` (`shareLogs`), `ui/EyeCheckScreen.kt`, `AndroidManifest.xml` (file provider: lets the picked app read that one file), `res/xml/log_paths.xml`.
 - [ ] **Live copy on the laptop.** `tools\phone-logs.ps1` copies the run logs and the logcat lines into `phone-logs/` every 30 s while the phone is on USB or wireless debugging. Steps in `CLAUDE.md` section 12.
 - [ ] **Logs never go into the repo.** The repo is public and the logs hold what people said near the phone. `phone-logs/` is ignored by git, and CI fails if a log file is ever committed.
 
-How to test on the phone: eye check page → Share logs → Claude app; the file "outspoken-logs.txt" should attach. On the laptop: run the script with the phone plugged in; `phone-logs/` fills with `outspoken-*.log` files.
+How to test on the phone: eye check page → Share logs → a chat app; the file "outspoken-logs.txt" should attach. On the laptop: run the script with the phone plugged in; `phone-logs/` fills with `outspoken-*.log` files.
 
 ## Picks only from a held close (phone logs of 2026-10-10)
 
