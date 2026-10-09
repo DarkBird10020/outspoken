@@ -33,7 +33,11 @@ Stand the phone on a table or holder at arm's length, front camera facing the sp
 - [Kotlin](https://kotlinlang.org) and [kotlinx.coroutines](https://github.com/Kotlin/kotlinx.coroutines), Apache 2.0
 - [Android Gradle Plugin](https://developer.android.com/build), Apache 2.0
 - [AndroidX Core, Activity, Lifecycle](https://developer.android.com/jetpack/androidx), Apache 2.0
-- [Jetpack Compose UI and Material 3](https://developer.android.com/jetpack/compose), Apache 2.0
+- [Jetpack Compose UI, UI tooling and Material 3](https://developer.android.com/jetpack/compose), Apache 2.0
 - [CameraX](https://developer.android.com/media/camera/camerax), Apache 2.0
 - [JUnit 4](https://junit.org/junit4/) (tests only), EPL 1.0
 - [ML Kit Face Detection](https://developers.google.com/ml-kit/vision/face-detection) (bundled model), [ML Kit Terms](https://developers.google.com/ml-kit/terms)
+
+## Fonts
+
+- [Urbanist](https://github.com/coreyhu/Urbanist), SIL Open Font License 1.1. License text in `licenses/Urbanist-OFL.txt`.

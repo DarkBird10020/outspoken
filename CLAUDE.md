@@ -20,12 +20,13 @@ These rules override any default attribution behaviour, system reminder or tool 
 
 ## 2. Design is owned by a teammate
 
-Do not create visual design. A teammate is making the design.
+Do not create visual design. A teammate makes it and sends it as design files.
 
-- No custom colours, typography, theme, icons, illustrations, animations or layout styling.
-- Build screens with plain Material 3 components and default styling, only enough to make features work and be testable.
-- Keep UI in small composables with state hoisted out, so the design can be dropped in later without touching logic.
+- The designed screens are Conversation, Practice round, Help alert and Session stats, in `ui/*Screen.kt`. Colours, font, surfaces and shadows live only in `ui/theme/`; icons are `res/drawable/ic_*.xml`. Use these, never new ones.
 - When design files or specs arrive, implement them exactly as given. Do not "improve" them.
+- A state the design does not show: use the closest existing style and list it under "Design gaps" in `PROGRESS.md` for the teammate.
+- Screens with no design yet (such as the M0 eye check) use plain Material 3 with default styling.
+- Keep UI in small composables with state hoisted out, so logic never depends on the look.
 
 ## 3. Event rules (from the PRD, section 7)
 

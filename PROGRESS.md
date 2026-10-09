@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: M0 code, unit tests and CI added. CI is green. Waiting for the phone test.
+Latest: the teammate's design for four screens is in code, not yet wired to features. M0 is waiting for the phone test.
 
 ## M0. Skeleton
 
@@ -33,6 +33,27 @@ Extras beyond the PRD:
 - Screen stays on, since the speaker cannot touch the phone.
 - Camera fps on screen, to see if the camera is fast enough to catch a 0.3 s blink.
 - CI builds a ready-to-install APK on every push.
+
+## Design (from the teammate)
+
+The four designed screens are built exactly from the design file, as stand-alone screens. Each one is wired up in the milestone that needs it. See them in Android Studio with the Preview pane.
+
+- [ ] **Theme.** Urbanist font, colours, glass cards, glowing gradients and shadows from the design. Code: `ui/theme/`. Icons from the design are in `res/drawable/ic_*.xml`.
+- [ ] **Conversation** (wired in M1): status pill, "Heard" card, four reply cards with the highlighted one, "More options" and "Yes / No". Code: `ui/ConversationScreen.kt`.
+- [ ] **Practice round** (wired in M3): star targets, blinks caught, eye-open bar with your blink line, hold time and scan speed. Code: `ui/PracticeScreen.kt`.
+- [ ] **Help alert** (wired in M4): alarm screen, last thing said, sound off, "I am here". Code: `ui/HelpAlertScreen.kt`.
+- [ ] **Session stats** (wired in M4): reply time, model speed, temperature, blink accuracy, session length, sentences spoken. Code: `ui/StatsScreen.kt`.
+
+Unit tests:
+- `FormatTest`: how numbers on the stats and practice screens are written ("1.2 s", "24 tok/s", "04:12", "-" when not measured).
+
+Design gaps, for the teammate to decide. Each uses the closest existing style for now:
+- Highlight on "More options" and "Yes / No": pink glow, no "Blink" badge (the badge is taller than these cards).
+- Face lost: same pill reading "Looking for you" with a grey dot.
+- Nothing heard yet: the "Heard" card is hidden.
+- Practice round: the "Steady" and "One more and you are ready" lines will come from the calibration logic in M3.
+- Help alert: no design yet for after the sound is turned off.
+- Help alert glass blur is left out; the background behind it is a smooth gradient, so it looks the same.
 
 ## CI checks
 
