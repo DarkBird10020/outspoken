@@ -4,8 +4,6 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: the app can download Gemma 4 E2B and E4B (through the browser, the app stays offline), load them by itself and switch between them. App icon added. Waiting for the phone test.
-
 ## Phone test history
 
 | Date | What was tested | Result | What changed |
@@ -14,6 +12,7 @@ Latest: the app can download Gemma 4 E2B and E4B (through the browser, the app s
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
+| 2026-10-10 | Logs of the 01:13 run on this iQOO (read from the phone) | 3 blinks chose; 13 closes ignored, including 595 ms and 554 ms ones, because the saved shortest blink was 600 ms. Looks fired about 40 times in 15 min | Shortest blink over 400 ms from old builds cleared; practice round sets 200 to 400 ms; look down off by default; blink only mode |
 | 2026-10-09 | Reading options / accuracy test | Jitter when reading options, accidental selection blinks, no tutorial | Practice round tutorial screen wired up, asymmetric eyelid detection, yaw jitter tolerance, upward gaze boundary |
 
 ## Models: download and switch in the app (owner request)
@@ -479,6 +478,11 @@ Run on every push and pull request (`.github/workflows/ci.yml`). The `main` rule
 
 ## Next
 
-1. Owner runs "I need water" ten times in a row in both modes on the iQOO and sends the counts and logs.
+1. Owner runs "I need water" ten times in a row in both modes on the iQOO and sends the counts and logs. Copy the Gemma `.litertlm` file to the phone first ("Choose model file"); the last run had no model.
 2. Fix what the logs show, then mark M1 and the practice round.
-3. Sentence builder: "Write my own" card, model suggests the next words.
+3. Sentence builder (plan, starts after step 1):
+   - A "Write my own" card opens a builder: the sentence so far where "Heard" sits, four next-word cards (one to three words each), then Speak, More words, Delete last word and Exit, all reachable by eyes.
+   - A built-in list of common next words shows at once; Gemma's four suggestions replace it when ready, and the list stays if the model fails.
+   - Speed: ask for about 32 tokens instead of 96, keep one model session open for the whole sentence, and work out the next words for the lit card while the person is still choosing.
+   - Each word step logs the model reply time.
+   - Open question for the owner: add "Starts with..." letter groups, or words only first.

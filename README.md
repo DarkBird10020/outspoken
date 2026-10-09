@@ -16,10 +16,29 @@ Every push builds a debug APK on GitHub Actions. Download `outspoken-debug-apk` 
    ```
    ./gradlew installDebug
    ```
-2. Download a Gemma model in LiteRT-LM format (a `.litertlm` file, for example Gemma3-1B-IT from the [LiteRT community on Hugging Face](https://huggingface.co/litert-community)) onto the phone. In the app, tap the stats button, then "Choose model file", and pick it. The model is not in this repo; it comes under the Gemma terms of use.
+2. Download a Gemma model in LiteRT-LM format (a `.litertlm` file, for example Gemma3-1B-IT from the [LiteRT community on Hugging Face](https://huggingface.co/litert-community)) onto the phone. In the app, tap the eye button (top right) to open the eye check page, then "Choose model file", and pick it. The model is not in this repo; it comes under the Gemma terms of use.
 3. Make sure the phone's text-to-speech engine has an offline English voice installed. The app shows "Offline voice: ready" when it does.
 
 Stand the phone on a table or holder at arm's length, front camera facing the speaker.
+
+## Using it
+
+1. At every start the phone talks the speaker through calibration (about 30 s): look at the screen, look up, look down, close the eyes. It sets the look and blink lines from this person's eyes.
+2. On the main page, the visitor asks a question out loud. It shows on the "Heard" card and four replies appear.
+3. The speaker moves the highlight and closes both eyes for about half a second to say the lit card.
+4. Holding the eyes shut for 2 s, then one blink, sounds the help alarm.
+
+Two ways to move the highlight, switched on the eye check page:
+- **Eyes** (default): look up, above the phone, for the next card; it wraps round. Looking down and winks can be switched on too.
+- **Blink only**: the highlight moves on a timer (scan speed slider); blink when the right card lights.
+
+Buttons on the main page, top right:
+- **Star**: practice round. Catch three stars by blinking; it sets the blink length and gives the blink accuracy on the stats screen.
+- **Eye**: eye check page. Live graph of both eyes with the shut and open lines, OPEN / SHUT in large letters, the gaze box, the last decisions, the mode switches and sliders, "Calibrate my eyes", "Choose model file" and "Save logs". Sized to be read from about two metres for a demo.
+- **Transcript**: the conversation in large type, for a laptop through Office Kit.
+- **Stats**: reply time, model speed, blink accuracy, session length, sentences spoken.
+
+Run logs stay on the phone in `Android/data/com.outspoken/files/logs/`. Read them with `adb logcat -s Outspoken`, or tap "Save logs" on the eye check page.
 
 ## Checks
 
