@@ -58,6 +58,7 @@ class EyeSummary(private val windowMs: Long = 1_000) {
         append(", right ").append(open(face.rightOpen)).append(" min ").append(open(minRight))
         append(", yaw ").append(face.yawDeg.roundToInt()).append(", pitch ").append(face.pitchDeg.roundToInt())
         face.gaze?.let { append(", gaze up/down ").append(open(it.y)) }
+        face.irisY?.let { append(", iris drop ").append(String.format(Locale.US, "%.3f", it)) }
         val dots = face.dots ?: return@buildString
         append(", shape left ").append(open(dots.leftShape)).append(" min ").append(open(minLeftShape))
         append(", right ").append(open(dots.rightShape)).append(" min ").append(open(minRightShape))

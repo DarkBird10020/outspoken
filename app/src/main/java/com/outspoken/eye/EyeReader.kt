@@ -119,6 +119,7 @@ class EyeReader(context: Context, private val onSample: (EyeSample) -> Unit) : I
                 yawDeg = FaceMesh.headTurnDeg(points[FaceMesh.NOSE_TIP].x(), points[FaceMesh.FACE_SIDE_A].x(), points[FaceMesh.FACE_SIDE_B].x()),
                 gaze = FaceMesh.gaze(score),
                 dots = if (dotsOn) dots(points, width, height) else null,
+                irisY = FaceMesh.irisDrop { Dot(points[it].x() * width, points[it].y() * height) },
             )
         }
         mainExecutor.execute { publish(sample, width, height) }
