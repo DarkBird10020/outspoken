@@ -42,6 +42,8 @@ class TuningStore(context: Context) {
                 openAbove = prefs.getFloat("openAbove", blink.openAbove),
                 minBlinkMs = safeMinBlink,
                 maxBlinkMs = prefs.getLong("maxBlinkMs", blink.maxBlinkMs),
+                shapeClosedBelow = prefs.getFloat("shapeClosedBelow", NOT_SET).takeIf { it != NOT_SET },
+                shapeOpenAbove = prefs.getFloat("shapeOpenAbove", NOT_SET).takeIf { it != NOT_SET },
             ),
             scanMs = prefs.getLong("scanMs", default.scanMs),
             moveByEyes = prefs.getBoolean("moveByEyes", default.moveByEyes),
@@ -64,6 +66,8 @@ class TuningStore(context: Context) {
             .putFloat("openAbove", tuning.blink.openAbove)
             .putLong("minBlinkMs", tuning.blink.minBlinkMs)
             .putLong("maxBlinkMs", tuning.blink.maxBlinkMs)
+            .putFloat("shapeClosedBelow", tuning.blink.shapeClosedBelow ?: NOT_SET)
+            .putFloat("shapeOpenAbove", tuning.blink.shapeOpenAbove ?: NOT_SET)
             .putLong("scanMs", tuning.scanMs)
             .putBoolean("moveByEyes", tuning.moveByEyes)
             .putFloat("lookStrength", tuning.gaze.lookStrength)
@@ -73,5 +77,9 @@ class TuningStore(context: Context) {
 
     fun clear() {
         prefs.edit().clear().apply()
+    }
+
+    private companion object {
+        const val NOT_SET = -1f
     }
 }

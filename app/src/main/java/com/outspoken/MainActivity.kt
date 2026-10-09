@@ -291,7 +291,9 @@ class MainActivity : ComponentActivity() {
                     "calibration",
                     "ok: rest gaze ${fmt(m.restGaze)}, look up reach ${fmt(m.upReach)}, open ${fmt(m.restOpen)}, " +
                         "closed ${fmt(m.closedOpen)} -> look ${fmt(result.tuning.gaze.lookStrength)}, " +
-                        "shut line ${fmt(result.tuning.blink.closedBelow)}, open line ${fmt(result.tuning.blink.openAbove)}",
+                        "shut line ${fmt(result.tuning.blink.closedBelow)}, open line ${fmt(result.tuning.blink.openAbove)}, " +
+                        "lid gap open ${m.restGap?.let { fmt(it) }} closed ${m.closedGap?.let { fmt(it) }} -> gap shut line " +
+                        "${result.tuning.blink.shapeClosedBelow?.let { fmt(it) }}, gap open line ${result.tuning.blink.shapeOpenAbove?.let { fmt(it) }}",
                 )
                 calibrationOutcome = "Done. Look up to move, close your eyes to choose."
                 speaker.speak("Done")

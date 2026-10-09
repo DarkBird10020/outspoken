@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: interactive practice tutorial screen (PRD F6) wired up for onboarding and calibration; blink detection handles asymmetric eyelids without yaw cancellations; upward gaze stepping constrained to looks above top bezel to eliminate reading jitter; spoken calibration, model picker, and Gemma replies merged.
+Latest: interactive practice tutorial screen (PRD F6) wired up for onboarding and calibration; blink detection handles asymmetric eyelids and lid gap without yaw cancellations; upward gaze stepping constrained to looks above top bezel to eliminate reading jitter; spoken calibration, lid gap lines, model picker, and Gemma replies merged.
 
 ## Phone test history
 
@@ -31,8 +31,10 @@ The app now launches with an interactive practice round on first use, teaches th
 - [ ] **Measures the eyes at every start, about 25 s, spoken.** "Look at the screen", "Look up, above the phone" (twice), "Close your eyes" (twice). From those: the look needed to move is half of the smaller look up measured, the shut line is halfway between closed and open, the open line three quarters of the way up. Saved, and logged as `calibration: ok: ...`. If a step is not seen (face out of view, no look up, eyes not closed) it says why and keeps the old lines; "Try again" or "Skip". Also a "Calibrate my eyes" button on the eye check page. Code: `setup/Calibration.kt`, `ui/CalibrationScreen.kt`, `MainActivity.kt`.
 - Why: the phone logs showed the eye readings move with where the phone sits. One test had the resting gaze at about 0.55 and eye closes at 0.22 to 0.36; the next had the resting gaze at about 0.0 and eye closes at 0.39 to 0.58. Fixed lines that worked in one test stopped looks or blinks completely in the next, and with the phone at eye level a look up had to reach the very top of the eyes.
 
+- [ ] **Lid gap check on blinks.** First calibrated run on the phone (23:24): open 0.88, closed 0.48, so the shut line went to 0.68. Looking down at the screen alone then read 0.55 to 0.65 and "I need water" was said without a real close (23:25:04, gaze 0.59 to 0.65). The lid gap told them apart: about 0.30 open, about 0.15 looking down, 0.04 to 0.09 closed. Now the eyes only count as shut when both readings say so, and open again when either does. Calibration measures the gap too: shut line 10% of the way from closed to open, open line 30%. (It was 30% and 50%; the 23:38 run measured closed 0.12 and open 0.30, which put the shut line at 0.17, while looking down at the screen read 0.14 to 0.17.) Code: `blink/BlinkDetector.kt`, `setup/Calibration.kt`, `setup/Tuning.kt`.
+
 Unit tests:
-- `CalibrationTest`: lines set from the measured eyes, prompts in order, fails and says why with no look up, no eye close or no face, other settings kept.
+- `CalibrationTest`: lines set from the measured eyes, lid gap lines set when read and off when not, prompts in order, fails and says why with no look up, no eye close or no face, other settings kept.
 
 ## Eyes move the highlight (owner decision)
 
