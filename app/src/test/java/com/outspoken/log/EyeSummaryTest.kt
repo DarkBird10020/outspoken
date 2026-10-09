@@ -1,6 +1,7 @@
 package com.outspoken.log
 
 import com.outspoken.eye.EyeSample
+import com.outspoken.eye.FaceDots
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -30,6 +31,17 @@ class EyeSummaryTest {
     fun `no face leaves out the eye values`() {
         for (t in 0L until 1_000L step 100) summary.add(EyeSample(t, faceFound = false))
         assertEquals("fps 10.0, face 0/10", summary.add(EyeSample(1_000, faceFound = false)))
+    }
+
+    @Test
+    fun `eye shapes are added while the dots are on`() {
+        fun dots(shape: Float) = FaceDots(emptyList(), emptyList(), 0.75f, shape, shape)
+        summary.add(face(0, 0.95f).copy(dots = dots(0.30f)))
+        summary.add(face(500, 0.05f).copy(dots = dots(0.04f)))
+        assertEquals(
+            "fps 2.0, face 2/2, left 0.05 min 0.05, right 0.05 min 0.05, yaw 3, pitch -2, shape left 0.04 min 0.04, right 0.04 min 0.04",
+            summary.add(face(1_000, 0.95f)),
+        )
     }
 
     @Test

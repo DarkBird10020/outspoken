@@ -38,9 +38,10 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var speaker: Speaker
     private lateinit var camera: FrontCamera
+    private val blinkDetector = BlinkDetector(log = AppLog)
     private val controller = ConversationController(
         speak = { speaker.speak(it) },
-        detector = BlinkDetector(log = AppLog),
+        detector = blinkDetector,
         log = AppLog,
     )
     private val eyeReader = EyeReader(onSample = { controller.onSample(it) })
@@ -91,11 +92,14 @@ class MainActivity : ComponentActivity() {
                 BackHandler(enabled = screen == Screen.EyeCheck) { show(Screen.Conversation) }
                 val sample by eyeReader.samples.collectAsStateWithLifecycle()
                 val fps by eyeReader.fps.collectAsStateWithLifecycle()
+                val recent by AppLog.recent.collectAsStateWithLifecycle()
                 MaterialTheme {
                     EyeCheckScreen(
                         cameraGranted = cameraGranted,
                         sample = sample,
                         fps = fps,
+                        settings = blinkDetector.settings,
+                        recentLines = recent,
                         setup = SetupStatus(modelLine, offlineVoice),
                         onRequestCamera = { cameraPermission.launch(Manifest.permission.CAMERA) },
                         onPreviewReady = camera::showPreview,
@@ -140,6 +144,7 @@ class MainActivity : ComponentActivity() {
     private fun show(next: Screen) {
         AppLog.write("ui", "screen $next")
         screen = next
+        eyeReader.dotsOn = next == Screen.EyeCheck
     }
 
     private fun modelStatusLine(): String {
