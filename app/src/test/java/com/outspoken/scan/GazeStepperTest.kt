@@ -178,4 +178,13 @@ class GazeStepperTest {
         assertEquals(emptyList<GazeStep>(), steps)
         assertEquals(-0.013f, stepper.restIrisDrop!!, 0.004f)
     }
+
+    @Test
+    fun `single frame wobble across the line does not step`() {
+        look(500)
+        // Phone log 01:16: wobble just over the up line every few seconds.
+        val steps = mutableListOf<GazeStep>()
+        repeat(40) { n -> stepper.onSample(Dot(0f, if (n % 3 == 0) -0.5f else -0.05f), true, time)?.let(steps::add); time += 50 }
+        assertEquals(emptyList<GazeStep>(), steps)
+    }
 }

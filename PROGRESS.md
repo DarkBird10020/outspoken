@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: the resting iris is followed as it drifts, and the look down line never goes under 0.02, so resting eyes no longer step down on their own. Waiting for the phone test.
+Latest: steady gaze: readings are averaged over a few frames before a look is judged, steps are at least 0.6 s apart, and the gaze box dot shows the averaged values. Waiting for the phone test.
 
 ## Phone test history
 
@@ -14,6 +14,14 @@ Latest: the resting iris is followed as it drifts, and the look down line never 
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
+
+## Steady cursor and highlight (owner report: "shaking")
+
+- [ ] **Gaze readings are averaged before a look is judged** (newest frame weighted 0.35, about 0.1 s of lag). In the 01:16 phone run single-frame wobble kept crossing the up line (0.30 to 0.34 against 0.28), so the highlight stepped every few seconds without a real look. Code: `scan/GazeStepper.kt` (`SMOOTHING`).
+- [ ] **Steps are at least 0.6 s apart.** Code: `scan/GazeStepper.kt` (`MIN_STEP_GAP_MS`).
+- [ ] **The gaze box dot is steady:** it draws the same averaged gaze and iris values the steps use, not each raw frame. Code: `ui/EyeCheckScreen.kt`, `MainActivity.kt`.
+- Test: `GazeStepperTest` "single frame wobble across the line does not step".
+- [ ] **Looking down takes a smaller share of its own, smaller range.** Owner: there is much less room to push the eyes down than up. Phone runs: iris drop about 0.03 down, gaze 0.5 to 0.6 up. The 0.02 floor needed two thirds of the downward range; now the look down line is 30% of the measured look down with a 0.01 floor (default 0.012). Code: `setup/Calibration.kt` (`DOWN_SHARE`, `MIN_IRIS_DOWN_LINE`), `setup/Tuning.kt`.
 
 ## No more moving on its own (owner report)
 

@@ -41,6 +41,13 @@ class GazeStepper(
     private var looking: GazeStep? = null
     private var lookingSinceMs = 0L
     private var stepped = false
+    private var smoothX: Float? = null
+    private var smoothY: Float? = null
+    private var smoothIris: Float? = null
+
+    /** The smoothed gaze and iris drop the steps are decided on, for drawing a steady dot. */
+    val smoothedGaze: Dot? get() = smoothY?.let { Dot(smoothX ?: 0f, it) }
+    val smoothedIrisDrop: Float? get() = smoothIris
     private var lastStep: GazeStep? = null
     private var lastStepMs = Long.MIN_VALUE / 2
 
@@ -79,19 +86,25 @@ class GazeStepper(
      */
     fun onSample(gaze: Dot?, eyesOpen: Boolean, timeMs: Long, irisY: Float? = null): GazeStep? {
         val irisLine = settings.irisDownStrength
-        if (irisY != null && restIris == null) restIris = irisY
-        val irisDown = irisLooksDown(irisY)
+        // Running averages of both readings: on the phone single-frame wobble kept crossing the
+        // up line (0.30 to 0.34 against 0.28, a step every few seconds). About 0.1 s of lag.
+        val iris = irisY?.let { smooth(smoothIris, it).also { v -> smoothIris = v } }
+        val gazeY = gaze?.y?.let { smooth(smoothY, it).also { v -> smoothY = v } }
+        gaze?.x?.let { smoothX = smooth(smoothX, it) }
+        if (iris != null && restIris == null) restIris = iris
+        val irisDown = irisLooksDown(iris)
         if (gaze == null || !eyesOpen) {
             looking = null
             return null
         }
-        val centre = restY ?: gaze.y.also { restY = it }
-        val dy = gaze.y - centre
+        val y = gazeY ?: return null
+        val centre = restY ?: y.also { restY = it }
+        val dy = y - centre
         val down = settings.downStrength
         val direction = when {
             -dy >= settings.lookStrength -> GazeStep.Previous
             // Iris when it is read; the blendshape look down only when this frame has no iris.
-            irisLine != null && irisY != null -> if (irisDown) GazeStep.Next else null
+            irisLine != null && iris != null -> if (irisDown) GazeStep.Next else null
             down != null && dy >= down -> GazeStep.Next
             else -> null
         }
@@ -102,8 +115,8 @@ class GazeStepper(
             // across the whole band below the line; following only within half the line left the
             // rest behind and resting eyes read as a look down again and again.
             val rest = restIris
-            if (irisLine != null && irisY != null && rest != null && abs(irisY - rest) < irisLine) {
-                restIris = rest + (irisY - rest) * REST_FOLLOW
+            if (irisLine != null && iris != null && rest != null && abs(iris - rest) < irisLine) {
+                restIris = rest + (iris - rest) * REST_FOLLOW
             }
             looking = null
             stepped = false
@@ -118,8 +131,8 @@ class GazeStepper(
         // During a look the iris rest still creeps toward the eyes, so an offset that lasts
         // seconds is absorbed instead of stepping again each time the gaze wobbles.
         val rest = restIris
-        if (direction == GazeStep.Next && irisLine != null && irisY != null && rest != null) {
-            restIris = rest + (irisY - rest) * LOOK_CREEP
+        if (direction == GazeStep.Next && irisLine != null && iris != null && rest != null) {
+            restIris = rest + (iris - rest) * LOOK_CREEP
         }
         if (direction != looking) {
             looking = direction
@@ -128,18 +141,22 @@ class GazeStepper(
             return null
         }
         val heldMs = timeMs - lookingSinceMs
-        if (stepped || heldMs < settings.lookHoldMs) return null
+        // The minimum gap only delays a new step; it must not reset a look that already stepped,
+        // or holding a look would step again every gap.
+        if (stepped || heldMs < settings.lookHoldMs || timeMs - lastStepMs < MIN_STEP_GAP_MS) return null
         stepped = true
         lastStep = direction
         lastStepMs = timeMs
         val words = when {
             direction == GazeStep.Previous -> "up ${format(-dy)} held $heldMs ms -> previous"
-            irisLine != null -> "down (iris ${format((irisY ?: 0f) - (restIris ?: 0f))}) held $heldMs ms -> next"
+            irisLine != null -> "down (iris ${format((iris ?: 0f) - (restIris ?: 0f))}) held $heldMs ms -> next"
             else -> "down ${format(dy)} held $heldMs ms -> next"
         }
         log.write("gaze", "look $words")
         return direction
     }
+
+    private fun smooth(previous: Float?, value: Float) = previous?.let { it + SMOOTHING * (value - it) } ?: value
 
     /** Gaze this close to rest counts as resting and slowly moves the rest point. */
     private fun restBand() = minOf(settings.lookStrength, settings.downStrength ?: settings.lookStrength) / 2
@@ -152,6 +169,12 @@ class GazeStepper(
 
         /** After a step, a look the other way this soon is the eyes coming back, not a new look. */
         const val REBOUND_MS = 700L
+
+        /** Weight of the newest frame in the running average of the gaze readings. */
+        const val SMOOTHING = 0.35f
+
+        /** No two steps closer than this, so the highlight never jitters. */
+        const val MIN_STEP_GAP_MS = 600L
 
         /** Share of the way the iris rest creeps toward the eyes per frame during a look down. */
         const val LOOK_CREEP = 0.01f
