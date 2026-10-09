@@ -2,33 +2,48 @@ package com.outspoken.ui
 
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.outspoken.blink.BlinkSettings
 import com.outspoken.eye.Dot
 import com.outspoken.eye.EyeSample
+import com.outspoken.setup.Tuning
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.hypot
+import kotlin.math.roundToLong
 
 data class SetupStatus(
     val modelLine: String,
@@ -36,6 +51,8 @@ data class SetupStatus(
 )
 
 private const val GRAPH_MS = 5_000L
+private const val GAZE_SCALE = 1.6f
+private const val GAZE_SHOWN_ABOVE = 0.15f
 private val LeftColor = Color(0xFF1E88E5)
 private val RightColor = Color(0xFFF4511E)
 private val OpenColor = Color(0xFF43A047)
@@ -43,21 +60,25 @@ private val ShutColor = Color(0xFFE53935)
 private val BetweenColor = Color(0xFFFDD835)
 
 /**
- * Debug screen: the camera with the eye outlines ML Kit found drawn on top, a graph of both
- * eye-open values against the blink lines, the latest blink decisions, and the setup checks.
+ * Debug screen: the camera with the eye outlines and irises the face tracker found, a graph of
+ * both eye-open values against the blink lines, where the eyes look, the latest blink decisions,
+ * and sliders to tune blinks and scan speed on the phone.
  */
 @Composable
 fun EyeCheckScreen(
     cameraGranted: Boolean,
     sample: EyeSample?,
     fps: Float,
-    settings: BlinkSettings,
+    tuning: Tuning,
     recentLines: List<String>,
     setup: SetupStatus,
+    onTuningChange: (Tuning) -> Unit,
+    onTuningReset: () -> Unit,
     onRequestCamera: () -> Unit,
     onPreviewReady: (PreviewView) -> Unit,
     onPreviewGone: () -> Unit,
 ) {
+    val settings = tuning.blink
     val history = remember { mutableStateListOf<EyeSample>() }
     LaunchedEffect(sample) {
         if (sample == null) return@LaunchedEffect
@@ -70,7 +91,7 @@ fun EyeCheckScreen(
             Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
+                .padding(horizontal = 16.dp)
         ) {
             Box(
                 Modifier
@@ -84,25 +105,37 @@ fun EyeCheckScreen(
                     Button(onClick = onRequestCamera) { Text("Allow camera") }
                 }
             }
-            EyeGraph(
-                history,
-                settings,
+            Column(
                 Modifier
                     .fillMaxWidth()
-                    .height(96.dp)
-                    .padding(vertical = 8.dp)
-            )
-            EyeNumbers(sample, fps, settings)
-            recentLines.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
-            Text("Model: ${setup.modelLine}", style = MaterialTheme.typography.bodySmall)
-            Text(
-                "Offline voice: " + when (setup.offlineVoice) {
-                    null -> "checking"
-                    true -> "ready"
-                    false -> "missing"
-                },
-                style = MaterialTheme.typography.bodySmall,
-            )
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                EyeGraph(
+                    history,
+                    settings,
+                    Modifier
+                        .fillMaxWidth()
+                        .height(96.dp)
+                        .padding(vertical = 8.dp)
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) { EyeNumbers(sample, fps, settings) }
+                    Spacer(Modifier.width(8.dp))
+                    GazeBox(sample?.gaze, Modifier.size(88.dp))
+                }
+                recentLines.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                TuningSliders(tuning, onTuningChange, onTuningReset)
+                Text("Model: ${setup.modelLine}", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    "Offline voice: " + when (setup.offlineVoice) {
+                        null -> "checking"
+                        true -> "ready"
+                        false -> "missing"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
     }
 }
@@ -121,15 +154,25 @@ fun CameraPreview(onReady: (PreviewView) -> Unit, onGone: () -> Unit, modifier: 
     )
 }
 
-/** Dots on each eye outline, coloured by what the blink detector reads from that eye. */
+/** Small dots on each eyelid outline and a ring on each iris, coloured by the blink reading. */
 @Composable
 private fun EyeDots(sample: EyeSample?, settings: BlinkSettings, modifier: Modifier) {
     Canvas(modifier) {
         if (sample == null) return@Canvas
         val dots = sample.dots ?: return@Canvas
         val frame = fitted(dots.imageAspect)
-        drawOutline(dots.leftEye, frame, eyeColor(sample.leftOpen, settings))
-        drawOutline(dots.rightEye, frame, eyeColor(sample.rightOpen, settings))
+        // The front camera preview is mirrored; the analysed image is not.
+        fun place(dot: Dot) = Offset(frame.left + (1 - dot.x) * frame.width, frame.top + dot.y * frame.height)
+        val lid = Color.White.copy(alpha = 0.7f)
+        (dots.leftEye + dots.rightEye).forEach { drawCircle(lid, radius = 1.5.dp.toPx(), center = place(it)) }
+        val state = eyeColor(minOf(sample.leftOpen ?: 0f, sample.rightOpen ?: 0f), settings)
+        dots.irisCentres.forEachIndexed { i, centre ->
+            val rim = dots.irisRims.subList(i * 4, i * 4 + 4).map(::place)
+            val c = place(centre)
+            val radius = rim.map { hypot(it.x - c.x, it.y - c.y) }.average().toFloat()
+            drawCircle(state, radius = radius, center = c, style = Stroke(width = 2.dp.toPx()))
+            drawCircle(state, radius = 2.dp.toPx(), center = c)
+        }
     }
 }
 
@@ -140,11 +183,6 @@ private fun DrawScope.fitted(aspect: Float): Rect {
     val left = (size.width - width) / 2
     val top = (size.height - height) / 2
     return Rect(left, top, left + width, top + height)
-}
-
-private fun DrawScope.drawOutline(points: List<Dot>, frame: Rect, color: Color) {
-    // The front camera preview is mirrored; the analysed image is not.
-    points.forEach { drawCircle(color, radius = 3.dp.toPx(), center = Offset(frame.left + (1 - it.x) * frame.width, frame.top + it.y * frame.height)) }
 }
 
 private fun eyeColor(open: Float?, settings: BlinkSettings) = when {
@@ -181,6 +219,39 @@ private fun EyeGraph(history: List<EyeSample>, settings: BlinkSettings, modifier
     }
 }
 
+/** A box with a dot where the eyes look, as seen in the mirrored preview. */
+@Composable
+private fun GazeBox(gaze: Dot?, modifier: Modifier) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        val outline = MaterialTheme.colorScheme.outline
+        val dot = MaterialTheme.colorScheme.primary
+        Canvas(modifier.border(1.dp, outline)) {
+            drawLine(outline, Offset(size.width / 2, 0f), Offset(size.width / 2, size.height))
+            drawLine(outline, Offset(0f, size.height / 2), Offset(size.width, size.height / 2))
+            if (gaze == null) return@Canvas
+            val x = (gaze.x * GAZE_SCALE).coerceIn(-1f, 1f)
+            val y = (gaze.y * GAZE_SCALE).coerceIn(-1f, 1f)
+            drawCircle(dot, radius = 6.dp.toPx(), center = Offset(size.width * (1 + x) / 2, size.height * (1 + y) / 2))
+        }
+        Text(gazeWords(gaze), style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+private fun gazeWords(gaze: Dot?): String {
+    if (gaze == null) return "-"
+    val across = when {
+        gaze.x > GAZE_SHOWN_ABOVE -> "right"
+        gaze.x < -GAZE_SHOWN_ABOVE -> "left"
+        else -> null
+    }
+    val upDown = when {
+        gaze.y > GAZE_SHOWN_ABOVE -> "down"
+        gaze.y < -GAZE_SHOWN_ABOVE -> "up"
+        else -> null
+    }
+    return listOfNotNull(upDown, across).joinToString(" ").ifEmpty { "centre" }
+}
+
 @Composable
 fun EyeNumbers(sample: EyeSample?, fps: Float, settings: BlinkSettings) {
     if (sample == null || !sample.faceFound) {
@@ -192,12 +263,55 @@ fun EyeNumbers(sample: EyeSample?, fps: Float, settings: BlinkSettings) {
     Text("Left eye (blue): ${sample.leftOpen.formatOpen()}" + (dots?.leftShape?.let { ", shape ${it.formatOpen()}" } ?: ""))
     Text("Right eye (orange): ${sample.rightOpen.formatOpen()}" + (dots?.rightShape?.let { ", shape ${it.formatOpen()}" } ?: ""))
     val turnOk = abs(sample.yawDeg) <= settings.maxHeadTurnDeg
-    val tiltOk = abs(sample.pitchDeg) <= settings.maxHeadTiltDeg
-    Text(
-        "Head: turn ${sample.yawDeg.toInt()}° ${if (turnOk) "ok" else "too far"}, " +
-            "tilt ${sample.pitchDeg.toInt()}° ${if (tiltOk) "ok" else "too far"}"
-    )
-    Text("Camera: ${fps.toInt()} fps. Blink = both eyes below ${settings.closedBelow.formatOpen()} for ${settings.minBlinkMs}-${settings.maxBlinkMs} ms")
+    Text("Head turn: ${sample.yawDeg.toInt()}° ${if (turnOk) "ok" else "too far"}")
+    Text("Camera: ${fps.toInt()} fps")
 }
+
+@Composable
+private fun TuningSliders(tuning: Tuning, onChange: (Tuning) -> Unit, onReset: () -> Unit) {
+    val blink = tuning.blink
+    Text("Tuning (saved on the phone)", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 12.dp))
+    LabeledSlider("Shut line (red): ${blink.closedBelow.formatOpen()}", blink.closedBelow, 0.05f..0.9f) {
+        onChange(tuning.copy(blink = blink.copy(closedBelow = it, openAbove = maxOf(blink.openAbove, it + 0.05f))))
+    }
+    LabeledSlider("Open line (green): ${blink.openAbove.formatOpen()}", blink.openAbove, 0.1f..0.95f) {
+        onChange(tuning.copy(blink = blink.copy(openAbove = it, closedBelow = minOf(blink.closedBelow, it - 0.05f))))
+    }
+    LabeledSlider("Shortest blink: ${blink.minBlinkMs} ms", blink.minBlinkMs.toFloat(), 100f..600f) {
+        onChange(tuning.copy(blink = blink.copy(minBlinkMs = it.roundTo(10))))
+    }
+    LabeledSlider("Longest blink: ${blink.maxBlinkMs} ms", blink.maxBlinkMs.toFloat(), 600f..2_000f) {
+        onChange(tuning.copy(blink = blink.copy(maxBlinkMs = it.roundTo(50))))
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            if (tuning.moveByEyes) "Highlight moves with the eyes (look down / up)" else "Highlight moves on a timer",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.weight(1f),
+        )
+        Switch(checked = tuning.moveByEyes, onCheckedChange = { onChange(tuning.copy(moveByEyes = it)) })
+    }
+    if (tuning.moveByEyes) {
+        LabeledSlider("Look distance: ${tuning.gaze.lookStrength.formatOpen()}", tuning.gaze.lookStrength, 0.05f..0.6f) {
+            onChange(tuning.copy(gaze = tuning.gaze.copy(lookStrength = it)))
+        }
+        LabeledSlider("Look hold: ${tuning.gaze.lookHoldMs} ms", tuning.gaze.lookHoldMs.toFloat(), 100f..1_000f) {
+            onChange(tuning.copy(gaze = tuning.gaze.copy(lookHoldMs = it.roundTo(10))))
+        }
+    } else {
+        LabeledSlider("Scan speed: ${tuning.scanMs} ms per card", tuning.scanMs.toFloat(), 600f..3_000f) {
+            onChange(tuning.copy(scanMs = it.roundTo(100)))
+        }
+    }
+    OutlinedButton(onClick = onReset) { Text("Reset to defaults") }
+}
+
+@Composable
+private fun LabeledSlider(label: String, value: Float, range: ClosedFloatingPointRange<Float>, onChange: (Float) -> Unit) {
+    Text(label, style = MaterialTheme.typography.bodySmall)
+    Slider(value = value.coerceIn(range), onValueChange = onChange, valueRange = range)
+}
+
+private fun Float.roundTo(step: Int): Long = (this / step).roundToLong() * step
 
 private fun Float?.formatOpen() = this?.let { "%.2f".format(Locale.US, it) } ?: "-"

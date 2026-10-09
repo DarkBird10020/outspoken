@@ -9,7 +9,7 @@ import kotlin.math.sin
 
 class EyeShapeTest {
 
-    /** 16 points around an ellipse, like ML Kit's eye outline. */
+    /** 16 points around an ellipse, like the face mesh eye outline. */
     private fun ellipse(width: Float, height: Float, cx: Float = 300f, cy: Float = 200f) =
         (0 until 16).map { i ->
             val t = 2 * PI * i / 16

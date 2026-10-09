@@ -4,6 +4,8 @@ import com.outspoken.blink.BlinkDetector
 import com.outspoken.blink.BlinkEvent
 import com.outspoken.eye.EyeSample
 import com.outspoken.log.EventLog
+import com.outspoken.scan.GazeStep
+import com.outspoken.scan.GazeStepper
 import com.outspoken.scan.Scanner
 import com.outspoken.ui.ConversationUi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,7 +14,8 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * The blink-to-speech loop: eye samples in, highlighted card and spoken sentences out.
- * All times share one clock. Call every method from the same thread.
+ * The highlight moves either by the eyes (look down for the next card, up for the previous) or
+ * on a timer, see [moveByEyes]. All times share one clock. Call every method from the same thread.
  */
 class ConversationController(
     private val speak: (String) -> Unit,
@@ -20,7 +23,21 @@ class ConversationController(
     private val scanner: Scanner = Scanner(),
     private val board: Board = Board(),
     private val log: EventLog = EventLog.None,
+    private val gaze: GazeStepper = GazeStepper(log = log),
 ) {
+    /** True: the highlight only moves when the eyes look down or up. False: it moves on a timer. */
+    var moveByEyes = false
+        set(value) {
+            field = value
+            moveCursor(0, clockMs)
+        }
+
+    // Eye mode: position in board.cards, and the one before the last move, so a blink that
+    // began just before a move still picks the card that was lit when the eyes shut.
+    private var cursor = 0
+    private var previousCursor = 0
+    private var cursorMovedMs = Long.MIN_VALUE
+
     private val spoken = mutableListOf<String>()
     private var speaking = false
     private var lastHighlighted = -1
@@ -44,6 +61,15 @@ class ConversationController(
             BlinkEvent.FaceLost -> scanner.pause(nowMs)
             null -> Unit
         }
+        if (moveByEyes && !speaking && detector.tracking) {
+            // Looking down lowers the lids a little, so only shut eyes stop a look.
+            val eyesOpen = minOf(sample.leftOpen ?: 0f, sample.rightOpen ?: 0f) > detector.settings.closedBelow
+            when (gaze.onSample(sample.gaze, eyesOpen, nowMs)) {
+                GazeStep.Next -> moveCursor(cursor + 1, nowMs)
+                GazeStep.Previous -> moveCursor(cursor - 1, nowMs)
+                null -> Unit
+            }
+        }
         publish(nowMs)
     }
 
@@ -65,6 +91,7 @@ class ConversationController(
         val nowMs = advance(timeMs)
         log.write("scan", "speech done, scanning again")
         speaking = false
+        moveCursor(0, nowMs)
         scanner.restart(board.cards, nowMs)
         if (detector.tracking) scanner.resume(nowMs)
         publish(nowMs)
@@ -85,7 +112,7 @@ class ConversationController(
             log.write("scan", "blink ignored while speaking")
             return
         }
-        val card = scanner.cardAt(blink.startMs)
+        val card = if (moveByEyes) cursorCardAt(blink.startMs) else scanner.cardAt(blink.startMs)
         if (card == null) {
             log.write("scan", "blink ignored, it began before the cards changed")
             return
@@ -98,6 +125,7 @@ class ConversationController(
         val sentence = board.choose(card)
         if (sentence == null) {
             log.write("scan", "cards now ${board.replies}")
+            moveCursor(0, nowMs)
             scanner.restart(board.cards, nowMs)
             return
         }
@@ -111,7 +139,11 @@ class ConversationController(
 
     private fun publish(nowMs: Long) {
         if (scanner.cards != board.cards) scanner.restart(board.cards, nowMs)
-        val highlighted = if (speaking) -1 else scanner.cardAt(nowMs) ?: -1
+        val highlighted = when {
+            speaking -> -1
+            moveByEyes -> board.cards.getOrNull(cursor.coerceIn(0, board.cards.size - 1)) ?: -1
+            else -> scanner.cardAt(nowMs) ?: -1
+        }
         if (highlighted != lastHighlighted && highlighted != -1) log.write("scan", "highlight ${label(highlighted)}")
         lastHighlighted = highlighted
         _ui.value = ConversationUi(
@@ -120,6 +152,19 @@ class ConversationController(
             replies = board.replies,
             highlighted = highlighted,
         )
+    }
+
+    /** Moves the eye-mode highlight, wrapping round the ends of the list. */
+    private fun moveCursor(position: Int, nowMs: Long) {
+        val size = board.cards.size
+        previousCursor = cursor
+        cursor = ((position % size) + size) % size
+        cursorMovedMs = nowMs
+    }
+
+    private fun cursorCardAt(timeMs: Long): Int? {
+        val position = if (cursorMovedMs > timeMs) previousCursor else cursor
+        return board.cards.getOrNull(position)
     }
 
     private fun label(card: Int) = when (card) {

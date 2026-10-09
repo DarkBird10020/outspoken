@@ -1,33 +1,36 @@
 package com.outspoken.eye
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.os.SystemClock
-import androidx.annotation.OptIn
-import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.face.Face
-import com.google.mlkit.vision.face.FaceContour
-import com.google.mlkit.vision.face.FaceDetection
-import com.google.mlkit.vision.face.FaceDetector
-import com.google.mlkit.vision.face.FaceDetectorOptions
+import androidx.core.content.ContextCompat
+import com.google.mediapipe.framework.image.BitmapImageBuilder
+import com.google.mediapipe.framework.image.MPImage
+import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
+import com.google.mediapipe.tasks.core.BaseOptions
+import com.google.mediapipe.tasks.core.Delegate
+import com.google.mediapipe.tasks.vision.core.RunningMode
+import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarker
+import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarkerResult
 import com.outspoken.log.AppLog
 import com.outspoken.log.EyeSummary
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class EyeReader(private val onSample: (EyeSample) -> Unit = {}) : ImageAnalysis.Analyzer {
+/**
+ * Camera frames in, eye samples out, using MediaPipe Face Landmarker: 478 face points including
+ * both irises, plus a blink score and gaze scores per eye. [onSample] runs on the main thread.
+ */
+class EyeReader(context: Context, private val onSample: (EyeSample) -> Unit) : ImageAnalysis.Analyzer {
 
-    private val detector = FaceDetection.getClient(options().build())
+    private val mainExecutor = ContextCompat.getMainExecutor(context)
+    private val landmarker: FaceLandmarker? = create(context.applicationContext)
 
-    // ML Kit advises against contours and classification together for real-time use, so the
-    // outline detector only runs while the debug dots are on screen.
-    private val dotsDetector = FaceDetection.getClient(
-        options().setContourMode(FaceDetectorOptions.CONTOUR_MODE_ALL).build()
-    )
-
-    /** Draws eye outlines on the debug screen. Slower, so off during normal use. */
+    /** Fills [EyeSample.dots] for the debug screen. */
     @Volatile
     var dotsOn = false
 
@@ -39,95 +42,111 @@ class EyeReader(private val onSample: (EyeSample) -> Unit = {}) : ImageAnalysis.
 
     private val fpsMeter = FpsMeter()
     private val summary = EyeSummary()
-    private var failures = 0
+    private var lastFrameMs = 0L
     private var detectTotalMs = 0L
     private var detectFrames = 0
     private var lastDetectLogMs = 0L
 
-    @OptIn(ExperimentalGetImage::class)
     override fun analyze(image: ImageProxy) {
-        val media = image.image
-        if (media == null) {
+        val model = landmarker
+        if (model == null) {
             image.close()
             return
         }
-        // Stamped before detection, on the same clock as the scanner, so detector latency does
-        // not stretch blinks.
-        val timeMs = SystemClock.elapsedRealtime()
+        // MediaPipe needs strictly rising timestamps. They share the scanner's clock.
+        val timeMs = maxOf(SystemClock.elapsedRealtime(), lastFrameMs + 1)
+        lastFrameMs = timeMs
         val rotation = image.imageInfo.rotationDegrees
-        val uprightWidth = if (rotation % 180 == 0) image.width else image.height
-        val uprightHeight = if (rotation % 180 == 0) image.height else image.width
-        val withDots = dotsOn
-        val input = InputImage.fromMediaImage(media, rotation)
-        (if (withDots) dotsDetector else detector).process(input)
-            .addOnSuccessListener { faces ->
-                val face = faces.maxByOrNull { it.boundingBox.width() * it.boundingBox.height() }
-                val dots = if (withDots) face?.dots(uprightWidth, uprightHeight) else null
-                val sample = face?.toSample(timeMs, dots) ?: EyeSample(timeMs, faceFound = false)
-                _samples.value = sample
-                onSample(sample)
-                _fps.value = fpsMeter.onFrame(timeMs)
-                summary.add(sample)?.let { AppLog.write("eyes", it) }
-                noteDetectTime(timeMs, uprightWidth, uprightHeight, face, withDots)
-            }
-            .addOnFailureListener { error ->
-                failures++
-                if (failures == 1 || failures % 100 == 0) {
-                    AppLog.write("eyes", "face detection failed ($failures so far): $error")
-                }
-            }
-            .addOnCompleteListener { image.close() }
+        val frame = image.toBitmap()
+        image.close()
+        val upright = if (rotation == 0) {
+            frame
+        } else {
+            Bitmap.createBitmap(frame, 0, 0, frame.width, frame.height, Matrix().apply { postRotate(rotation.toFloat()) }, false)
+        }
+        model.detectAsync(BitmapImageBuilder(upright).build(), timeMs)
     }
 
     fun close() {
-        detector.close()
-        dotsDetector.close()
+        landmarker?.close()
     }
 
-    private fun noteDetectTime(startMs: Long, width: Int, height: Int, face: Face?, withDots: Boolean) {
+    private fun create(context: Context): FaceLandmarker? {
+        for (delegate in listOf(Delegate.GPU, Delegate.CPU)) {
+            try {
+                val options = FaceLandmarker.FaceLandmarkerOptions.builder()
+                    .setBaseOptions(BaseOptions.builder().setModelAssetPath(MODEL).setDelegate(delegate).build())
+                    .setRunningMode(RunningMode.LIVE_STREAM)
+                    .setNumFaces(1)
+                    .setOutputFaceBlendshapes(true)
+                    .setResultListener { result: FaceLandmarkerResult, input: MPImage -> onResult(result, input.width, input.height) }
+                    .setErrorListener { error: RuntimeException -> AppLog.write("eyes", "face landmarker error: $error") }
+                    .build()
+                return FaceLandmarker.createFromOptions(context, options).also {
+                    AppLog.write("eyes", "face landmarker ready on $delegate")
+                }
+            } catch (e: Exception) {
+                AppLog.write("eyes", "face landmarker could not start on $delegate: $e")
+            }
+        }
+        return null
+    }
+
+    /** Runs on MediaPipe's thread. */
+    private fun onResult(result: FaceLandmarkerResult, width: Int, height: Int) {
+        val timeMs = result.timestampMs()
+        val points = result.faceLandmarks().firstOrNull()
+        val shapes = result.faceBlendshapes().orElse(null)?.firstOrNull()
+        val sample = if (points == null || shapes == null) {
+            EyeSample(timeMs, faceFound = false)
+        } else {
+            val scores = shapes.associate { it.categoryName() to it.score() }
+            val score = { name: String -> scores[name] ?: 0f }
+            EyeSample(
+                timeMs = timeMs,
+                faceFound = true,
+                leftOpen = 1 - score("eyeBlinkLeft"),
+                rightOpen = 1 - score("eyeBlinkRight"),
+                yawDeg = FaceMesh.headTurnDeg(points[FaceMesh.NOSE_TIP].x(), points[FaceMesh.FACE_SIDE_A].x(), points[FaceMesh.FACE_SIDE_B].x()),
+                gaze = FaceMesh.gaze(score),
+                dots = if (dotsOn) dots(points, width, height) else null,
+            )
+        }
+        mainExecutor.execute { publish(sample, width, height) }
+    }
+
+    private fun publish(sample: EyeSample, width: Int, height: Int) {
+        _samples.value = sample
+        onSample(sample)
+        _fps.value = fpsMeter.onFrame(sample.timeMs)
+        summary.add(sample)?.let { AppLog.write("eyes", it) }
         val now = SystemClock.elapsedRealtime()
-        detectTotalMs += now - startMs
+        detectTotalMs += now - sample.timeMs
         detectFrames++
-        if (now - lastDetectLogMs < DETECT_LOG_EVERY_MS) return
-        val faceWidth = face?.boundingBox?.width()?.let { "$it px" } ?: "-"
-        AppLog.write(
-            "eyes",
-            "detect ${detectTotalMs / detectFrames} ms avg, image ${width}x$height, face width $faceWidth, dots ${if (withDots) "on" else "off"}",
-        )
-        lastDetectLogMs = now
-        detectTotalMs = 0
-        detectFrames = 0
+        if (now - lastDetectLogMs >= DETECT_LOG_EVERY_MS) {
+            AppLog.write("eyes", "frame to result ${detectTotalMs / detectFrames} ms avg, image ${width}x$height")
+            lastDetectLogMs = now
+            detectTotalMs = 0
+            detectFrames = 0
+        }
     }
 
-    private fun Face.toSample(timeMs: Long, dots: FaceDots?) = EyeSample(
-        timeMs = timeMs,
-        faceFound = true,
-        leftOpen = leftEyeOpenProbability,
-        rightOpen = rightEyeOpenProbability,
-        yawDeg = headEulerAngleY,
-        pitchDeg = headEulerAngleX,
-        dots = dots,
-    )
-
-    private fun Face.dots(width: Int, height: Int): FaceDots? {
-        val left = getContour(FaceContour.LEFT_EYE)?.points?.map { Dot(it.x, it.y) } ?: return null
-        val right = getContour(FaceContour.RIGHT_EYE)?.points?.map { Dot(it.x, it.y) } ?: return null
-        fun List<Dot>.scaled() = map { Dot(it.x / width, it.y / height) }
+    private fun dots(points: List<NormalizedLandmark>, width: Int, height: Int): FaceDots {
+        fun at(indices: List<Int>) = indices.map { Dot(points[it].x(), points[it].y()) }
+        fun inPixels(indices: List<Int>) = indices.map { Dot(points[it].x() * width, points[it].y() * height) }
         return FaceDots(
-            leftEye = left.scaled(),
-            rightEye = right.scaled(),
+            leftEye = at(FaceMesh.LEFT_EYE),
+            rightEye = at(FaceMesh.RIGHT_EYE),
             imageAspect = width.toFloat() / height,
-            leftShape = eyeShape(left),
-            rightShape = eyeShape(right),
+            leftShape = eyeShape(inPixels(FaceMesh.LEFT_EYE)),
+            rightShape = eyeShape(inPixels(FaceMesh.RIGHT_EYE)),
+            irisCentres = at(FaceMesh.IRIS_CENTRES),
+            irisRims = at(FaceMesh.IRIS_RIMS),
         )
     }
 
     private companion object {
+        const val MODEL = "face_landmarker.task"
         const val DETECT_LOG_EVERY_MS = 5_000L
-
-        fun options() = FaceDetectorOptions.Builder()
-            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
-            .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
-            .setMinFaceSize(0.15f)
     }
 }
