@@ -1,6 +1,6 @@
 [versions]
 agp = "8.11.1"
-kotlin = "2.2.0"
+kotlin = "2.4.21"
 coreKtx = "1.16.0"
 activityCompose = "1.10.1"
 lifecycle = "2.9.1"
@@ -8,6 +8,7 @@ composeBom = "2025.08.00"
 camerax = "1.4.2"
 mediapipe = "1.0.0"
 junit = "4.13.2"
+litertlm = "0.18.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -23,6 +24,7 @@ androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycl
 androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
 mediapipe-tasks-vision = { group = "com.google.mediapipe", name = "tasks-vision", version.ref = "mediapipe" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+litertlm-android = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", version.ref = "litertlm" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

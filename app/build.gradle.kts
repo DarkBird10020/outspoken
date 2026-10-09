@@ -62,6 +62,7 @@ dependencies {
     implementation(libs.androidx.camera.view)
 
     implementation(libs.mediapipe.tasks.vision)
+    implementation(libs.litertlm.android)
 
     testImplementation(libs.junit)
 }

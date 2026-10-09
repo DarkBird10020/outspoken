@@ -48,6 +48,7 @@ import kotlin.math.roundToLong
 data class SetupStatus(
     val modelLine: String,
     val offlineVoice: Boolean?,
+    val lastReplyLine: String = "none yet",
 )
 
 private const val GRAPH_MS = 5_000L
@@ -77,6 +78,8 @@ fun EyeCheckScreen(
     onRequestCamera: () -> Unit,
     onPreviewReady: (PreviewView) -> Unit,
     onPreviewGone: (PreviewView) -> Unit,
+    onChooseModel: () -> Unit,
+    onSaveLogs: () -> Unit,
 ) {
     val settings = tuning.blink
     val history = remember { mutableStateListOf<EyeSample>() }
@@ -126,6 +129,9 @@ fun EyeCheckScreen(
                 recentLines.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
                 TuningSliders(tuning, onTuningChange, onTuningReset)
                 Text("Model: ${setup.modelLine}", style = MaterialTheme.typography.bodySmall)
+                Button(onClick = onChooseModel) { Text("Choose model file") }
+                Button(onClick = onSaveLogs) { Text("Save logs") }
+                Text("Last replies: ${setup.lastReplyLine}", style = MaterialTheme.typography.bodySmall)
                 Text(
                     "Offline voice: " + when (setup.offlineVoice) {
                         null -> "checking"

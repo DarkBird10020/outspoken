@@ -18,3 +18,10 @@ fun formatClock(millis: Long): String {
     val totalSeconds = (millis / 1000).coerceAtLeast(0)
     return String.format(Locale.US, "%02d:%02d", totalSeconds / 60, totalSeconds % 60)
 }
+
+/** One line about the last reply request, for the check screen: "1.4 s from the model, 24 tok/s". */
+fun describeReplies(elapsedMs: Long, fromModel: Boolean, tokensPerSecond: Float?): String {
+    val time = formatSeconds(elapsedMs / 1000f)
+    if (!fromModel) return "$time, phrase bank (model failed or gave a bad answer twice)"
+    return "$time from the model" + (tokensPerSecond?.let { ", ${formatWhole(it, " tok/s")}" } ?: "")
+}

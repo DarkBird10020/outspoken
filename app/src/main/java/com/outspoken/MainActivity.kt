@@ -1,6 +1,7 @@
 package com.outspoken
 
 import android.Manifest
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.SystemClock
@@ -16,11 +17,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import com.outspoken.blink.BlinkDetector
 import com.outspoken.conversation.ConversationController
 import com.outspoken.eye.EyeReader
 import com.outspoken.eye.FrontCamera
 import com.outspoken.log.AppLog
+import com.outspoken.log.exportLogs
 import com.outspoken.scan.GazeStepper
 import com.outspoken.scan.Scanner
 import com.outspoken.setup.Tuning
@@ -28,12 +31,25 @@ import com.outspoken.setup.TuningStore
 import com.outspoken.setup.checkOfflineVoice
 import com.outspoken.setup.findModelFile
 import com.outspoken.speech.Speaker
+import com.outspoken.suggest.ModelImporter
+import com.outspoken.suggest.ModelState
+import com.outspoken.suggest.ModelSuggestionEngine
+import com.outspoken.suggest.OnDeviceModel
+import com.outspoken.suggest.SuggestionEngine
+import com.outspoken.suggest.SuggestionRequest
+import com.outspoken.suggest.Turn
 import com.outspoken.ui.ConversationScreen
 import com.outspoken.ui.EyeCheckScreen
 import com.outspoken.ui.EyeMonitor
 import com.outspoken.ui.SetupStatus
+import com.outspoken.ui.describeReplies
 import com.outspoken.ui.theme.OutspokenTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.io.File
+import java.time.LocalTime
 import java.util.Locale
 import java.util.concurrent.Executors
 
@@ -54,6 +70,7 @@ class MainActivity : ComponentActivity() {
         scanner = scanner,
         log = AppLog,
         gaze = gazeStepper,
+        requestReplies = ::requestReplies,
     )
     private val analyzerExecutor = Executors.newSingleThreadExecutor()
 
@@ -61,6 +78,16 @@ class MainActivity : ComponentActivity() {
     private var offlineVoice by mutableStateOf<Boolean?>(null)
     private var screen by mutableStateOf(Screen.Conversation)
     private var tuning by mutableStateOf(Tuning())
+    private var lastReplyLine by mutableStateOf("none yet")
+    private var importLine by mutableStateOf<String?>(null)
+    private var suggestionEngine: SuggestionEngine? = null
+    private var replyJob: Job? = null
+
+    private val logSaver =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri -> uri?.let(::saveLogs) }
+
+    private val modelPicker =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(::importModel) }
 
     private val cameraPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -94,8 +121,16 @@ class MainActivity : ComponentActivity() {
             AppLog.write("app", "offline voice ${if (it) "ready" else "missing"}")
             offlineVoice = it
         }
-        val modelLine = modelStatusLine()
-        AppLog.write("app", "model $modelLine")
+        OnDeviceModel.load(findModelFile(getExternalFilesDir(null)), cacheDir)
+        lifecycleScope.launch {
+            OnDeviceModel.state.collect { state ->
+                AppLog.write("model", modelLine(state))
+                if (state is ModelState.Ready && suggestionEngine == null) {
+                    suggestionEngine = ModelSuggestionEngine(state.model, ::now)
+                    controller.refreshReplies()
+                }
+            }
+        }
 
         setContent {
             LaunchedEffect(Unit) {
@@ -109,6 +144,7 @@ class MainActivity : ComponentActivity() {
                 val sample by eyeReader.samples.collectAsStateWithLifecycle()
                 val fps by eyeReader.fps.collectAsStateWithLifecycle()
                 val recent by AppLog.recent.collectAsStateWithLifecycle()
+                val modelState by OnDeviceModel.state.collectAsStateWithLifecycle()
                 MaterialTheme {
                     EyeCheckScreen(
                         cameraGranted = cameraGranted,
@@ -116,7 +152,7 @@ class MainActivity : ComponentActivity() {
                         fps = fps,
                         tuning = tuning,
                         recentLines = recent,
-                        setup = SetupStatus(modelLine, offlineVoice),
+                        setup = SetupStatus(importLine ?: modelLine(modelState), offlineVoice, lastReplyLine),
                         onTuningChange = {
                             applyTuning(it)
                             tuningStore.save(it)
@@ -128,6 +164,8 @@ class MainActivity : ComponentActivity() {
                         onRequestCamera = { cameraPermission.launch(Manifest.permission.CAMERA) },
                         onPreviewReady = camera::showPreview,
                         onPreviewGone = camera::hidePreview,
+                        onChooseModel = { modelPicker.launch(arrayOf("*/*")) },
+                        onSaveLogs = { logSaver.launch("outspoken-logs.txt") },
                     )
                 }
             } else {
@@ -137,7 +175,8 @@ class MainActivity : ComponentActivity() {
                         ui = conversation,
                         // The practice round arrives in M3; until then this shows the live eye numbers.
                         onPractice = { show(Screen.EyeCheck) },
-                        onStats = {},
+                        // Session stats arrive in M4; until then this opens the eye check screen.
+                        onStats = { show(Screen.EyeCheck) },
                         onSelect = { controller.onTap(it, now()) },
                         eyeHint = if (tuning.moveByEyes) "Look up: next.  Close eyes: choose." else "Close your eyes when your choice lights up.",
                         eyeView = { modifier ->
@@ -185,11 +224,68 @@ class MainActivity : ComponentActivity() {
         screen = next
     }
 
-    private fun modelStatusLine(): String {
-        val dir = getExternalFilesDir(null)
-        val model = findModelFile(dir) ?: return "missing, push a .litertlm file to ${dir?.absolutePath}"
-        val gb = model.length() / 1_000_000_000.0
-        return "${model.name} (${"%.2f".format(Locale.US, gb)} GB)"
+    private fun requestReplies(requestId: Int, turns: List<Turn>): Boolean {
+        val engine = suggestionEngine ?: return false
+        replyJob?.cancel()
+        replyJob = lifecycleScope.launch {
+            val suggestions = engine.suggest(SuggestionRequest(turns, LocalTime.now().hour))
+            lastReplyLine = describeReplies(suggestions.elapsedMs, suggestions.fromModel, suggestions.tokensPerSecond)
+            AppLog.write(
+                "model",
+                "replies in ${suggestions.elapsedMs} ms, ${suggestions.tokensPerSecond ?: "-"} tok/s, " +
+                    if (suggestions.fromModel) "from the model" else "phrase bank fallback",
+            )
+            controller.onReplies(requestId, suggestions.replies, suggestions.fromModel, now())
+        }
+        return true
+    }
+
+    private fun saveLogs(uri: Uri) {
+        AppLog.write("app", "saving logs")
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val dir = File(checkNotNull(getExternalFilesDir(null)) { "no app folder" }, "logs")
+                val out = checkNotNull(contentResolver.openOutputStream(uri)) { "could not open the file" }
+                val count = out.use { exportLogs(dir, it) }
+                AppLog.write("app", "saved $count run logs")
+            } catch (e: Exception) {
+                AppLog.write("app", "could not save logs: ${e.message}")
+            }
+        }
+    }
+
+    private fun importModel(uri: Uri) {
+        importLine = "copying"
+        lifecycleScope.launch {
+            try {
+                val dir = checkNotNull(getExternalFilesDir(null)) { "no app folder" }
+                val file = ModelImporter(this@MainActivity).import(uri, dir) { percent ->
+                    importLine = if (percent >= 0) "copying, $percent%" else "copying"
+                }
+                AppLog.write("model", "imported ${file.name} (${file.length() / 1_000_000} MB)")
+                importLine = null
+                if (OnDeviceModel.state.value is ModelState.Ready) {
+                    importLine = "saved ${file.name}; close and reopen the app to switch to it"
+                } else {
+                    OnDeviceModel.load(file, cacheDir)
+                }
+            } catch (e: Exception) {
+                AppLog.write("model", "import failed: ${e.message}")
+                importLine = "could not import: ${e.message}"
+            }
+        }
+    }
+
+    private fun modelLine(state: ModelState): String = when (state) {
+        ModelState.Missing -> "missing. Download a Gemma .litertlm file on this phone, then tap Choose model file"
+        is ModelState.Loading -> "${state.name}, loading"
+        is ModelState.Ready -> "${state.name}, ready on ${state.backend}, ${modelSize()}"
+        is ModelState.Failed -> "${state.name}, failed to load: ${state.reason}"
+    }
+
+    private fun modelSize(): String {
+        val gb = (findModelFile(getExternalFilesDir(null))?.length() ?: 0) / 1_000_000_000.0
+        return "%.2f GB".format(Locale.US, gb)
     }
 
     private companion object {

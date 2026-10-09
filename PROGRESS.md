@@ -4,7 +4,16 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: the main page shows the live camera with the eye dots above the cards, so detection and choosing happen on one screen; app locked to portrait so a rotation no longer restarts it. M1 is waiting for the phone test.
+Latest: merged main's look-up-only stepping, crash fix, portrait lock and live eye view on the main page with the cloud branch's Gemma replies, model picker and Save logs. Waiting for the phone test.
+
+## Phone test history
+
+| Date | What was tested | Result | What changed |
+|---|---|---|---|
+| 2026-10-09 | M0 to M2 | Not working properly, picks felt random | Blink rules rebuilt, run logs added |
+| 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
+| 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
+| 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
 
 ## Eyes move the highlight (owner decision)
 
@@ -62,6 +71,8 @@ Every run writes a log, so a failed phone test can be explained without guessing
 - [ ] **Where.** One file per app start in `Android/data/com.outspoken/files/logs/` (last 10 kept), and logcat with the tag `Outspoken`. Nothing leaves the phone.
 - [ ] **Same key for every build.** CI signs the APK with one shared debug key (repo secret `DEBUG_KEYSTORE_B64`). Without it each build has a new key, the phone refuses the update, and uninstalling first deletes the logs.
 
+- [ ] **Save logs.** The eye check screen's "Save logs" button writes every run log into one text file at a place you pick (for example Downloads). The file stays on the phone; send it on from there. Code: `log/LogExport.kt`.
+
 How to read them (phone on USB):
 - Live: `adb logcat -s Outspoken`
 - Files: `adb pull /sdcard/Android/data/com.outspoken/files/logs`
@@ -69,6 +80,7 @@ How to read them (phone on USB):
 Unit tests:
 - `EyeSummaryTest`: the once-per-second eye line.
 - `LogLinesTest`: blink picked and said, fast blink and long closure explained, face lost reasons, taps and card changes.
+- `LogExportTest`: all run logs in one file, oldest first, with headers.
 
 ## M0. Skeleton
 
@@ -132,6 +144,43 @@ For later milestones:
 - Scan speed is fixed at 1.2 s in code. The design shows it but has no control to change it yet (design gap).
 - The eye button opens the M0 number screen until the practice round (M3). The stats button does nothing until M4.
 
+## M2. Model replies
+
+PRD pass test: after choosing "I am in pain", the next four cards are relevant (for example where it hurts), and they appear within 2 seconds.
+Status: not passed yet.
+
+- [ ] **Model on the phone** (F4). Gemma runs through LiteRT-LM, loaded once when the app starts. Tries the GPU, falls back to the CPU. Code: `suggest/LiteRtLmModel.kt`, `suggest/OnDeviceModel.kt`.
+- [ ] **Model file picked in the app.** "Choose model file" on the eye check screen copies a downloaded `.litertlm` file into the app's folder and loads it. No cable or adb needed. Code: `suggest/ModelImporter.kt`.
+- [ ] **Suggestion engine** (F4). Sends the last few lines of the conversation and the time of day, asks for exactly four replies as a JSON list (first person, at most 8 words). The `SuggestionEngine` interface is the swap point if another runtime is needed. Code: `suggest/Prompt.kt`, `suggest/ModelSuggestionEngine.kt`.
+- [ ] **Reply checking.** Exactly four, different, short replies, or the answer is rejected. A bad answer gets one retry, then the phrase bank is used. Code: `suggest/ReplyParser.kt`.
+- [ ] **Instant fallback** (F5). The phrase bank shows at once after each sentence while the model thinks, and stays if the model fails. "More options" pages from the model's replies into the phrase bank.
+- [ ] **No surprise card changes.** After speaking, the highlight waits up to 2.5 s for the new replies, so the cards do not change under the person's eyes; then it carries on with the phrase bank. Only the answer to the latest request is used.
+- [ ] **Speech cannot freeze the board.** If the speech engine never says it finished, the board carries on after 10 s.
+- [ ] **Measured.** The eye check screen shows the model state (loading, ready on GPU or CPU, failed) and the last reply time with tokens per second. Reply times are also in the logs.
+
+How to test on the phone:
+1. On the phone's browser, open huggingface.co/litert-community/Gemma3-1B-IT, sign in, accept the Gemma licence, and download the `.litertlm` file (about 0.5 GB).
+2. Open the eye check screen (eye button), tap "Choose model file" and pick the downloaded file. It copies, then loads: wait for "Model: ... ready on GPU" (or CPU). Back.
+3. Look up once to move to "I am in pain", then close your eyes for about half a second. The phrase bank shows while it thinks, then four new cards should be about the pain.
+4. Open the eye check screen again and read "Last replies". It should say under 2 s from the model.
+5. If it says phrase bank, the model failed or answered badly twice. Send the log.
+
+Unit tests:
+- `ReplyParserTest`: good lists, code fences, trailing comma, escapes, wrong count, long, empty or repeated replies, junk.
+- `PromptTest`: asks for four short replies as JSON, time of day, who said what, only recent lines.
+- `ModelSuggestionEngineTest`: good answer, one retry, fallback after two bad answers, fallback on error, timing.
+- `ConversationControllerTest` and `BoardTest`: new replies after speaking, model page first, old answers ignored, the wait, the speech time-out.
+
+Extras beyond the PRD:
+- The model starts writing the next replies while the phone is still speaking, which saves time.
+- Output is capped at 96 tokens so a rambling answer cannot hold up the reply time.
+
+To tune on the phone (PRD: pick the largest model that meets 2 s): try Gemma3-1B-IT first, then a larger Gemma if it stays under 2 s.
+
+## M3. Listening and calibration (not started)
+
+- Calibration and the practice round were built once on the old ML Kit reader and taken out when eye reading moved to MediaPipe. They will be rebuilt on the new reader, alongside the tuning sliders.
+
 ## Design (from the teammate)
 
 The four designed screens are built exactly from the design file, as stand-alone screens. Each one is wired up in the milestone that needs it. See them in Android Studio with the Preview pane.
@@ -146,6 +195,7 @@ Unit tests:
 - `FormatTest`: how numbers on the stats and practice screens are written ("1.2 s", "24 tok/s", "04:12", "-" when not measured).
 
 Design gaps, for the teammate to decide. Each uses the closest existing style for now:
+- No design for the "Choose model file" button; it is on the plain eye check screen.
 - Main page live camera with eye dots (owner asked for it): a 150 dp rounded box under the status row, and a hint line in the soft ink style.
 - Highlight on "More options" and "Yes / No": pink glow, no "Blink" badge (the badge is taller than these cards).
 - Face lost: same pill reading "Looking for you" with a grey dot.

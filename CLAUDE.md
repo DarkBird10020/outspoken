@@ -48,7 +48,7 @@ Follow the milestones in PRD section 9 in order (M0 to M5). Do not start a miles
 - Blink detection is our own state machine with calibrated thresholds. Keep it pure Kotlin with no Android imports so it can be unit tested.
 - On-device Gemma through LiteRT-LM, behind a `SuggestionEngine` interface. Load once at startup. Exactly four replies as a JSON list, retry once, then fall back to the phrase bank.
 - Android on-device `SpeechRecognizer` for listening, Android `TextToSpeech` with an offline voice for speech.
-- Conversation state is in memory only.
+- Conversation state is in memory only. The run logs (section 10) stay in the app's own folder on the phone and never leave it.
 
 ## 6. Working rules
 
@@ -91,7 +91,7 @@ The owner tests on the phone and is new to this, so `PROGRESS.md` is their recor
 - CI (`.github/workflows/ci.yml`) runs on every push and pull request: unit tests, Android lint, debug APK build with a no-INTERNET check. The APK is uploaded as `outspoken-debug-apk` so the owner can install it without building.
 - After every push, check CI. Red CI is the next job: fix the cause. Never skip, disable or loosen a check to get green.
 - When a new rule must never break (for example a forbidden permission or file), add a CI step for it and a row to the CI table in `PROGRESS.md`.
-- Every feature logs its key events and failures through `AppLog` (Android classes) or an `EventLog` parameter (pure logic), in plain words: what happened and why. No per-frame lines; summarise instead. Logs are read with `adb logcat -s Outspoken` or pulled from `Android/data/com.outspoken/files/logs/`. When the owner reports a bug, read the logs first.
+- Every feature logs its key events and failures through `AppLog` (Android classes) or an `EventLog` parameter (pure logic), in plain words: what happened and why. No per-frame lines; summarise instead. Logs are read with `adb logcat -s Outspoken`, pulled from `Android/data/com.outspoken/files/logs/`, or saved by the owner with "Save logs" on the eye check screen. When the owner reports a bug, read the logs first.
 
 ## 11. Protecting `main`
 
