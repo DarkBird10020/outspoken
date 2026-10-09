@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.os.BatteryManager
 import android.os.Bundle
 import android.os.SystemClock
@@ -219,6 +220,11 @@ class MainActivity : ComponentActivity() {
         }
         modelShelf = ModelShelf(this)
         OnDeviceModel.load(modelShelf.fileToLoad(), cacheDir)
+        // After a reinstall the app cannot see Downloads until access is given again.
+        if (modelShelf.fileToLoad() == null && modelShelf.shouldAskForAccess()) {
+            AppLog.write("model", "asking for access to Downloads to load the model")
+            modelShelf.askToSeeDownloads()
+        }
         lifecycleScope.launch {
             OnDeviceModel.state.collect { state ->
                 AppLog.write("model", modelLine(state))
@@ -590,28 +596,25 @@ class MainActivity : ComponentActivity() {
     private var downloadWatch: Job? = null
 
     /**
-     * While the app is open, checks Downloads every few seconds for a finished model, moves it in
-     * and loads it if it is the one asked for (or no model is loaded yet).
+     * While the app is open, checks every few seconds for a finished download and loads it if it
+     * is the one asked for, and loads the chosen model once it can be seen (for example right
+     * after "All files access" is switched on). Files are never moved or copied.
      */
     private fun watchDownloads() {
-        downloadWatch?.cancel()
+        // Restarting the check on every resume cut a 2.6 GB copy short on the phone (03:20:30).
+        if (downloadWatch?.isActive == true) return
         downloadWatch = lifecycleScope.launch {
             while (visible) {
                 canSeeDownloads = modelShelf.canSeeDownloads()
-                try {
-                    val moved = modelShelf.collectDownloads { importLine = "moving ${it.title} into the app" }
-                    for (choice in moved) {
-                        AppLog.write("model", "downloaded ${choice.title}, moved into the app")
-                        importLine = null
-                        val loaded = OnDeviceModel.state.value is ModelState.Ready
-                        if (modelShelf.waitingFor == choice || !loaded) {
-                            modelShelf.waitingFor = null
-                            useModel(choice)
-                        }
-                    }
-                } catch (e: Exception) {
-                    AppLog.write("model", "could not pick up the download: ${e.message}")
-                    importLine = "could not pick up the download: ${e.message}"
+                val waiting = modelShelf.waitingFor
+                if (waiting != null && modelShelf.installed(waiting) != null) {
+                    AppLog.write("model", "${waiting.title} downloaded")
+                    modelShelf.waitingFor = null
+                    useModel(waiting)
+                }
+                val state = OnDeviceModel.state.value
+                if (state is ModelState.Missing || state is ModelState.Failed) {
+                    modelShelf.fileToLoad()?.let { OnDeviceModel.load(it, cacheDir) }
                 }
                 refreshModelRows()
                 delay(DOWNLOAD_CHECK_MS)
@@ -650,14 +653,23 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun importModel(uri: Uri) {
-        importLine = "copying"
         lifecycleScope.launch {
             try {
-                val dir = checkNotNull(getExternalFilesDir(null)) { "no app folder" }
+                // A model already in Downloads (the usual case) is used where it is, not copied.
+                val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                    ?.use { if (it.moveToFirst()) it.getString(0) else null }
+                val known = ModelCatalog.all.firstOrNull { it.fileName == name && modelShelf.installed(it) != null }
+                if (known != null) {
+                    useModel(known)
+                    return@launch
+                }
+                importLine = "copying"
+                // Copied into Downloads when the app can see it, so the model outlives the app.
+                val dir = if (modelShelf.canSeeDownloads()) modelShelf.downloadsDir else checkNotNull(getExternalFilesDir(null)) { "no app folder" }
                 val file = ModelImporter(this@MainActivity).import(uri, dir) { percent ->
                     importLine = if (percent >= 0) "copying, $percent%" else "copying"
                 }
-                AppLog.write("model", "imported ${file.name} (${file.length() / 1_000_000} MB)")
+                AppLog.write("model", "imported ${file.name} (${file.length() / 1_000_000} MB) into ${dir.name}")
                 importLine = null
                 ModelCatalog.byFileName(file.name)?.let { modelShelf.chosen = it }
                 OnDeviceModel.switchTo(file, cacheDir)
@@ -669,7 +681,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun modelLine(state: ModelState): String = when (state) {
-        ModelState.Missing -> "missing. Tap Download next to a model below"
+        ModelState.Missing -> if (modelShelf.canSeeDownloads()) "missing. Tap Download next to a model below" else "not found. Tap Allow access to Downloads below"
         is ModelState.Loading -> "${state.name}, loading"
         is ModelState.Ready -> "${state.name}, ready on ${state.backend}, ${modelSize()}"
         is ModelState.Failed -> "${state.name}, failed to load: ${state.reason}"
