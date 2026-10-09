@@ -451,6 +451,7 @@ Design gaps, for the teammate to decide. Each uses the closest existing style fo
 - Help alert glass blur is left out; the background behind it is a smooth gradient, so it looks the same.
 - No control to change scan speed (the practice round only shows it).
 - While the phone is speaking, no card is lit.
+- App icon (owner request, the default Android icon was in use): a speech bubble with a glowing green eye on a dark gradient, with a one-colour layer for themed icons. Code: `res/mipmap-anydpi/ic_launcher.xml`, `res/drawable/ic_launcher_*.xml`. For the teammate to replace if the design has its own.
 - Main page top bar: a fourth round button (eye icon) opens the eye check page; the practice round uses the star icon.
 
 ## CI checks
