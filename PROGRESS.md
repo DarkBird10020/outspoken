@@ -16,6 +16,19 @@ Latest: the app can download Gemma 4 E2B and E4B (through the browser, the app s
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
 | 2026-10-09 | Reading options / accuracy test | Jitter when reading options, accidental selection blinks, no tutorial | Practice round tutorial screen wired up, asymmetric eyelid detection, yaw jitter tolerance, upward gaze boundary |
 
+## Models: download and switch in the app (owner request)
+
+- [ ] **Models list on the eye check page:** Gemma 4 E2B (2.6 GB, fastest, about 1 s a reply) and Gemma 4 E4B (3.7 GB, more accurate, about 2 to 3 s). Each shows "not downloaded", "downloading in the browser", "downloaded", "loading" or "in use", with a Download or Use button. Code: `setup/ModelCatalog.kt`, `setup/ModelShelf.kt`, `ui/EyeCheckScreen.kt` (`ModelList`), `MainActivity.kt`. Tests: `ModelCatalogTest`.
+- [ ] **The app still has no internet** (PRD rule, CI check). Download opens the file in the phone's browser. While the app is open it checks Downloads every 3 s, moves a finished model into its own folder and loads it by itself. Needs "All files access" once (button "Allow access to Downloads").
+- [ ] **Switching models:** Use frees the model in use and loads the other one; no restart. The choice is saved and loaded at the next start. Code: `suggest/OnDeviceModel.kt` (`switchTo`), `suggest/LiteRtLmModel.kt` (`close`).
+- [ ] **Choose model file** still works, and no longer deletes the other model files.
+- Not offered: the Qualcomm NPU build on Hugging Face is made for the previous chip (SM8750), not the iQOO 15's.
+
+How to test on the phone:
+1. Eye check page (eye button), scroll to Models. Tap "Allow access to Downloads" and switch it on, then go back.
+2. Tap Download next to Gemma 4 E2B. The browser downloads it (2.6 GB). Come back to the app: the row shows "loading", then "in use, on GPU". The log says "downloaded Gemma 4 E2B, moved into the app".
+3. Same for E4B, then tap Use on either to switch. Compare reply time and tokens per second on the Stats screen.
+
 ## Choosing reliably (goal: "I need water" ten times in a row, no wrong card, no missed blink)
 
 - [ ] **Look down is off by default.** It failed about eight phone runs in a row. With it off, a look up moves to the next card and wraps round, so every card can still be reached. It stays as a switch on the eye check page ("Looking down also moves"); the look down sliders show only when it is on. Calibration still measures it. Code: `setup/Tuning.kt` (`lookDown`, `activeGaze`), `conversation/ConversationController.kt` (`upMovesNext`), `MainActivity.kt`. Test: `EyeModeTest` "with looking down off a look up moves to the next card and wraps round".
