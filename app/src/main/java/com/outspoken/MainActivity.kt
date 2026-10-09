@@ -23,6 +23,8 @@ import com.outspoken.conversation.ConversationController
 import com.outspoken.eye.EyeReader
 import com.outspoken.eye.EyeSample
 import com.outspoken.eye.FrontCamera
+import com.outspoken.listen.HeardFilter
+import com.outspoken.listen.Listener
 import com.outspoken.log.AppLog
 import com.outspoken.log.exportLogs
 import com.outspoken.scan.GazeStepper
@@ -68,7 +70,7 @@ class MainActivity : ComponentActivity() {
     private val scanner = Scanner()
     private val gazeStepper = GazeStepper(log = AppLog)
     private val controller = ConversationController(
-        speak = { speaker.speak(it) },
+        speak = { say(it) },
         detector = blinkDetector,
         scanner = scanner,
         log = AppLog,
@@ -81,6 +83,19 @@ class MainActivity : ComponentActivity() {
     private var offlineVoice by mutableStateOf<Boolean?>(null)
     private var screen by mutableStateOf(Screen.Conversation)
     private var tuning by mutableStateOf(Tuning())
+    private lateinit var listener: Listener
+    private val heardFilter = HeardFilter()
+    private var listenLine by mutableStateOf("off")
+    private var micGranted = false
+    private var visible = false
+
+    private val micPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            micGranted = granted
+            AppLog.write("app", "microphone permission ${if (granted) "granted" else "denied"}")
+            if (!granted) listenLine = "no microphone permission; type the question instead"
+            updateListening()
+        }
     private val calibration = Calibration()
     private var calibrationPrompt by mutableStateOf("")
     private var calibrationProgress by mutableStateOf(0f)
@@ -105,6 +120,7 @@ class MainActivity : ComponentActivity() {
                 camera.start(eyeReader, analyzerExecutor)
                 startCalibration()
             }
+            askForMicrophone()
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -117,7 +133,20 @@ class MainActivity : ComponentActivity() {
         AppLog.write("app", "tuning $tuning")
         eyeReader = EyeReader(this) { if (screen == Screen.Calibrate) onCalibrationSample(it) else controller.onSample(it) }
         eyeReader.dotsOn = true
-        speaker = Speaker(this) { controller.onSpeechDone(now()) }
+        speaker = Speaker(this) {
+            heardFilter.onSpeechDone(now())
+            listener.resume()
+            controller.onSpeechDone(now())
+        }
+        listener = Listener(
+            this,
+            onHeard = { text ->
+                val question = heardFilter.accept(text, now())
+                if (question == null) AppLog.write("listen", "ignored \"$text\" (the phone's own voice or too short)")
+                question?.let { controller.onHeard(it, now()) }
+            },
+            onStatus = { listenLine = it },
+        )
         camera = FrontCamera(this, this)
         cameraGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
@@ -132,6 +161,7 @@ class MainActivity : ComponentActivity() {
         } else {
             cameraPermission.launch(Manifest.permission.CAMERA)
         }
+        if (cameraGranted) askForMicrophone()
 
         checkOfflineVoice(this) {
             AppLog.write("app", "offline voice ${if (it) "ready" else "missing"}")
@@ -185,7 +215,7 @@ class MainActivity : ComponentActivity() {
                         fps = fps,
                         tuning = tuning,
                         recentLines = recent,
-                        setup = SetupStatus(importLine ?: modelLine(modelState), offlineVoice, lastReplyLine),
+                        setup = SetupStatus(importLine ?: modelLine(modelState), offlineVoice, lastReplyLine, listenLine),
                         onTuningChange = {
                             applyTuning(it)
                             tuningStore.save(it)
@@ -200,6 +230,10 @@ class MainActivity : ComponentActivity() {
                         onChooseModel = { modelPicker.launch(arrayOf("*/*")) },
                         onSaveLogs = { logSaver.launch("outspoken-logs.txt") },
                         onCalibrate = ::startCalibration,
+                        onAsk = { question ->
+                            controller.onHeard(question, now())
+                            show(Screen.Conversation)
+                        },
                     )
                 }
             } else {
@@ -231,7 +265,7 @@ class MainActivity : ComponentActivity() {
         calibrationProgress = 0f
         calibrationPrompt = calibration.step.prompt
         AppLog.write("calibration", "started")
-        speaker.speak(calibrationPrompt)
+        say(calibrationPrompt)
         show(Screen.Calibrate)
     }
 
@@ -241,7 +275,7 @@ class MainActivity : ComponentActivity() {
         val step = calibration.onSample(sample) ?: return
         if (step != Calibration.Step.Done) {
             calibrationPrompt = step.prompt
-            speaker.speak(step.prompt)
+            say(step.prompt)
             return
         }
         when (val result = calibration.result(tuning)) {
@@ -258,7 +292,7 @@ class MainActivity : ComponentActivity() {
                         "${result.tuning.blink.shapeClosedBelow?.let { fmt(it) }}, gap open line ${result.tuning.blink.shapeOpenAbove?.let { fmt(it) }}",
                 )
                 calibrationOutcome = "Done. Look up to move, close your eyes to choose."
-                speaker.speak("Done")
+                say("Done")
                 lifecycleScope.launch {
                     delay(CALIBRATION_DONE_MS)
                     if (screen == Screen.Calibrate) show(Screen.Conversation)
@@ -268,7 +302,7 @@ class MainActivity : ComponentActivity() {
                 AppLog.write("calibration", "failed: ${result.reason}")
                 calibrationOutcome = result.reason
                 calibrationFailed = true
-                speaker.speak(result.reason)
+                say(result.reason)
             }
         }
     }
@@ -278,17 +312,22 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         AppLog.write("app", "resumed")
+        visible = true
+        updateListening()
     }
 
     override fun onPause() {
         super.onPause()
         AppLog.write("app", "paused")
+        visible = false
+        updateListening()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         AppLog.write("app", "closed")
         speaker.shutdown()
+        listener.stop()
         // Closed on the camera thread, after any frame already being analysed, so no frame reaches
         // a closed face tracker.
         analyzerExecutor.execute { eyeReader.close() }
@@ -305,9 +344,28 @@ class MainActivity : ComponentActivity() {
         if (controller.moveByEyes != next.moveByEyes) controller.moveByEyes = next.moveByEyes
     }
 
+    /** Everything the phone says goes through here, so the microphone does not take it for a question. */
+    private fun say(text: String) {
+        heardFilter.onSpeechStart(text)
+        listener.pause()
+        speaker.speak(text)
+    }
+
+    private fun askForMicrophone() {
+        micGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        if (micGranted) updateListening() else micPermission.launch(Manifest.permission.RECORD_AUDIO)
+    }
+
+    /** Listens only on the conversation page while the app is on screen. */
+    private fun updateListening() {
+        if (micGranted && visible && screen == Screen.Conversation) listener.start() else listener.stop()
+    }
+
     private fun show(next: Screen) {
         AppLog.write("ui", "screen $next")
         screen = next
+        updateListening()
     }
 
     private fun requestReplies(requestId: Int, turns: List<Turn>): Boolean {

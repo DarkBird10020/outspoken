@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: blinks need both the eye-open value and the lid gap to say shut, since looking down at the phone faked a close; calibration measures both. Waiting for the phone test.
+Latest: the phone now listens to the visitor (M3, F7). The question shows on the "Heard" card and Gemma answers it; it can also be typed or picked from topic buttons. Blinks need both the eye-open value and the lid gap to say shut; calibration measures both. Waiting for the phone test.
 
 ## Phone test history
 
@@ -187,9 +187,29 @@ Extras beyond the PRD:
 
 To tune on the phone (PRD: pick the largest model that meets 2 s): try Gemma3-1B-IT first, then a larger Gemma if it stays under 2 s.
 
-## M3. Listening and calibration (not started)
+## M3. Listening and calibration
 
-- Calibration and the practice round were built once on the old ML Kit reader and taken out when eye reading moved to MediaPipe. They will be rebuilt on the new reader, alongside the tuning sliders.
+PRD pass test: a stranger asks an unscripted question aloud and gets a sensible blinked answer in under 20 seconds, in airplane mode.
+Status: in progress. Calibration is in its own section above; listening is built; the practice round is still to come.
+
+- [ ] **Listening** (F7). The microphone listens all the time on the conversation page, on the phone itself: Android's on-device recogniser when there is one, otherwise the normal recogniser told to stay offline. Each finished sentence shows on the designed "Heard" card and goes to Gemma with the conversation, so the four replies answer it. Code: `listen/Listener.kt`, `conversation/ConversationController.kt`.
+- [ ] **Does not hear itself.** Listening pauses while the phone speaks (replies and calibration prompts), drops anything heard in the 1.5 s after, and drops text that matches what the phone just said. Code: `listen/HeardFilter.kt`.
+- [ ] **Typed question and topic buttons** (F7 fallback). On the eye check page: type the visitor's question and tap Ask, or tap a topic (Pain, Comfort, Food and drink, Feelings, Family). Either goes to the conversation like a spoken question. Code: `ui/EyeCheckScreen.kt` (`AskBox`), `listen/QuickTopics.kt`.
+- [ ] **Microphone permission** asked once after the camera. The eye check page shows what the listener is doing ("listening on the phone", "no microphone permission", "wants the internet: download the offline English speech pack").
+- [ ] **Practice round** (F6). Not rebuilt yet on the new eye reader.
+
+How to test on the phone:
+1. Turn on airplane mode. Open the app and allow the microphone.
+2. After calibration, ask out loud: "Are you in pain?". The "Heard" card shows it, and the cards change to answers about pain once the model replies.
+3. If nothing shows, open the eye check page: the "Listening:" line says why. Type the question there instead, or tap "Pain".
+4. Answer by looking up to the right card and closing your eyes. Time it from the end of the question: the PRD target is under 20 seconds.
+
+Unit tests:
+- `HeardFilterTest`: questions kept and cleaned, blank results dropped, nothing kept while the phone speaks or just after, the phone's own words dropped, topic buttons are all questions.
+- `ConversationHeardTest`: the question shows and goes to the model, the answer follows it, answering clears it, questions during speech are ignored.
+
+Extras beyond the PRD:
+- The echo filter, since the speaker and microphone sit a few centimetres apart.
 
 ## Design (from the teammate)
 
@@ -205,6 +225,7 @@ Unit tests:
 - `FormatTest`: how numbers on the stats and practice screens are written ("1.2 s", "24 tok/s", "04:12", "-" when not measured).
 
 Design gaps, for the teammate to decide. Each uses the closest existing style for now:
+- No design for the typed question box and topic buttons; they are on the plain eye check page.
 - No design for the "Choose model file" button; it is on the plain eye check screen.
 - Main page live camera with eye dots (owner asked for it): a 150 dp rounded box under the status row, and a hint line in the soft ink style.
 - Highlight on "More options" and "Yes / No": pink glow, no "Blink" badge (the badge is taller than these cards).
