@@ -3,6 +3,7 @@ package com.outspoken.ui
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,17 +16,22 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -39,6 +45,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.outspoken.blink.BlinkSettings
 import com.outspoken.eye.Dot
 import com.outspoken.eye.EyeSample
+import com.outspoken.listen.QuickTopics
 import com.outspoken.setup.Tuning
 import java.util.Locale
 import kotlin.math.abs
@@ -49,6 +56,7 @@ data class SetupStatus(
     val modelLine: String,
     val offlineVoice: Boolean?,
     val lastReplyLine: String = "none yet",
+    val listenLine: String = "off",
 )
 
 private const val GRAPH_MS = 5_000L
@@ -81,6 +89,7 @@ fun EyeCheckScreen(
     onChooseModel: () -> Unit,
     onSaveLogs: () -> Unit,
     onCalibrate: () -> Unit,
+    onAsk: (String) -> Unit,
 ) {
     val settings = tuning.blink
     val history = remember { mutableStateListOf<EyeSample>() }
@@ -128,7 +137,8 @@ fun EyeCheckScreen(
                     GazeBox(sample?.gaze, Modifier.size(88.dp))
                 }
                 recentLines.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
-                Button(onClick = onCalibrate, modifier = Modifier.padding(top = 12.dp)) { Text("Calibrate my eyes (25 s)") }
+                AskBox(setup.listenLine, onAsk)
+                Button(onClick = onCalibrate, modifier = Modifier.padding(top = 12.dp)) { Text("Calibrate my eyes (30 s)") }
                 TuningSliders(tuning, onTuningChange, onTuningReset)
                 Text("Model: ${setup.modelLine}", style = MaterialTheme.typography.bodySmall)
                 Button(onClick = onChooseModel) { Text("Choose model file") }
@@ -307,15 +317,19 @@ private fun TuningSliders(tuning: Tuning, onChange: (Tuning) -> Unit, onReset: (
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            if (tuning.moveByEyes) "Highlight moves with the eyes (look up = next)" else "Highlight moves on a timer",
+            if (tuning.moveByEyes) "Highlight moves with the eyes (look down / up)" else "Highlight moves on a timer",
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.weight(1f),
         )
         Switch(checked = tuning.moveByEyes, onCheckedChange = { onChange(tuning.copy(moveByEyes = it)) })
     }
     if (tuning.moveByEyes) {
-        LabeledSlider("Look distance: ${tuning.gaze.lookStrength.formatOpen()}", tuning.gaze.lookStrength, 0.1f..0.9f) {
+        LabeledSlider("Look up distance: ${tuning.gaze.lookStrength.formatOpen()}", tuning.gaze.lookStrength, 0.1f..0.9f) {
             onChange(tuning.copy(gaze = tuning.gaze.copy(lookStrength = it)))
+        }
+        val down = tuning.gaze.downStrength
+        LabeledSlider("Look down distance: ${down?.formatOpen() ?: "off"}", down ?: 0f, 0f..0.9f) {
+            onChange(tuning.copy(gaze = tuning.gaze.copy(downStrength = it.takeIf { v -> v >= 0.05f })))
         }
         LabeledSlider("Look hold: ${tuning.gaze.lookHoldMs} ms", tuning.gaze.lookHoldMs.toFloat(), 100f..1_000f) {
             onChange(tuning.copy(gaze = tuning.gaze.copy(lookHoldMs = it.roundTo(10))))
@@ -337,3 +351,32 @@ private fun LabeledSlider(label: String, value: Float, range: ClosedFloatingPoin
 private fun Float.roundTo(step: Int): Long = (this / step).roundToLong() * step
 
 private fun Float?.formatOpen() = this?.let { "%.2f".format(Locale.US, it) } ?: "-"
+
+/** The visitor's question when the microphone cannot hear it: typed, or one tap on a topic (PRD F7). */
+@Composable
+private fun AskBox(listenLine: String, onAsk: (String) -> Unit) {
+    var typed by remember { mutableStateOf("") }
+    Text("Listening: $listenLine", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 12.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(
+            value = typed,
+            onValueChange = { typed = it },
+            label = { Text("Type the visitor's question") },
+            singleLine = true,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(8.dp))
+        Button(
+            onClick = {
+                onAsk(typed.trim())
+                typed = ""
+            },
+            enabled = typed.isNotBlank(),
+        ) { Text("Ask") }
+    }
+    Row(Modifier.horizontalScroll(rememberScrollState())) {
+        QuickTopics.all.forEach { (label, question) ->
+            AssistChip(onClick = { onAsk(question) }, label = { Text(label) }, modifier = Modifier.padding(end = 8.dp))
+        }
+    }
+}

@@ -1,8 +1,13 @@
 package com.outspoken
 
 import android.Manifest
-import android.net.Uri
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.media.AudioManager
+import android.media.ToneGenerator
+import android.net.Uri
+import android.os.BatteryManager
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.WindowManager
@@ -14,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -23,6 +29,10 @@ import com.outspoken.conversation.ConversationController
 import com.outspoken.eye.EyeReader
 import com.outspoken.eye.EyeSample
 import com.outspoken.eye.FrontCamera
+import com.outspoken.help.HelpAlarm
+import com.outspoken.help.HelpStep
+import com.outspoken.listen.HeardFilter
+import com.outspoken.listen.Listener
 import com.outspoken.log.AppLog
 import com.outspoken.log.exportLogs
 import com.outspoken.scan.GazeStepper
@@ -33,6 +43,7 @@ import com.outspoken.setup.TuningStore
 import com.outspoken.setup.checkOfflineVoice
 import com.outspoken.setup.findModelFile
 import com.outspoken.speech.Speaker
+import com.outspoken.stats.PitStats
 import com.outspoken.suggest.ModelImporter
 import com.outspoken.suggest.ModelState
 import com.outspoken.suggest.ModelSuggestionEngine
@@ -40,11 +51,14 @@ import com.outspoken.suggest.OnDeviceModel
 import com.outspoken.suggest.SuggestionEngine
 import com.outspoken.suggest.SuggestionRequest
 import com.outspoken.suggest.Turn
-import com.outspoken.ui.ConversationScreen
 import com.outspoken.ui.CalibrationScreen
+import com.outspoken.ui.ConversationScreen
 import com.outspoken.ui.EyeCheckScreen
 import com.outspoken.ui.EyeMonitor
+import com.outspoken.ui.HelpAlertScreen
 import com.outspoken.ui.SetupStatus
+import com.outspoken.ui.StatsScreen
+import com.outspoken.ui.StatsUi
 import com.outspoken.ui.describeReplies
 import com.outspoken.ui.theme.OutspokenTheme
 import kotlinx.coroutines.Dispatchers
@@ -58,7 +72,7 @@ import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
 
-    private enum class Screen { Conversation, EyeCheck, Calibrate }
+    private enum class Screen { Conversation, EyeCheck, Calibrate, Help, Stats }
 
     private lateinit var speaker: Speaker
     private lateinit var camera: FrontCamera
@@ -68,12 +82,13 @@ class MainActivity : ComponentActivity() {
     private val scanner = Scanner()
     private val gazeStepper = GazeStepper(log = AppLog)
     private val controller = ConversationController(
-        speak = { speaker.speak(it) },
+        speak = { say(it) },
         detector = blinkDetector,
         scanner = scanner,
         log = AppLog,
         gaze = gazeStepper,
         requestReplies = ::requestReplies,
+        onHelp = ::onHelpStep,
     )
     private val analyzerExecutor = Executors.newSingleThreadExecutor()
 
@@ -81,6 +96,22 @@ class MainActivity : ComponentActivity() {
     private var offlineVoice by mutableStateOf<Boolean?>(null)
     private var screen by mutableStateOf(Screen.Conversation)
     private var tuning by mutableStateOf(Tuning())
+    private lateinit var listener: Listener
+    private lateinit var alarm: HelpAlarm
+    private val pitStats = PitStats(SystemClock.elapsedRealtime())
+    private var cue: ToneGenerator? = null
+    private val heardFilter = HeardFilter()
+    private var listenLine by mutableStateOf("off")
+    private var micGranted = false
+    private var visible = false
+
+    private val micPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            micGranted = granted
+            AppLog.write("app", "microphone permission ${if (granted) "granted" else "denied"}")
+            if (!granted) listenLine = "no microphone permission; type the question instead"
+            updateListening()
+        }
     private val calibration = Calibration()
     private var calibrationPrompt by mutableStateOf("")
     private var calibrationProgress by mutableStateOf(0f)
@@ -105,6 +136,7 @@ class MainActivity : ComponentActivity() {
                 camera.start(eyeReader, analyzerExecutor)
                 startCalibration()
             }
+            askForMicrophone()
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -115,9 +147,32 @@ class MainActivity : ComponentActivity() {
         tuningStore = TuningStore(this)
         applyTuning(tuningStore.load())
         AppLog.write("app", "tuning $tuning")
-        eyeReader = EyeReader(this) { if (screen == Screen.Calibrate) onCalibrationSample(it) else controller.onSample(it) }
+        eyeReader = EyeReader(this) {
+            when (screen) {
+                Screen.Calibrate -> onCalibrationSample(it)
+                // While the alarm screen is up, eyes pick nothing.
+                Screen.Help -> Unit
+                else -> controller.onSample(it)
+            }
+        }
         eyeReader.dotsOn = true
-        speaker = Speaker(this) { controller.onSpeechDone(now()) }
+        speaker = Speaker(this) {
+            heardFilter.onSpeechDone(now())
+            listener.resume()
+            controller.onSpeechDone(now())
+        }
+        alarm = HelpAlarm(this)
+        // Tells the person, eyes still shut, that the help hold is done.
+        cue = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, CUE_VOLUME) }.getOrNull()
+        listener = Listener(
+            this,
+            onHeard = { text ->
+                val question = heardFilter.accept(text, now())
+                if (question == null) AppLog.write("listen", "ignored \"$text\" (the phone's own voice or too short)")
+                question?.let { controller.onHeard(it, now()) }
+            },
+            onStatus = { listenLine = it },
+        )
         camera = FrontCamera(this, this)
         cameraGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
@@ -132,6 +187,7 @@ class MainActivity : ComponentActivity() {
         } else {
             cameraPermission.launch(Manifest.permission.CAMERA)
         }
+        if (cameraGranted) askForMicrophone()
 
         checkOfflineVoice(this) {
             AppLog.write("app", "offline voice ${if (it) "ready" else "missing"}")
@@ -155,7 +211,29 @@ class MainActivity : ComponentActivity() {
                     delay(TICK_MS)
                 }
             }
-            if (cameraGranted && screen == Screen.Calibrate) {
+            if (screen == Screen.Stats) {
+                BackHandler { show(Screen.Conversation) }
+                var nowMs by remember { mutableStateOf(now()) }
+                LaunchedEffect(Unit) {
+                    while (true) {
+                        nowMs = now()
+                        delay(STATS_REFRESH_MS)
+                    }
+                }
+                val modelState by OnDeviceModel.state.collectAsStateWithLifecycle()
+                OutspokenTheme {
+                    StatsScreen(statsUi(nowMs, modelState), onBack = { show(Screen.Conversation) })
+                }
+            } else if (screen == Screen.Help) {
+                BackHandler { stopHelp() }
+                OutspokenTheme {
+                    HelpAlertScreen(
+                        lastSaid = controller.history.lastOrNull() ?: "",
+                        onSoundOff = alarm::stop,
+                        onDismiss = ::stopHelp,
+                    )
+                }
+            } else if (cameraGranted && screen == Screen.Calibrate) {
                 BackHandler { show(Screen.Conversation) }
                 val sample by eyeReader.samples.collectAsStateWithLifecycle()
                 MaterialTheme {
@@ -185,7 +263,7 @@ class MainActivity : ComponentActivity() {
                         fps = fps,
                         tuning = tuning,
                         recentLines = recent,
-                        setup = SetupStatus(importLine ?: modelLine(modelState), offlineVoice, lastReplyLine),
+                        setup = SetupStatus(importLine ?: modelLine(modelState), offlineVoice, lastReplyLine, listenLine),
                         onTuningChange = {
                             applyTuning(it)
                             tuningStore.save(it)
@@ -200,6 +278,10 @@ class MainActivity : ComponentActivity() {
                         onChooseModel = { modelPicker.launch(arrayOf("*/*")) },
                         onSaveLogs = { logSaver.launch("outspoken-logs.txt") },
                         onCalibrate = ::startCalibration,
+                        onAsk = { question ->
+                            controller.onHeard(question, now())
+                            show(Screen.Conversation)
+                        },
                     )
                 }
             } else {
@@ -209,10 +291,9 @@ class MainActivity : ComponentActivity() {
                         ui = conversation,
                         // The practice round arrives in M3; until then this shows the live eye numbers.
                         onPractice = { show(Screen.EyeCheck) },
-                        // Session stats arrive in M4; until then this opens the eye check screen.
-                        onStats = { show(Screen.EyeCheck) },
+                        onStats = { show(Screen.Stats) },
                         onSelect = { controller.onTap(it, now()) },
-                        eyeHint = if (tuning.moveByEyes) "Look up: next.  Close eyes: choose." else "Close your eyes when your choice lights up.",
+                        eyeHint = if (tuning.moveByEyes) "Look down or up: move.  Close eyes: choose." else "Close your eyes when your choice lights up.",
                         eyeView = { modifier ->
                             val sample by eyeReader.samples.collectAsStateWithLifecycle()
                             EyeMonitor(sample, tuning.blink, camera::showPreview, camera::hidePreview, modifier)
@@ -231,7 +312,7 @@ class MainActivity : ComponentActivity() {
         calibrationProgress = 0f
         calibrationPrompt = calibration.step.prompt
         AppLog.write("calibration", "started")
-        speaker.speak(calibrationPrompt)
+        say(calibrationPrompt)
         show(Screen.Calibrate)
     }
 
@@ -241,7 +322,7 @@ class MainActivity : ComponentActivity() {
         val step = calibration.onSample(sample) ?: return
         if (step != Calibration.Step.Done) {
             calibrationPrompt = step.prompt
-            speaker.speak(step.prompt)
+            say(step.prompt)
             return
         }
         when (val result = calibration.result(tuning)) {
@@ -251,14 +332,14 @@ class MainActivity : ComponentActivity() {
                 val m = result.measured
                 AppLog.write(
                     "calibration",
-                    "ok: rest gaze ${fmt(m.restGaze)}, look up reach ${fmt(m.upReach)}, open ${fmt(m.restOpen)}, " +
+                    "ok: rest gaze ${fmt(m.restGaze)}, look up reach ${fmt(m.upReach)}, look down reach ${fmt(m.downReach)}, open ${fmt(m.restOpen)}, " +
                         "closed ${fmt(m.closedOpen)} -> look ${fmt(result.tuning.gaze.lookStrength)}, " +
-                        "shut line ${fmt(result.tuning.blink.closedBelow)}, open line ${fmt(result.tuning.blink.openAbove)}, " +
+                        "look down ${result.tuning.gaze.downStrength?.let { fmt(it) } ?: "off"}, shut line ${fmt(result.tuning.blink.closedBelow)}, open line ${fmt(result.tuning.blink.openAbove)}, " +
                         "lid gap open ${m.restGap?.let { fmt(it) }} closed ${m.closedGap?.let { fmt(it) }} -> gap shut line " +
                         "${result.tuning.blink.shapeClosedBelow?.let { fmt(it) }}, gap open line ${result.tuning.blink.shapeOpenAbove?.let { fmt(it) }}",
                 )
-                calibrationOutcome = "Done. Look up to move, close your eyes to choose."
-                speaker.speak("Done")
+                calibrationOutcome = "Done. Look down or up to move, close your eyes to choose."
+                say("Done")
                 lifecycleScope.launch {
                     delay(CALIBRATION_DONE_MS)
                     if (screen == Screen.Calibrate) show(Screen.Conversation)
@@ -268,7 +349,7 @@ class MainActivity : ComponentActivity() {
                 AppLog.write("calibration", "failed: ${result.reason}")
                 calibrationOutcome = result.reason
                 calibrationFailed = true
-                speaker.speak(result.reason)
+                say(result.reason)
             }
         }
     }
@@ -278,17 +359,24 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         AppLog.write("app", "resumed")
+        visible = true
+        updateListening()
     }
 
     override fun onPause() {
         super.onPause()
         AppLog.write("app", "paused")
+        visible = false
+        updateListening()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         AppLog.write("app", "closed")
         speaker.shutdown()
+        listener.stop()
+        alarm.stop()
+        cue?.release()
         // Closed on the camera thread, after any frame already being analysed, so no frame reaches
         // a closed face tracker.
         analyzerExecutor.execute { eyeReader.close() }
@@ -305,9 +393,69 @@ class MainActivity : ComponentActivity() {
         if (controller.moveByEyes != next.moveByEyes) controller.moveByEyes = next.moveByEyes
     }
 
+    private fun statsUi(nowMs: Long, model: ModelState) = StatsUi(
+        replyTimeSeconds = pitStats.replyTimeSeconds,
+        tokensPerSecond = pitStats.tokensPerSecond,
+        repliesWritten = pitStats.repliesWritten,
+        phoneTempCelsius = phoneTemperature(),
+        modelName = (model as? ModelState.Ready)?.name?.removeSuffix(".litertlm") ?: "No model loaded",
+        runtime = "LiteRT-LM" + ((model as? ModelState.Ready)?.let { " on ${it.backend}" } ?: ""),
+        // The practice round that measures this is not rebuilt yet.
+        blinkAccuracyPercent = null,
+        sessionMillis = pitStats.sessionMillis(nowMs),
+        sentencesSpoken = controller.history.size,
+    )
+
+    /** Battery temperature, the phone's own reading, in °C; null when the phone does not give it. */
+    private fun phoneTemperature(): Float? {
+        val battery = ContextCompat.registerReceiver(
+            this,
+            null,
+            IntentFilter(Intent.ACTION_BATTERY_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        ) ?: return null
+        val tenths = battery.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
+        return if (tenths == Int.MIN_VALUE) null else tenths / 10f
+    }
+
+    private fun onHelpStep(step: HelpStep) {
+        when (step) {
+            HelpStep.HoldReached -> cue?.startTone(ToneGenerator.TONE_PROP_BEEP2, CUE_MS)
+            HelpStep.Alarm -> {
+                alarm.start()
+                show(Screen.Help)
+            }
+        }
+    }
+
+    private fun stopHelp() {
+        alarm.stop()
+        AppLog.write("help", "someone came")
+        show(Screen.Conversation)
+    }
+
+    /** Everything the phone says goes through here, so the microphone does not take it for a question. */
+    private fun say(text: String) {
+        heardFilter.onSpeechStart(text)
+        listener.pause()
+        speaker.speak(text)
+    }
+
+    private fun askForMicrophone() {
+        micGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        if (micGranted) updateListening() else micPermission.launch(Manifest.permission.RECORD_AUDIO)
+    }
+
+    /** Listens only on the conversation page while the app is on screen. */
+    private fun updateListening() {
+        if (micGranted && visible && screen == Screen.Conversation) listener.start() else listener.stop()
+    }
+
     private fun show(next: Screen) {
         AppLog.write("ui", "screen $next")
         screen = next
+        updateListening()
     }
 
     private fun requestReplies(requestId: Int, turns: List<Turn>): Boolean {
@@ -316,6 +464,7 @@ class MainActivity : ComponentActivity() {
         replyJob = lifecycleScope.launch {
             val suggestions = engine.suggest(SuggestionRequest(turns, LocalTime.now().hour))
             lastReplyLine = describeReplies(suggestions.elapsedMs, suggestions.fromModel, suggestions.tokensPerSecond)
+            pitStats.onReplies(suggestions.elapsedMs, suggestions.fromModel, suggestions.tokensPerSecond)
             AppLog.write(
                 "model",
                 "replies in ${suggestions.elapsedMs} ms, ${suggestions.tokensPerSecond ?: "-"} tok/s, " +
@@ -375,6 +524,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private companion object {
+        const val STATS_REFRESH_MS = 1_000L
+        const val CUE_MS = 200
+        const val CUE_VOLUME = 80
         const val TICK_MS = 50L
         const val CALIBRATION_DONE_MS = 2_500L
 

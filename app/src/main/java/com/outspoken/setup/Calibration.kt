@@ -3,7 +3,7 @@ package com.outspoken.setup
 import com.outspoken.eye.EyeSample
 
 /**
- * About 25 seconds of spoken steps that measure this person's eyes in the phone's current
+ * About 30 seconds of spoken steps that measure this person's eyes in the phone's current
  * position (PRD F6), then set the look and blink lines from those numbers. Eye readings change a
  * lot with where the phone sits, so fixed lines that worked in one test failed in the next.
  */
@@ -15,6 +15,10 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
         Rest2("Look at the screen"),
         Up2("Look up, above the phone"),
         Rest3("Look at the screen"),
+        Down1("Look down, below the phone"),
+        Rest4("Look at the screen"),
+        Down2("Look down, below the phone"),
+        Rest5("Look at the screen"),
         Close1("Close your eyes"),
         Open1("Open your eyes"),
         Close2("Close your eyes"),
@@ -27,6 +31,8 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
         val restOpen: Float,
         val upReach: Float,
         val closedOpen: Float,
+        /** How far the eyes moved down from rest; 0 when no look down was seen. */
+        val downReach: Float = 0f,
         /** Lid gap (`eyeShape`, the wider eye) looking at the screen and with the eyes closed; null if not read. */
         val restGap: Float? = null,
         val closedGap: Float? = null,
@@ -66,7 +72,7 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
     }
 
     fun result(current: Tuning): Result {
-        val rests = listOf(Step.Rest, Step.Rest2, Step.Rest3).flatMap { seen[it].orEmpty() }
+        val rests = listOf(Step.Rest, Step.Rest2, Step.Rest3, Step.Rest4, Step.Rest5).flatMap { seen[it].orEmpty() }
         if (rests.size < MIN_FRAMES) return Result.Failed("Face not seen while looking at the screen")
         val restGaze = median(rests.mapNotNull { it.gaze?.y }) ?: return Result.Failed("Eyes not read")
         val restOpen = median(rests.map { open(it) }) ?: return Result.Failed("Eyes not read")
@@ -78,6 +84,11 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
         }
         val upReach = reaches.min()
         if (upReach < MIN_UP_REACH) return Result.Failed("Look up not seen; look higher above the phone")
+
+        // A look down that is not seen only turns looking down off; up still moves.
+        val downReach = listOf(Step.Down1, Step.Down2).minOf { down ->
+            seen[down].orEmpty().mapNotNull { it.gaze?.y }.maxOfOrNull { it - restGaze } ?: 0f
+        }
 
         val depths = listOf(Step.Close1, Step.Close2).map { close ->
             val frames = seen[close].orEmpty()
@@ -94,7 +105,7 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
         val gapRange = if (restGap != null && closedGap != null) restGap - closedGap else null
         val useGap = gapRange != null && gapRange >= MIN_GAP_RANGE
 
-        val measured = Measured(restGaze, restOpen, upReach, closedOpen, restGap, closedGap)
+        val measured = Measured(restGaze, restOpen, upReach, closedOpen, downReach, restGap, closedGap)
         val tuning = current.copy(
             blink = current.blink.copy(
                 closedBelow = closedOpen + range * SHUT_SHARE,
@@ -102,7 +113,10 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
                 shapeClosedBelow = if (useGap) closedGap!! + gapRange!! * GAP_SHUT_SHARE else null,
                 shapeOpenAbove = if (useGap) closedGap!! + gapRange!! * GAP_OPEN_SHARE else null,
             ),
-            gaze = current.gaze.copy(lookStrength = upReach * LOOK_SHARE),
+            gaze = current.gaze.copy(
+                lookStrength = upReach * LOOK_SHARE,
+                downStrength = if (downReach >= MIN_DOWN_REACH) downReach * LOOK_SHARE else null,
+            ),
         )
         return Result.Ok(tuning, measured)
     }
@@ -121,6 +135,7 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
     companion object {
         const val MIN_FRAMES = 5
         const val MIN_UP_REACH = 0.1f
+        const val MIN_DOWN_REACH = 0.1f
         const val MIN_CLOSE_RANGE = 0.12f
 
         /** A look counts at half of the smaller of the two measured looks up. */

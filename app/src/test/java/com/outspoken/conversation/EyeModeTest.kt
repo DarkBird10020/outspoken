@@ -5,7 +5,7 @@ import com.outspoken.eye.EyeSample
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** The highlight moved by the eyes: look up for the next card, blink to say it. */
+/** The highlight moved by the eyes: look down for the card below, up for the one above, blink to say it. */
 class EyeModeTest {
 
     private val said = mutableListOf<String>()
@@ -19,6 +19,11 @@ class EyeModeTest {
             controller.onSample(EyeSample(time, true, open, open, gaze = Dot(0f, gazeY)))
             time += 33
         }
+    }
+
+    private fun lookDown() {
+        frames(500, gazeY = 0.5f)
+        frames(300)
     }
 
     private fun lookUp() {
@@ -41,40 +46,52 @@ class EyeModeTest {
     }
 
     @Test
-    fun `looking up moves to the next card`() {
+    fun `looking down moves to the card below`() {
         frames(500)
+        lookDown()
+        assertEquals(1, highlighted)
+    }
+
+    @Test
+    fun `looking up from the top wraps to the last card`() {
+        frames(500)
+        lookUp()
+        assertEquals(Board.YES_NO, highlighted)
+        lookUp()
+        assertEquals(Board.MORE_OPTIONS, highlighted)
+    }
+
+    @Test
+    fun `looking down then up comes back`() {
+        frames(500)
+        lookDown()
+        lookDown()
         lookUp()
         assertEquals(1, highlighted)
     }
 
     @Test
-    fun `looking down does nothing`() {
-        frames(500)
-        frames(800, gazeY = 0.4f)
-        assertEquals(0, highlighted)
-    }
-
-    @Test
-    fun `next after the last card goes back to the first`() {
-        frames(500)
-        repeat(5) { lookUp() }
-        assertEquals(Board.YES_NO, highlighted)
-        lookUp()
-        assertEquals(0, highlighted)
-    }
-
-    @Test
     fun `a blink says the card the eyes moved to`() {
         frames(500)
-        lookUp()
+        lookDown()
         blink()
         assertEquals(listOf("I am in pain"), said)
     }
 
     @Test
-    fun `after speaking the highlight goes back to the top`() {
+    fun `a blink on More options opens the next page`() {
         frames(500)
         lookUp()
+        lookUp()
+        blink()
+        assertEquals(emptyList<String>(), said)
+        assertEquals(listOf("I am too hot", "I am too cold", "Thank you"), controller.ui.value.replies)
+    }
+
+    @Test
+    fun `after speaking the highlight goes back to the top`() {
+        frames(500)
+        lookDown()
         blink()
         controller.onSpeechDone(time)
         assertEquals(0, highlighted)
