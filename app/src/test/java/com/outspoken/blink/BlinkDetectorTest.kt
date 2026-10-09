@@ -96,6 +96,26 @@ class BlinkDetectorTest {
     }
 
     @Test
+    fun `time with no face does not count as shut`() {
+        // Phone run 03:24:07: seen shut under 200 ms, no face for about 200 ms, back open.
+        hold(500) { eyes(0.95f) }
+        val events = hold(150) { eyes(0.05f) } +
+            hold(300) { EyeSample(time, faceFound = false) } +
+            hold(100) { eyes(0.95f) }
+        assertEquals(emptyList<BlinkEvent>(), events)
+    }
+
+    @Test
+    fun `no face while choosing while shut does not choose`() {
+        detector.settings = BlinkSettings(minBlinkMs = 400, maxBlinkMs = 1_500, chooseWhileShut = true)
+        hold(500) { eyes(0.95f) }
+        val events = hold(180) { eyes(0.05f) } +
+            hold(350) { EyeSample(time, faceFound = false) } +
+            hold(100) { eyes(0.95f) }
+        assertEquals(emptyList<BlinkEvent>(), events)
+    }
+
+    @Test
     fun `a short face dropout is not face lost`() {
         hold(100) { eyes(0.95f) }
         assertEquals(emptyList<BlinkEvent>(), hold(300) { EyeSample(time, faceFound = false) })

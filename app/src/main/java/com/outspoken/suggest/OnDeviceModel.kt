@@ -12,7 +12,7 @@ import java.io.File
 sealed interface ModelState {
     data object Missing : ModelState
     data class Loading(val name: String) : ModelState
-    data class Ready(val name: String, val backend: String, val model: LiteRtLmModel) : ModelState
+    data class Ready(val name: String, val backend: String, val model: LiteRtLmModel, val sizeBytes: Long = 0) : ModelState
     data class Failed(val name: String, val reason: String) : ModelState
 }
 
@@ -51,7 +51,7 @@ object OnDeviceModel {
             val model = LiteRtLmModel(file.path, cacheDir.path)
             _state.value = try {
                 model.load()
-                ModelState.Ready(file.name, model.backendName, model)
+                ModelState.Ready(file.name, model.backendName, model, file.length())
             } catch (e: Exception) {
                 ModelState.Failed(file.name, e.message ?: e.javaClass.simpleName)
             }

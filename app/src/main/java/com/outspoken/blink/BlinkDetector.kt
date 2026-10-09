@@ -74,6 +74,10 @@ class BlinkDetector(
     /** This close already chose a card, so its reopen must not choose again. */
     private var chosen = false
     private var lastQuickCloseEndMs: Long? = null
+
+    /** Last frame of this close that was read as still shut, and whether the face went missing after it. */
+    private var lastShutSeenMs = 0L
+    private var faceGoneSinceShutSeen = false
     private var smoothLeft: Float? = null
     private var smoothRight: Float? = null
 
@@ -91,6 +95,7 @@ class BlinkDetector(
 
         if (!sample.faceFound || rawLeft == null || rawRight == null || !acceptableOrientation) {
             val missingSince = missingSinceMs ?: sample.timeMs.also { missingSinceMs = it }
+            if (closedSinceMs != null) faceGoneSinceShutSeen = true
             if (!tracking || sample.timeMs - missingSince < settings.faceLostAfterMs) return null
             if (closedSinceMs != null) log.write("blink", "closure cancelled, face lost")
             closedSinceMs = null
@@ -115,13 +120,19 @@ class BlinkDetector(
                 (avgOpen < settings.closedBelow && minOf(left, right) < settings.closedBelow + 0.08f)) && lidsShut(sample)
             if (bothShut) {
                 closedSinceMs = sample.timeMs
+                lastShutSeenMs = sample.timeMs
+                faceGoneSinceShutSeen = false
                 val gaze = sample.gaze?.let { ", gaze up/down ${open(it.y)}" } ?: ""
                 val shape = sample.dots?.let { d -> ", lid gap ${d.leftShape?.let { open(it) }} / ${d.rightShape?.let { open(it) }}" } ?: ""
                 log.write("blink", "eyes shut (left ${open(left)}, right ${open(right)}$shape$gaze)")
             }
         } else if (avgOpen > settings.openAbove || maxOf(left, right) > settings.openAbove || lidsOpen(sample)) {
             closedSinceMs = null
-            val duration = sample.timeMs - closedSince
+            // Time with no face is not time seen shut. On the phone (03:24:07 run) eyes seen shut
+            // for under 200 ms, then no face for about 200 ms, came back open and picked
+            // "I need water" as a 397 ms blink.
+            val seenUntil = if (faceGoneSinceShutSeen) lastShutSeenMs else sample.timeMs
+            val duration = seenUntil - closedSince
             if (chosen) {
                 chosen = false
                 log.write("blink", "eyes open after $duration ms")
@@ -145,12 +156,17 @@ class BlinkDetector(
             } else {
                 "longer than ${settings.maxBlinkMs} ms"
             }
-            log.write("blink", "ignored $duration ms, $why")
-        } else if (settings.chooseWhileShut && !chosen && sample.timeMs - closedSince >= settings.minBlinkMs) {
-            chosen = true
-            val duration = sample.timeMs - closedSince
-            log.write("blink", "blink $duration ms, chosen with the eyes still shut")
-            return BlinkEvent.Blink(closedSince, duration)
+            val gone = if (faceGoneSinceShutSeen) " seen shut, then no face" else ""
+            log.write("blink", "ignored $duration ms$gone, $why")
+        } else {
+            lastShutSeenMs = sample.timeMs
+            faceGoneSinceShutSeen = false
+            if (settings.chooseWhileShut && !chosen && sample.timeMs - closedSince >= settings.minBlinkMs) {
+                chosen = true
+                val duration = sample.timeMs - closedSince
+                log.write("blink", "blink $duration ms, chosen with the eyes still shut")
+                return BlinkEvent.Blink(closedSince, duration)
+            }
         }
         return if (wasTracking) null else BlinkEvent.FaceFound
     }
