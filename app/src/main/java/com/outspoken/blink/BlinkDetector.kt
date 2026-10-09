@@ -16,7 +16,10 @@ data class BlinkSettings(
     val openAbove: Float = 0.5f,
     val minBlinkMs: Long = 300,
     val maxBlinkMs: Long = 900,
-    val maxHeadTurnDeg: Float = 25f,
+    // ML Kit only gives eye-open values for faces turned left or right at most 18 degrees.
+    val maxHeadTurnDeg: Float = 18f,
+    // Looking down at a phone on a table tilts the head, and ML Kit sets no limit for it.
+    val maxHeadTiltDeg: Float = 25f,
 )
 
 sealed interface BlinkEvent {
@@ -79,7 +82,7 @@ class BlinkDetector(
     }
 
     private fun facingCamera(sample: EyeSample) =
-        abs(sample.yawDeg) <= settings.maxHeadTurnDeg && abs(sample.pitchDeg) <= settings.maxHeadTurnDeg
+        abs(sample.yawDeg) <= settings.maxHeadTurnDeg && abs(sample.pitchDeg) <= settings.maxHeadTiltDeg
 
     private fun lostReason(sample: EyeSample) = when {
         !sample.faceFound -> "no face"

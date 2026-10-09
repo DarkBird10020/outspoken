@@ -4,7 +4,26 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: run logs added, so phone tests can be read back and bugs found from them. M1 is waiting for the phone test (M0 and M1 together).
+Latest: eye detection fixes (18° head turn limit, sharper camera feed) and a debug view with dots on the eyes. M1 is waiting for the phone test.
+
+## Eye detection fixes and debug view
+
+The highlight is meant to move on its own, one card every 1.2 s (PRD F2, "scanning"). The app does not follow where you look; it waits for a deliberate blink while the right card is lit. These changes make the blink part reliable and visible.
+
+- [ ] **Head turn limit 25° → 18°.** Google's ML Kit docs say eye-open values only work for faces turned at most 18° left or right. Between 18° and 25° the values were noise and could fake blinks. Head tilt (looking down at the phone) keeps its 25° limit, since ML Kit sets none. Code: `blink/BlinkDetector.kt`.
+- [ ] **Sharper camera feed, 640x480 → 1280x960.** ML Kit needs the face at least 100 px wide for eye-open values (200 px for the eye outline). At arm's length the face was only about 120 px. Code: `eye/FrontCamera.kt`. The log line `detect ... ms avg, image ..., face width ... px` every 5 s shows the real numbers.
+- [ ] **Debug dots.** The eye button opens the check screen: 16 dots on each eye outline over the camera (green open, yellow unsure, red shut), a 5-second graph of both eyes (blue left, orange right) with the shut and open lines dashed, head turn and tilt marked ok or too far, and the last blink decisions written out. Code: `ui/EyeCheckScreen.kt`, `eye/EyeReader.kt`.
+- [ ] **Eye shape measure.** From the outline: eye height over width, the eye aspect ratio from Soukupová and Čech (2016). Shown on the check screen and logged next to ML Kit's value, so the two can be compared before choosing which one drives blinks. Code: `eye/EyeShape.kt`.
+
+How to test on the phone:
+1. Tap the eye button. Dots should sit on both eyes and follow them.
+2. Blink slowly: dots turn red, both graph lines drop below the red dashed line, and "blink ... ms" appears at the bottom.
+3. Blink normally: "ignored ... ms, shorter than 300 ms".
+4. Turn your head: "turn ... too far" and "face lost: head turned".
+
+Unit tests:
+- `EyeShapeTest`: open and shut outlines, size does not matter, too few points.
+- `EyeSummaryTest`: the shape values in the log line.
 
 ## Logs
 
