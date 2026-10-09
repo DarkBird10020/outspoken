@@ -573,7 +573,8 @@ class MainActivity : ComponentActivity() {
             AppLog.write(
                 "model",
                 "replies in ${suggestions.elapsedMs} ms, ${suggestions.tokensPerSecond ?: "-"} tok/s, " +
-                    if (suggestions.fromModel) "from the model" else "phrase bank fallback",
+                    (if (suggestions.fromModel) "from the model" else "phrase bank fallback") +
+                    ": " + suggestions.replies.joinToString(" | "),
             )
             controller.onReplies(requestId, suggestions.replies, suggestions.fromModel, now())
         }
@@ -684,14 +685,13 @@ class MainActivity : ComponentActivity() {
     private fun modelLine(state: ModelState): String = when (state) {
         ModelState.Missing -> if (modelShelf.canSeeDownloads()) "missing. Tap Download next to a model below" else "not found. Tap Allow access to Downloads below"
         is ModelState.Loading -> "${state.name}, loading"
-        is ModelState.Ready -> "${state.name}, ready on ${state.backend}, ${modelSize()}"
+        is ModelState.Ready -> "${state.name}, ready on ${state.backend}, ${gigabytes(state.sizeBytes)}"
         is ModelState.Failed -> "${state.name}, failed to load: ${state.reason}"
     }
 
-    private fun modelSize(): String {
-        val gb = (modelShelf.fileToLoad()?.length() ?: 0) / 1_000_000_000.0
-        return "%.2f GB".format(Locale.US, gb)
-    }
+    // Measured from the file that was loaded: the one in Downloads can be unreadable or gone by
+    // then, which showed "0.00 GB" on the phone (03:20:37).
+    private fun gigabytes(bytes: Long) = "%.2f GB".format(Locale.US, bytes / 1_000_000_000.0)
 
     private companion object {
         const val STATS_REFRESH_MS = 1_000L
