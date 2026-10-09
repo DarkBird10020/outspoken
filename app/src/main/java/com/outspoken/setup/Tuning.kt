@@ -12,8 +12,11 @@ data class Tuning(
         // phone alone drops the value to about 0.6, so the open line sits below that.
         closedBelow = 0.45f,
         openAbove = 0.55f,
-        minBlinkMs = 400,
+        // Spontaneous blinks last about 100 to 150 ms (published blink studies); 0.3 s plus the
+        // lid gap check keeps them out and is quicker than the 0.4 s used before.
+        minBlinkMs = 300,
         maxBlinkMs = 1_500,
+        chooseWhileShut = true,
         // MediaPipe reads eyes further round than ML Kit's 18°.
         maxHeadTurnDeg = 30f,
     ),

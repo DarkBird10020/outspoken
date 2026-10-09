@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: look down moves the highlight down again (the lid gap check now tells looking down from a close), calibration measures the look down too. Merged with listening (F7), help alarm (F8) and stats (S1). Waiting for the phone test.
+Latest: faster choosing: a close chooses as soon as it reaches 0.3 s, with the eyes still shut, and camera frames are analysed at 640x480. Waiting for the phone test.
 
 ## Phone test history
 
@@ -14,6 +14,15 @@ Latest: look down moves the highlight down again (the lid gap check now tells lo
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
+
+## Faster choosing (owner request)
+
+- [ ] **Choose while the eyes are still shut.** Before, a close only chose when the eyes opened again, so every choice waited the whole close plus the reopen. Now it chooses the moment the close reaches the shortest-blink time; the reopen does nothing more. Code: `blink/BlinkDetector.kt` (`chooseWhileShut`), `setup/Tuning.kt`.
+- [ ] **Shortest close 0.4 s to 0.3 s.** Published blink studies put spontaneous blinks at about 100 to 150 ms; with the lid gap check, 0.3 s still keeps them out.
+- [ ] **Analysed frames 1280x960 to 640x480.** Phone logs: 30 fps with no face in view, 20 to 25 fps with a face, so the per-frame work was the limit. MediaPipe crops the face to 256 x 256 anyway; preview stays 1280x960, same 4:3 shape so the dots line up. Code: `eye/FrontCamera.kt`.
+
+Unit tests:
+- `BlinkDetectorTest`: choosing while shut fires once at the shortest-blink time and not again on reopen; a normal blink still does nothing.
 
 ## Look down and up (owner request)
 
