@@ -8,8 +8,13 @@ import kotlin.math.roundToInt
 
 /**
  * Eye-open values below [closedBelow] count as shut, above [openAbove] as open; in between keeps
- * the current state so noise near one line does not flicker. Calibration (M3) will set these per
- * person.
+ * the current state so noise near one line does not flicker. Calibration sets these per person.
+ *
+ * [shapeClosedBelow] and [shapeOpenAbove], when set, add a second check on the eyelid gap
+ * (`eyeShape`): the eyes only count as shut when both readings say so, and they count as open
+ * again when either does. On the phone, looking down at the screen pushed the eye-open value as
+ * low as a real close (0.55 to 0.65 against 0.48) while the lid gap only halved (0.15 against
+ * 0.04 to 0.09 when closed), so the gap tells the two apart.
  */
 data class BlinkSettings(
     val closedBelow: Float = 0.3f,
@@ -23,6 +28,8 @@ data class BlinkSettings(
     // Face trackers drop single frames, often while the eyes are shut. Only a longer gap counts
     // as the face being gone.
     val faceLostAfterMs: Long = 400,
+    val shapeClosedBelow: Float? = null,
+    val shapeOpenAbove: Float? = null,
 )
 
 sealed interface BlinkEvent {
@@ -66,12 +73,13 @@ class BlinkDetector(
         if (!wasTracking) log.write("blink", "face found")
         val closedSince = closedSinceMs
         if (closedSince == null) {
-            if (left < settings.closedBelow && right < settings.closedBelow) {
+            if (left < settings.closedBelow && right < settings.closedBelow && lidsShut(sample)) {
                 closedSinceMs = sample.timeMs
                 val gaze = sample.gaze?.let { ", gaze up/down ${open(it.y)}" } ?: ""
-                log.write("blink", "eyes shut (left ${open(left)}, right ${open(right)}$gaze)")
+                val shape = sample.dots?.let { d -> ", lid gap ${d.leftShape?.let { open(it) }} / ${d.rightShape?.let { open(it) }}" } ?: ""
+                log.write("blink", "eyes shut (left ${open(left)}, right ${open(right)}$shape$gaze)")
             }
-        } else if (maxOf(left, right) > settings.openAbove) {
+        } else if (maxOf(left, right) > settings.openAbove || lidsOpen(sample)) {
             closedSinceMs = null
             val duration = sample.timeMs - closedSince
             if (duration in settings.minBlinkMs..settings.maxBlinkMs) {
@@ -86,6 +94,22 @@ class BlinkDetector(
             log.write("blink", "ignored $duration ms, $why")
         }
         return if (wasTracking) null else BlinkEvent.FaceFound
+    }
+
+    /** Both lid gaps below the shut line, or true when there is no gap check or no gap reading. */
+    private fun lidsShut(sample: EyeSample): Boolean {
+        val line = settings.shapeClosedBelow ?: return true
+        val dots = sample.dots ?: return true
+        val left = dots.leftShape ?: return true
+        val right = dots.rightShape ?: return true
+        return left < line && right < line
+    }
+
+    /** Either lid gap above the open line. */
+    private fun lidsOpen(sample: EyeSample): Boolean {
+        val line = settings.shapeOpenAbove ?: return false
+        val dots = sample.dots ?: return false
+        return maxOf(dots.leftShape ?: 0f, dots.rightShape ?: 0f) > line
     }
 
     private fun facingCamera(sample: EyeSample) =
