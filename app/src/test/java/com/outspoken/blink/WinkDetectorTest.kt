@@ -82,6 +82,21 @@ class WinkDetectorTest {
     }
 
     @Test
+    fun `one eye half shut reads as one eye lower`() {
+        hold(300, 0.95f, 0.95f)
+        hold(200, 0.55f, 0.90f)
+        assertEquals(true, detector.oneEyeLower)
+        hold(300, 0.95f, 0.95f)
+        assertEquals(false, detector.oneEyeLower)
+    }
+
+    @Test
+    fun `eyes that always read apart are not one eye lower`() {
+        hold(300, 0.95f, 0.70f)
+        assertEquals(false, detector.oneEyeLower)
+    }
+
+    @Test
     fun `an eye flickering open mid wink counts once`() {
         hold(300, 0.95f, 0.95f)
         val winks = hold(400, 0.05f, 0.95f) + hold(66, 0.95f, 0.95f) + hold(400, 0.05f, 0.95f)
