@@ -131,11 +131,12 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
         const val OPEN_SHARE = 0.75f
 
         /**
-         * Lid gap lines sit low in the range: on the phone a real close read 0.04 to 0.09, looking
-         * down at the screen about 0.15, open about 0.30.
+         * Lid gap lines sit just above the measured close. Phone run at 23:38: closed 0.12, open
+         * 0.30, and looking down at the screen read 0.14 to 0.17, so a shut line 30% of the way up
+         * (0.17) let looking down count as closed. 10% gives 0.14.
          */
-        const val GAP_SHUT_SHARE = 0.3f
-        const val GAP_OPEN_SHARE = 0.5f
+        const val GAP_SHUT_SHARE = 0.1f
+        const val GAP_OPEN_SHARE = 0.3f
         const val MIN_GAP_RANGE = 0.08f
     }
 }

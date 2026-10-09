@@ -87,8 +87,8 @@ class CalibrationTest {
     fun `lid gap lines are set when the gap is read`() {
         run(openGap = 0.30f, closedGap = 0.06f)
         val blink = (calibration.result(Tuning()) as Calibration.Result.Ok).tuning.blink
-        assertEquals(0.132f, blink.shapeClosedBelow!!, 0.001f)
-        assertEquals(0.18f, blink.shapeOpenAbove!!, 0.001f)
+        assertEquals(0.084f, blink.shapeClosedBelow!!, 0.001f)
+        assertEquals(0.132f, blink.shapeOpenAbove!!, 0.001f)
     }
 
     @Test
