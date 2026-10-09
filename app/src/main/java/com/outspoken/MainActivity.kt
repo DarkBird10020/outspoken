@@ -343,7 +343,7 @@ class MainActivity : ComponentActivity() {
                         onStats = { show(Screen.Stats) },
                         onTranscript = { show(Screen.Transcript) },
                         onSelect = { controller.onTap(it, now()) },
-                        eyeHint = if (tuning.moveByEyes) "Look or wink to move (left wink down, right wink up).  Close both eyes: choose." else "Close your eyes when your choice lights up.",
+                        eyeHint = if (tuning.moveByEyes && tuning.winks) "Look or wink to move (left wink down, right wink up).  Close both eyes: choose." else if (tuning.moveByEyes) "Look down or up to move.  Close both eyes: choose." else "Close your eyes when your choice lights up.",
                         onAsk = { question ->
                             AppLog.write("listen", "quick topic \"$question\"")
                             controller.onHeard(question, now())
@@ -446,6 +446,7 @@ class MainActivity : ComponentActivity() {
         scanner.intervalMs = next.scanMs
         gazeStepper.settings = next.gaze
         if (controller.moveByEyes != next.moveByEyes) controller.moveByEyes = next.moveByEyes
+        controller.winks = next.winks
     }
 
     private fun statsUi(nowMs: Long, model: ModelState) = StatsUi(
