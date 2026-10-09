@@ -23,6 +23,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.outspoken.blink.BlinkDetector
@@ -73,6 +74,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.LocalTime
 import java.util.Locale
@@ -134,6 +136,9 @@ class MainActivity : ComponentActivity() {
     private var modelRows by mutableStateOf<List<ModelRow>>(emptyList())
     private var canSeeDownloads by mutableStateOf(false)
     private var replyJob: Job? = null
+
+    /** The last cards the model wrote, so the next request can ask for different ones. */
+    private var lastModelReplies: List<String> = emptyList()
 
     private val logSaver =
         registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri -> uri?.let(::saveLogs) }
@@ -329,6 +334,7 @@ class MainActivity : ComponentActivity() {
                         onDownloadModel = ::downloadModel,
                         onUseModel = ::useModel,
                         onSaveLogs = { logSaver.launch("outspoken-logs.txt") },
+                        onShareLogs = ::shareLogs,
                         onCalibrate = ::startCalibration,
                         onAsk = { question ->
                             controller.onHeard(question, now())
@@ -567,14 +573,14 @@ class MainActivity : ComponentActivity() {
         val engine = suggestionEngine ?: return false
         replyJob?.cancel()
         replyJob = lifecycleScope.launch {
-            val suggestions = engine.suggest(SuggestionRequest(turns, LocalTime.now().hour))
+            val suggestions = engine.suggest(SuggestionRequest(turns, LocalTime.now().hour, lastModelReplies))
+            if (suggestions.fromModel) lastModelReplies = suggestions.replies
             lastReplyLine = describeReplies(suggestions.elapsedMs, suggestions.fromModel, suggestions.tokensPerSecond)
             pitStats.onReplies(suggestions.elapsedMs, suggestions.fromModel, suggestions.tokensPerSecond)
             AppLog.write(
                 "model",
                 "replies in ${suggestions.elapsedMs} ms, ${suggestions.tokensPerSecond ?: "-"} tok/s, " +
-                    (if (suggestions.fromModel) "from the model" else "phrase bank fallback") +
-                    ": " + suggestions.replies.joinToString(" | "),
+                    if (suggestions.fromModel) "from the model" else "phrase bank fallback",
             )
             controller.onReplies(requestId, suggestions.replies, suggestions.fromModel, now())
         }
@@ -591,6 +597,30 @@ class MainActivity : ComponentActivity() {
                 AppLog.write("app", "saved $count run logs")
             } catch (e: Exception) {
                 AppLog.write("app", "could not save logs: ${e.message}")
+            }
+        }
+    }
+
+    /** Puts every run log in one file and opens the share sheet, so it can go straight into a chat. */
+    private fun shareLogs() {
+        AppLog.write("app", "sharing logs")
+        lifecycleScope.launch {
+            try {
+                val file = withContext(Dispatchers.IO) {
+                    val dir = File(checkNotNull(getExternalFilesDir(null)) { "no app folder" }, "logs")
+                    val out = File(cacheDir, "shared").apply { mkdirs() }.resolve("outspoken-logs.txt")
+                    val count = out.outputStream().use { exportLogs(dir, it) }
+                    AppLog.write("app", "sharing $count run logs")
+                    out
+                }
+                val uri = FileProvider.getUriForFile(this@MainActivity, "$packageName.logs", file)
+                val send = Intent(Intent.ACTION_SEND)
+                    .setType("text/plain")
+                    .putExtra(Intent.EXTRA_STREAM, uri)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                startActivity(Intent.createChooser(send, "Share logs"))
+            } catch (e: Exception) {
+                AppLog.write("app", "could not share logs: ${e.message}")
             }
         }
     }

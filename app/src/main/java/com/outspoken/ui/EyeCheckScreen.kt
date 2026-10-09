@@ -4,6 +4,7 @@ import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -106,6 +107,7 @@ fun EyeCheckScreen(
     steadyIris: Float?,
     onChooseModel: () -> Unit,
     onSaveLogs: () -> Unit,
+    onShareLogs: () -> Unit,
     models: List<ModelRow> = emptyList(),
     canSeeDownloads: Boolean = true,
     onAllowDownloads: () -> Unit = {},
@@ -174,7 +176,10 @@ fun EyeCheckScreen(
                 Text("Model: ${setup.modelLine}", style = MaterialTheme.typography.bodySmall)
                 ModelList(models, canSeeDownloads, onAllowDownloads, onDownloadModel, onUseModel)
                 Button(onClick = onChooseModel) { Text("Choose model file") }
-                Button(onClick = onSaveLogs) { Text("Save logs") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onShareLogs) { Text("Share logs") }
+                    Button(onClick = onSaveLogs) { Text("Save logs") }
+                }
                 Text("Last replies: ${setup.lastReplyLine}", style = MaterialTheme.typography.bodySmall)
                 Text(
                     "Offline voice: " + when (setup.offlineVoice) {
