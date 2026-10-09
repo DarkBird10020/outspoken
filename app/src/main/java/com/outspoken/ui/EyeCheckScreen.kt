@@ -79,6 +79,7 @@ fun EyeCheckScreen(
     onPreviewReady: (PreviewView) -> Unit,
     onPreviewGone: () -> Unit,
     onChooseModel: () -> Unit,
+    onSaveLogs: () -> Unit,
 ) {
     val settings = tuning.blink
     val history = remember { mutableStateListOf<EyeSample>() }
@@ -130,6 +131,7 @@ fun EyeCheckScreen(
                 TuningSliders(tuning, onTuningChange, onTuningReset)
                 Text("Model: ${setup.modelLine}", style = MaterialTheme.typography.bodySmall)
                 Button(onClick = onChooseModel) { Text("Choose model file") }
+                Button(onClick = onSaveLogs) { Text("Save logs") }
                 Text("Last replies: ${setup.lastReplyLine}", style = MaterialTheme.typography.bodySmall)
                 Text(
                     "Offline voice: " + when (setup.offlineVoice) {

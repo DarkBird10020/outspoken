@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: the highlight moves with the eyes (look down / up), and Gemma on the phone now writes the next four replies after each sentence (M2). The model file is picked inside the app. Waiting for the next phone test.
+Latest: "Save logs" on the eye check screen puts all run logs in one file you choose (for example in Downloads), so they can be sent without a laptop. Still not working well on the phone; waiting for those logs to find out why.
 
 ## Phone test history
 
@@ -12,6 +12,7 @@ Latest: the highlight moves with the eyes (look down / up), and Gemma on the pho
 |---|---|---|---|
 | 2026-10-09 | M0 to M2 | Not working properly, picks felt random | Blink rules rebuilt, run logs added |
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
+| 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 
 ## Eyes move the highlight (owner decision)
 
@@ -64,6 +65,8 @@ Every run writes a log, so a failed phone test can be explained without guessing
 - [ ] **Where.** One file per app start in `Android/data/com.outspoken/files/logs/` (last 10 kept), and logcat with the tag `Outspoken`. Nothing leaves the phone.
 - [ ] **Same key for every build.** CI signs the APK with one shared debug key (repo secret `DEBUG_KEYSTORE_B64`). Without it each build has a new key, the phone refuses the update, and uninstalling first deletes the logs.
 
+- [ ] **Save logs.** The eye check screen's "Save logs" button writes every run log into one text file at a place you pick (for example Downloads). The file stays on the phone; send it on from there. Code: `log/LogExport.kt`.
+
 How to read them (phone on USB):
 - Live: `adb logcat -s Outspoken`
 - Files: `adb pull /sdcard/Android/data/com.outspoken/files/logs`
@@ -71,6 +74,7 @@ How to read them (phone on USB):
 Unit tests:
 - `EyeSummaryTest`: the once-per-second eye line.
 - `LogLinesTest`: blink picked and said, fast blink and long closure explained, face lost reasons, taps and card changes.
+- `LogExportTest`: all run logs in one file, oldest first, with headers.
 
 ## M0. Skeleton
 

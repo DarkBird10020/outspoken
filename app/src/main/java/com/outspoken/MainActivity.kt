@@ -23,6 +23,7 @@ import com.outspoken.conversation.ConversationController
 import com.outspoken.eye.EyeReader
 import com.outspoken.eye.FrontCamera
 import com.outspoken.log.AppLog
+import com.outspoken.log.exportLogs
 import com.outspoken.scan.GazeStepper
 import com.outspoken.scan.Scanner
 import com.outspoken.setup.Tuning
@@ -42,9 +43,11 @@ import com.outspoken.ui.EyeCheckScreen
 import com.outspoken.ui.SetupStatus
 import com.outspoken.ui.describeReplies
 import com.outspoken.ui.theme.OutspokenTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.File
 import java.time.LocalTime
 import java.util.Locale
 import java.util.concurrent.Executors
@@ -78,6 +81,9 @@ class MainActivity : ComponentActivity() {
     private var importLine by mutableStateOf<String?>(null)
     private var suggestionEngine: SuggestionEngine? = null
     private var replyJob: Job? = null
+
+    private val logSaver =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri -> uri?.let(::saveLogs) }
 
     private val modelPicker =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(::importModel) }
@@ -157,6 +163,7 @@ class MainActivity : ComponentActivity() {
                         onPreviewReady = camera::showPreview,
                         onPreviewGone = camera::hidePreview,
                         onChooseModel = { modelPicker.launch(arrayOf("*/*")) },
+                        onSaveLogs = { logSaver.launch("outspoken-logs.txt") },
                     )
                 }
             } else {
@@ -223,6 +230,20 @@ class MainActivity : ComponentActivity() {
             controller.onReplies(requestId, suggestions.replies, suggestions.fromModel, now())
         }
         return true
+    }
+
+    private fun saveLogs(uri: Uri) {
+        AppLog.write("app", "saving logs")
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val dir = File(checkNotNull(getExternalFilesDir(null)) { "no app folder" }, "logs")
+                val out = checkNotNull(contentResolver.openOutputStream(uri)) { "could not open the file" }
+                val count = out.use { exportLogs(dir, it) }
+                AppLog.write("app", "saved $count run logs")
+            } catch (e: Exception) {
+                AppLog.write("app", "could not save logs: ${e.message}")
+            }
+        }
     }
 
     private fun importModel(uri: Uri) {
