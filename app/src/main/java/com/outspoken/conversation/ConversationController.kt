@@ -24,6 +24,7 @@ class ConversationController(
     private val spoken = mutableListOf<String>()
     private var speaking = false
     private var lastHighlighted = -1
+    private var clockMs = Long.MIN_VALUE
 
     /** Sentences said this session, oldest first. Memory only. */
     val history: List<String> get() = spoken
@@ -36,19 +37,21 @@ class ConversationController(
     }
 
     fun onSample(sample: EyeSample) {
+        val nowMs = advance(sample.timeMs)
         when (val event = detector.onSample(sample)) {
-            is BlinkEvent.Blink -> onBlink(event, sample.timeMs)
-            BlinkEvent.FaceFound -> scanner.resume(sample.timeMs)
-            BlinkEvent.FaceLost -> scanner.pause(sample.timeMs)
+            is BlinkEvent.Blink -> onBlink(event, nowMs)
+            BlinkEvent.FaceFound -> scanner.resume(nowMs)
+            BlinkEvent.FaceLost -> scanner.pause(nowMs)
             null -> Unit
         }
-        publish(sample.timeMs)
+        publish(nowMs)
     }
 
-    fun onTick(nowMs: Long) = publish(nowMs)
+    fun onTick(nowMs: Long) = publish(advance(nowMs))
 
     /** A tap on a card, for the person at the bedside. */
-    fun onTap(card: Int, nowMs: Long) {
+    fun onTap(card: Int, timeMs: Long) {
+        val nowMs = advance(timeMs)
         if (speaking) {
             log.write("scan", "tap on ${label(card)} ignored while speaking")
         } else {
@@ -58,12 +61,23 @@ class ConversationController(
         publish(nowMs)
     }
 
-    fun onSpeechDone(nowMs: Long) {
+    fun onSpeechDone(timeMs: Long) {
+        val nowMs = advance(timeMs)
         log.write("scan", "speech done, scanning again")
         speaking = false
         scanner.restart(board.cards, nowMs)
         if (detector.tracking) scanner.resume(nowMs)
         publish(nowMs)
+    }
+
+    /**
+     * Camera frames are stamped before face detection runs, so they arrive a little behind the
+     * screen ticks. The highlight only ever moves forward on the newest time seen; otherwise it
+     * flickers back to the previous card at every step.
+     */
+    private fun advance(timeMs: Long): Long {
+        clockMs = maxOf(clockMs, timeMs)
+        return clockMs
     }
 
     private fun onBlink(blink: BlinkEvent.Blink, nowMs: Long) {
