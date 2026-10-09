@@ -194,4 +194,21 @@ class EyeModeTest {
         repeat(30) { frame(0.95f, 0.95f, 0.30f, 0f) }
         assertEquals(1, c.ui.value.highlighted)
     }
+
+    @Test
+    fun `coming back in a new position does not move by itself and looks still work`() {
+        frames(500)
+        // Face leaves for two seconds.
+        val end = time + 2_000
+        while (time < end) {
+            controller.onSample(EyeSample(time, false))
+            time += 33
+        }
+        // Back, now resting with the gaze 0.5 lower than before.
+        frames(1_500, gazeY = 0.5f)
+        assertEquals(0, highlighted)
+        frames(500, gazeY = 1.0f)
+        frames(800, gazeY = 0.5f)
+        assertEquals(1, highlighted)
+    }
 }

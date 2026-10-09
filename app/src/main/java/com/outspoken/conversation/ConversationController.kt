@@ -80,7 +80,10 @@ class ConversationController(
         val nowMs = advance(sample.timeMs)
         when (val event = detector.onSample(sample)) {
             is BlinkEvent.Blink -> onBlink(event, nowMs)
-            BlinkEvent.FaceFound -> scanner.resume(nowMs)
+            BlinkEvent.FaceFound -> {
+                scanner.resume(nowMs)
+                gaze.forgetRest()
+            }
             BlinkEvent.FaceLost -> scanner.pause(nowMs)
             null -> Unit
         }

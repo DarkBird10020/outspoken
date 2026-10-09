@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: winks work again after calibration: they use the difference between the eyes instead of the lid gap. Waiting for the phone test.
+Latest: when the face comes back after being lost, the resting gaze is taken afresh, so looks work again at once. Waiting for the phone test.
 
 ## Phone test history
 
@@ -14,6 +14,11 @@ Latest: winks work again after calibration: they use the difference between the 
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
+
+## Face coming back (owner report)
+
+- [ ] **The resting gaze is taken afresh when the face comes back.** Owner: after moving the face out of the camera, things stopped working. The old resting point stayed, so coming back in a new position made looks fire by themselves or never reach the line until it slowly re-adjusted. Now it resets on face found; the calibrated look lines stay. Code: `scan/GazeStepper.kt` (`forgetRest`), `conversation/ConversationController.kt`. Test: `EyeModeTest` "coming back in a new position does not move by itself and looks still work".
+- Note from the 02:00 phone screen: with the phone lying flat the camera sees the ceiling and only the top of the head, so "Looking for you" is correct then; the face must be in view to be found again.
 
 ## Winks after calibration (owner report)
 
