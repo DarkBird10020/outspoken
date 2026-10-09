@@ -89,4 +89,14 @@ class ConversationControllerTest {
         assertEquals(listOf("Yes", "No"), controller.ui.value.replies)
         assertTrue(said.isEmpty())
     }
+
+    @Test
+    fun `a late camera frame does not move the highlight back`() {
+        frames(100, open = 0.95f)
+        controller.onTick(10_000 + 1_210)
+        assertEquals(1, controller.ui.value.highlighted)
+        // Detection takes about 30 ms, so this frame is stamped before the tick above.
+        controller.onSample(EyeSample(10_000 + 1_180, true, 0.95f, 0.95f))
+        assertEquals(1, controller.ui.value.highlighted)
+    }
 }
