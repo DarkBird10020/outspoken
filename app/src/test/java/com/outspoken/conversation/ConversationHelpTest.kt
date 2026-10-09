@@ -5,6 +5,7 @@ import com.outspoken.blink.BlinkSettings
 import com.outspoken.eye.EyeSample
 import com.outspoken.help.HelpStep
 import com.outspoken.scan.Scanner
+import com.outspoken.setup.Tuning
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -40,6 +41,36 @@ class ConversationHelpTest {
         frames(200, open = 0.95f)
         assertEquals(listOf(HelpStep.HoldReached, HelpStep.Alarm), steps)
         assertTrue(said.isEmpty())
+    }
+
+    @Test
+    fun `with the app's own blink settings a help hold says no card`() {
+        val said = mutableListOf<String>()
+        val steps = mutableListOf<HelpStep>()
+        val app = ConversationController(
+            speak = { said += it },
+            detector = BlinkDetector(Tuning().blink),
+            scanner = Scanner(intervalMs = 1_200),
+            onHelp = { steps += it },
+        )
+        fun frames(ms: Long, open: Float) {
+            val end = time + ms
+            while (time < end) {
+                app.onSample(EyeSample(time, true, open, open))
+                time += 33
+            }
+        }
+        frames(300, open = 0.95f)
+        frames(2_300, open = 0.05f)
+        frames(500, open = 0.95f)
+        frames(600, open = 0.05f)
+        frames(300, open = 0.95f)
+        assertEquals(listOf(HelpStep.HoldReached, HelpStep.Alarm), steps)
+        assertTrue("said $said", said.isEmpty())
+        // A normal close afterwards still picks the lit card.
+        frames(600, open = 0.05f)
+        frames(300, open = 0.95f)
+        assertEquals(1, said.size)
     }
 
     @Test

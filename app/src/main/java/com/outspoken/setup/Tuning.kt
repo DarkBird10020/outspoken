@@ -15,10 +15,12 @@ data class Tuning(
         // Phone logs 2026-10-10 (02:37, 02:28, 03:11, 03:23 runs): unprompted closes lasted 74 to
         // 242 ms, and at 200 ms every one from 200 to 242 ms picked a card ("I need water" five
         // times in 11 s). Quick deliberate closes are the same length, so a pick needs a longer
-        // hold; with choosing while shut, the phone starts speaking the moment it is reached.
+        // hold.
         minBlinkMs = 400,
         maxBlinkMs = 1_500,
-        chooseWhileShut = true,
+        // A pick waits for the eyes to open. Choosing while shut said the lit card 0.4 s into
+        // every help hold (PRD F8: eyes shut 2 s, then a confirm blink), before the alarm.
+        chooseWhileShut = false,
         // Two unprompted blinks in a row picked "Good evening, how are you?" (03:21:10 run).
         doubleBlink = false,
         smoothing = 0.65f,

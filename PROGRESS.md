@@ -4,9 +4,9 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: "Share logs" on the eye check page sends the run logs straight into a chat, and `tools\phone-logs.ps1` keeps a live copy on the laptop (CLAUDE.md section 12). A damaged model download is caught by its checksum and named plainly, instead of "Engine is not initialized" every 3 s. Download the model again; the app checks it once (about 2 s). Waiting for the phone test.
+Latest: holding the eyes shut for help no longer says a card first (a card is now chosen when the eyes open). "Share logs" on the eye check page sends the run logs straight into a chat, and `tools\phone-logs.ps1` keeps a live copy on the laptop (CLAUDE.md section 12). A damaged model download is caught by its checksum and named plainly, instead of "Engine is not initialized" every 3 s. Download the model again; the app checks it once (about 2 s). Waiting for the phone test.
 
-Also: choosing now needs the eyes held shut for 0.4 s; the phone starts speaking the moment it is reached. The phone logs of 2026-10-10 showed unprompted blinks of 200 to 242 ms picking cards ("I need water" five times in 11 s) and a double blink picking one, so the hold went up from 0.2 s and double blinks are off by default. Listening no longer drops the working on-device recogniser when the phone speaks. Time with no face no longer counts as eyes shut (a close seen under 0.2 s, then the face lost for 0.2 s, picked a card). The model now starts with Gemma 4's own drafter (MTP) on the GPU for faster replies, falling back to the plain GPU and then the CPU. Model replies now fit a person in bed being cared for (no more "I want a glass of wine" small talk) and avoid repeating cards just passed over. Also: laptop builds can sign with the shared key (`~/.android/outspoken-debug.keystore`), so any APK installs over the last one and nothing is uninstalled; a model picked with "Choose model file" is found at every start. Models stay in Downloads across reinstalls. Waiting for the phone test.
+Also: choosing now needs the eyes held shut for 0.4 s. The phone logs of 2026-10-10 showed unprompted blinks of 200 to 242 ms picking cards ("I need water" five times in 11 s) and a double blink picking one, so the hold went up from 0.2 s and double blinks are off by default. Listening no longer drops the working on-device recogniser when the phone speaks. Time with no face no longer counts as eyes shut (a close seen under 0.2 s, then the face lost for 0.2 s, picked a card). The model now starts with Gemma 4's own drafter (MTP) on the GPU for faster replies, falling back to the plain GPU and then the CPU. Model replies now fit a person in bed being cared for (no more "I want a glass of wine" small talk) and avoid repeating cards just passed over. Also: laptop builds can sign with the shared key (`~/.android/outspoken-debug.keystore`), so any APK installs over the last one and nothing is uninstalled; a model picked with "Choose model file" is found at every start. Models stay in Downloads across reinstalls. Waiting for the phone test.
 
 ## Phone test history
 
@@ -75,6 +75,12 @@ How to test on the phone:
 
 - [ ] **Download Gemma 4 E2B or E4B from the eye check page.** The phone's browser downloads the file (the app stays offline); the app moves it in from Downloads and loads it, and can switch between them. Needs the "see Downloads" permission. Code: `setup/ModelCatalog.kt`, `setup/ModelShelf.kt`, `suggest/OnDeviceModel.kt`, `MainActivity.kt`, `ui/EyeCheckScreen.kt`. Tests: `ModelCatalogTest`.
 - [ ] **App icon.** Code: `res/mipmap-*`.
+
+## Help hold says no card (PRD F8)
+
+- [ ] **Holding the eyes shut for help no longer says a card first.** With the app's own settings, a card was chosen 0.4 s into the close while the eyes were still shut, so every help hold said the lit card (for example "I need water") before the alarm. The help test passed only because it used the old blink settings. Now a card is chosen when the eyes open after 0.4 to 1.5 s shut, and a 2 s hold is only ever the help hold. A choice now comes at the reopen, a little later than before. Code: `setup/Tuning.kt` (`chooseWhileShut = false`). Tests: `ConversationHelpTest` "with the app's own blink settings a help hold says no card" (fails on the old setting).
+
+How to test on the phone: with "I need water" lit, hold both eyes shut until the beep (2 s), open, then blink once. The alarm sounds and nothing is said. Then close the eyes about half a second and open: the lit card is said.
 
 ## Getting the phone logs (owner request: "so you can check what is going on")
 
@@ -267,7 +273,7 @@ Design gaps: quick-topic chips on the main page use the glass surface and a 15 p
 
 ## Faster choosing (owner request)
 
-- [ ] **Choose while the eyes are still shut.** Before, a close only chose when the eyes opened again, so every choice waited the whole close plus the reopen. Now it chooses the moment the close reaches the shortest-blink time; the reopen does nothing more. Code: `blink/BlinkDetector.kt` (`chooseWhileShut`), `setup/Tuning.kt`.
+- [ ] **Choose while the eyes are still shut.** Before, a close only chose when the eyes opened again, so every choice waited the whole close plus the reopen. Now it chooses the moment the close reaches the shortest-blink time; the reopen does nothing more. Code: `blink/BlinkDetector.kt` (`chooseWhileShut`), `setup/Tuning.kt`. Now off by default (see "Help hold says no card" above): choosing while shut said the lit card 0.4 s into every help hold. It stays in the code as `chooseWhileShut`.
 - [ ] **Shortest close 0.4 s to 0.3 s.** Published blink studies put spontaneous blinks at about 100 to 150 ms; with the lid gap check, 0.3 s still keeps them out.
 - [ ] **Analysed frames 1280x960 to 640x480.** Phone logs: 30 fps with no face in view, 20 to 25 fps with a face, so the per-frame work was the limit. MediaPipe crops the face to 256 x 256 anyway; preview stays 1280x960, same 4:3 shape so the dots line up. Code: `eye/FrontCamera.kt`.
 
