@@ -4,6 +4,7 @@ import com.outspoken.blink.BlinkDetector
 import com.outspoken.blink.BlinkEvent
 import com.outspoken.eye.EyeSample
 import com.outspoken.log.EventLog
+import com.outspoken.setup.MAX_PRACTICE_BLINK_MS
 import com.outspoken.setup.Tuning
 import com.outspoken.ui.PracticeUi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +35,15 @@ class PracticeController(
     private var baselineOpen = 0.8f
     private var lastEyeOpen = 0.8f
     private var lastEyeState = "Looking for you"
+
+    // Blink accuracy (PRD S1): of the closes long enough to be a try, how many caught a star.
+    private var closeStartMs: Long? = null
+    private var closeCaught = false
+    private var missed = 0
+
+    /** Share of tries that caught a star, 0 to 100; null before the first try. */
+    val accuracyPercent: Float?
+        get() = (caught + missed).takeIf { it > 0 }?.let { caught * 100f / it }
 
     private val _ui = MutableStateFlow(
         PracticeUi(
@@ -71,10 +81,12 @@ class PracticeController(
             else -> "Steady"
         }
 
-        when (val event = detector.onSample(sample)) {
-            is BlinkEvent.Blink -> onBlink(event)
-            else -> Unit
+        val event = detector.onSample(sample)
+        if (event is BlinkEvent.Blink) {
+            closeCaught = true
+            onBlink(event)
         }
+        countTry(sample.timeMs)
 
         publish()
     }
@@ -90,7 +102,10 @@ class PracticeController(
             val openVal = baselineOpen.coerceIn(0.60f, 0.95f)
             val newClosedBelow = (shutVal * 0.55f + openVal * 0.45f).coerceIn(0.38f, 0.52f)
             val newOpenAbove = (newClosedBelow + 0.12f).coerceIn(0.50f, 0.65f)
-            val calibratedHoldTime = (blink.durationMs * 0.85f).toLong().coerceIn(350L, 600L)
+            // Half the close, at most 400 ms: 85% up to 600 ms left the shortest blink at 600 ms
+            // on the phone, and then deliberate closes were thrown away ("ignored 595 ms").
+            val calibratedHoldTime = (blink.durationMs * HOLD_SHARE).toLong()
+                .coerceIn(Tuning().blink.minBlinkMs, MAX_PRACTICE_BLINK_MS)
 
             tuning = tuning.copy(
                 blink = tuning.blink.copy(
@@ -115,7 +130,27 @@ class PracticeController(
         }
     }
 
+    /** A close that ends without catching a star is a missed try, unless it was a normal quick blink. */
+    private fun countTry(timeMs: Long) {
+        val shutSince = detector.shutSinceMs
+        if (shutSince != null) {
+            if (closeStartMs == null) {
+                closeStartMs = shutSince
+                closeCaught = false
+            }
+            return
+        }
+        val start = closeStartMs ?: return
+        closeStartMs = null
+        if (!closeCaught && caught < needed && timeMs - start >= MIN_TRY_MS) {
+            missed++
+            log.write("practice", "missed try, eyes shut ${timeMs - start} ms")
+        }
+    }
+
     fun reset() {
+        missed = 0
+        closeStartMs = null
         caught = 0
         starAt = 0
         lowestDuringClosure = 1f
@@ -140,5 +175,12 @@ class PracticeController(
             holdTimeSeconds = tuning.blink.minBlinkMs / 1000f,
             scanSpeedSeconds = tuning.scanMs / 1000f,
         )
+    }
+
+    private companion object {
+        const val HOLD_SHARE = 0.5f
+
+        /** Normal blinks last about 100 to 150 ms; shorter closes are not counted as tries. */
+        const val MIN_TRY_MS = 150L
     }
 }

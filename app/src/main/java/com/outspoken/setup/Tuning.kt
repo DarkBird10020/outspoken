@@ -30,7 +30,19 @@ data class Tuning(
     // Iris look down on from the start (calibrated runs on the phone gave 0.008 to 0.011), so a
     // failed calibration or a fresh install never leaves looking down off.
     val gaze: GazeSettings = GazeSettings(lookStrength = 0.3f, irisDownStrength = 0.012f),
-)
+    /**
+     * Looking down also moves the highlight. Off by default: it failed about eight phone runs in a
+     * row (it fired on its own and missed real looks). Off, a look up moves to the next card.
+     */
+    val lookDown: Boolean = false,
+) {
+    /** The gaze settings the stepper uses: the look down lines only when looking down is on. */
+    val activeGaze: GazeSettings
+        get() = if (lookDown) gaze else gaze.copy(downStrength = null, irisDownStrength = null)
+}
+
+/** Longest shortest-blink the practice round may set. */
+const val MAX_PRACTICE_BLINK_MS = 400L
 
 /** Keeps [Tuning] across app restarts. */
 class TuningStore(context: Context) {
@@ -43,7 +55,10 @@ class TuningStore(context: Context) {
         val rawMinBlink = prefs.getLong("minBlinkMs", blink.minBlinkMs)
         val rawLookStrength = prefs.getFloat("lookStrength", default.gaze.lookStrength)
         // Guard against stale early settings saved on device that caused hyper-sensitive triggers
-        val safeMinBlink = if (rawMinBlink < 250L) blink.minBlinkMs else rawMinBlink
+        // Builds before version 2 let the practice round save up to 600 ms, which then threw away
+        // deliberate closes (phone log 01:30:06 "blink ignored 595 ms, shorter than 600 ms").
+        val oldPractice = prefs.getInt("version", 1) < VERSION && rawMinBlink > MAX_PRACTICE_BLINK_MS
+        val safeMinBlink = if (rawMinBlink < 250L || oldPractice) blink.minBlinkMs else rawMinBlink
         val safeLookStrength = if (rawLookStrength < 0.35f) default.gaze.lookStrength else rawLookStrength
         return Tuning(
             blink = blink.copy(
@@ -56,6 +71,7 @@ class TuningStore(context: Context) {
             ),
             scanMs = prefs.getLong("scanMs", default.scanMs),
             moveByEyes = prefs.getBoolean("moveByEyes", default.moveByEyes),
+            lookDown = prefs.getBoolean("lookDown", default.lookDown),
             gaze = GazeSettings(
                 lookStrength = safeLookStrength,
                 irisDownStrength = if (prefs.contains("irisDownStrength")) {
@@ -81,6 +97,7 @@ class TuningStore(context: Context) {
 
     fun save(tuning: Tuning) {
         prefs.edit()
+            .putInt("version", VERSION)
             .putFloat("closedBelow", tuning.blink.closedBelow)
             .putFloat("openAbove", tuning.blink.openAbove)
             .putLong("minBlinkMs", tuning.blink.minBlinkMs)
@@ -89,6 +106,7 @@ class TuningStore(context: Context) {
             .putFloat("shapeOpenAbove", tuning.blink.shapeOpenAbove ?: NOT_SET)
             .putLong("scanMs", tuning.scanMs)
             .putBoolean("moveByEyes", tuning.moveByEyes)
+            .putBoolean("lookDown", tuning.lookDown)
             .putFloat("lookStrength", tuning.gaze.lookStrength)
             .putFloat("downStrength", tuning.gaze.downStrength ?: NOT_SET)
             .putFloat("irisDownStrength", tuning.gaze.irisDownStrength ?: NOT_SET)
@@ -102,5 +120,6 @@ class TuningStore(context: Context) {
 
     private companion object {
         const val NOT_SET = -1f
+        const val VERSION = 2
     }
 }

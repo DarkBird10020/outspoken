@@ -48,6 +48,12 @@ class ConversationController(
             moveCursor(0, clockMs)
         }
 
+    /**
+     * True when looking down is off: a look up is then the only look and moves to the next card,
+     * wrapping round, so every card can be reached with it alone.
+     */
+    var upMovesNext = false
+
     // Eye mode: position in board.cards, and the one before the last move, so a blink that
     // began just before a move still picks the card that was lit when the eyes shut.
     private var cursor = 0
@@ -108,7 +114,7 @@ class ConversationController(
             val eyesOpen = !detector.eitherEyeShut(sample) && !wink.active
             when (gaze.onSample(sample.gaze, eyesOpen, nowMs, sample.irisY)) {
                 GazeStep.Next -> moveCursor(cursor + 1, nowMs)
-                GazeStep.Previous -> moveCursor(cursor - 1, nowMs)
+                GazeStep.Previous -> moveCursor(if (upMovesNext) cursor + 1 else cursor - 1, nowMs)
                 null -> Unit
             }
         }

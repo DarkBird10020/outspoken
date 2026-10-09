@@ -97,6 +97,7 @@ fun EyeCheckScreen(
     onSaveLogs: () -> Unit,
     onCalibrate: () -> Unit,
     onAsk: (String) -> Unit,
+    onBack: () -> Unit = {},
 ) {
     val settings = tuning.blink
     val history = remember { mutableStateListOf<EyeSample>() }
@@ -113,10 +114,15 @@ fun EyeCheckScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp)
         ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = onBack) { Text("Back to talking") }
+                Spacer(Modifier.width(12.dp))
+                EyeState(sample, settings, Modifier.weight(1f))
+            }
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .weight(1f)
+                    .weight(0.6f)
             ) {
                 if (cameraGranted) {
                     EyeMonitor(sample, settings, onPreviewReady, onPreviewGone, Modifier.fillMaxSize())
@@ -124,10 +130,11 @@ fun EyeCheckScreen(
                     Button(onClick = onRequestCamera) { Text("Allow camera") }
                 }
             }
+            // Sized to be read from about two metres while someone blinks for an audience.
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .weight(1f)
+                    .weight(1.4f)
                     .verticalScroll(rememberScrollState())
             ) {
                 EyeGraph(
@@ -135,14 +142,15 @@ fun EyeCheckScreen(
                     settings,
                     Modifier
                         .fillMaxWidth()
-                        .height(96.dp)
+                        .height(200.dp)
                         .padding(vertical = 8.dp)
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) { EyeNumbers(sample, fps, settings) }
+                    Column(Modifier.weight(1f)) { Decisions(recentLines) }
                     Spacer(Modifier.width(8.dp))
-                    GazeBox(steadyGaze ?: sample?.gaze, restGaze, steadyIris ?: sample?.irisY, restIris, tuning.gaze, Modifier.size(88.dp))
+                    GazeBox(steadyGaze ?: sample?.gaze, restGaze, steadyIris ?: sample?.irisY, restIris, tuning.activeGaze, Modifier.size(140.dp))
                 }
+                EyeNumbers(sample, fps, settings)
                 recentLines.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
                 AskBox(setup.listenLine, onAsk)
                 Button(onClick = onCalibrate, modifier = Modifier.padding(top = 12.dp)) { Text("Calibrate my eyes (30 s)") }
@@ -193,6 +201,30 @@ fun CameraPreview(onReady: (PreviewView) -> Unit, onGone: (PreviewView) -> Unit,
     )
 }
 
+/** Open, shut or in between, in large coloured letters, from the lower of the two eye values. */
+@Composable
+private fun EyeState(sample: EyeSample?, settings: BlinkSettings, modifier: Modifier) {
+    val open = sample?.takeIf { it.faceFound }?.let { s -> listOfNotNull(s.leftOpen, s.rightOpen).minOrNull() }
+    val (word, color) = when {
+        open == null -> "NO FACE" to Color.Gray
+        open < settings.closedBelow -> "SHUT" to ShutColor
+        open > settings.openAbove -> "OPEN" to OpenColor
+        else -> "BETWEEN" to BetweenColor
+    }
+    Text(word, color = color, style = MaterialTheme.typography.displaySmall, modifier = modifier)
+}
+
+/** The last few blink, look and choose decisions, large enough to read across a table. */
+@Composable
+private fun Decisions(lines: List<String>) {
+    val decisions = lines.filter { line -> NOT_DECISIONS.none { it in line } }.takeLast(4)
+    if (decisions.isEmpty()) Text("No blinks yet", style = MaterialTheme.typography.titleMedium)
+    decisions.forEach { Text(it, style = MaterialTheme.typography.titleMedium) }
+}
+
+/** Running commentary rather than a decision; still in the small list further down. */
+private val NOT_DECISIONS = listOf("eyes shut (", "eyes open after", "face found", "face lost", "speech done")
+
 /** Small dots on each eyelid outline and a ring on each iris, coloured by the blink reading. */
 @Composable
 private fun EyeDots(sample: EyeSample?, settings: BlinkSettings, modifier: Modifier) {
@@ -237,9 +269,10 @@ private fun EyeGraph(history: List<EyeSample>, settings: BlinkSettings, modifier
     val outline = MaterialTheme.colorScheme.outline
     Canvas(modifier) {
         fun y(value: Float) = size.height * (1 - value)
-        val dash = PathEffect.dashPathEffect(floatArrayOf(8f, 8f))
-        drawLine(ShutColor, Offset(0f, y(settings.closedBelow)), Offset(size.width, y(settings.closedBelow)), pathEffect = dash)
-        drawLine(OpenColor, Offset(0f, y(settings.openAbove)), Offset(size.width, y(settings.openAbove)), pathEffect = dash)
+        val dash = PathEffect.dashPathEffect(floatArrayOf(16f, 12f))
+        val line = 3.dp.toPx()
+        drawLine(ShutColor, Offset(0f, y(settings.closedBelow)), Offset(size.width, y(settings.closedBelow)), strokeWidth = line, pathEffect = dash)
+        drawLine(OpenColor, Offset(0f, y(settings.openAbove)), Offset(size.width, y(settings.openAbove)), strokeWidth = line, pathEffect = dash)
         drawLine(outline, Offset(0f, size.height), Offset(size.width, size.height))
         val end = history.lastOrNull()?.timeMs ?: return@Canvas
         fun x(timeMs: Long) = size.width * (1 - (end - timeMs).toFloat() / GRAPH_MS)
@@ -249,7 +282,7 @@ private fun EyeGraph(history: List<EyeSample>, settings: BlinkSettings, modifier
                 val v = value(s)
                 val point = if (s.faceFound && v != null) Offset(x(s.timeMs), y(v)) else null
                 val from = last
-                if (from != null && point != null) drawLine(color, from, point, strokeWidth = 2.dp.toPx())
+                if (from != null && point != null) drawLine(color, from, point, strokeWidth = 4.dp.toPx())
                 last = point
             }
         }
@@ -289,9 +322,9 @@ private fun GazeBox(gaze: Dot?, restGaze: Float?, irisY: Float?, restIris: Float
             if (irisLine != null || downLine != null) drawLine(OpenColor, Offset(0f, yOf(1f)), Offset(size.width, yOf(1f)), pathEffect = dash)
             if (gaze == null) return@Canvas
             val x = (gaze.x * GAZE_SCALE).coerceIn(-1f, 1f)
-            drawCircle(dot, radius = 6.dp.toPx(), center = Offset(size.width * (1 + x) / 2, yOf(value)))
+            drawCircle(dot, radius = 10.dp.toPx(), center = Offset(size.width * (1 + x) / 2, yOf(value)))
         }
-        Text(gazeWords(value, irisLine != null), style = MaterialTheme.typography.bodySmall)
+        Text(gazeWords(value, irisLine != null), style = MaterialTheme.typography.titleMedium)
     }
 }
 
@@ -334,24 +367,30 @@ private fun TuningSliders(tuning: Tuning, onChange: (Tuning) -> Unit, onReset: (
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            if (tuning.moveByEyes) "Highlight moves with the eyes (look down / up)" else "Highlight moves on a timer",
+            if (tuning.moveByEyes) "Mode: eyes. Look up for the next card, blink to choose" else "Mode: blink only. The highlight moves on a timer, blink to choose",
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.weight(1f),
         )
         Switch(checked = tuning.moveByEyes, onCheckedChange = { onChange(tuning.copy(moveByEyes = it)) })
     }
     if (tuning.moveByEyes) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Looking down also moves (off: look up goes to the next card)", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+            Switch(checked = tuning.lookDown, onCheckedChange = { onChange(tuning.copy(lookDown = it)) })
+        }
         LabeledSlider("Look up distance: ${tuning.gaze.lookStrength.formatOpen()}", tuning.gaze.lookStrength, 0.1f..0.9f) {
             onChange(tuning.copy(gaze = tuning.gaze.copy(lookStrength = it)))
         }
-        tuning.gaze.irisDownStrength?.let { iris ->
+        tuning.gaze.irisDownStrength?.takeIf { tuning.lookDown }?.let { iris ->
             LabeledSlider("Look down (iris): ${String.format(Locale.US, "%.3f", iris)} - lower is more sensitive", iris, 0.005f..0.08f) {
                 onChange(tuning.copy(gaze = tuning.gaze.copy(irisDownStrength = it)))
             }
         }
-        val down = tuning.gaze.downStrength
-        LabeledSlider("Look down distance: ${down?.formatOpen() ?: "off"}", down ?: 0f, 0f..0.9f) {
-            onChange(tuning.copy(gaze = tuning.gaze.copy(downStrength = it.takeIf { v -> v >= 0.05f })))
+        if (tuning.lookDown) {
+            val down = tuning.gaze.downStrength
+            LabeledSlider("Look down distance: ${down?.formatOpen() ?: "off"}", down ?: 0f, 0f..0.9f) {
+                onChange(tuning.copy(gaze = tuning.gaze.copy(downStrength = it.takeIf { v -> v >= 0.05f })))
+            }
         }
         LabeledSlider("Look hold: ${tuning.gaze.lookHoldMs} ms", tuning.gaze.lookHoldMs.toFloat(), 100f..1_000f) {
             onChange(tuning.copy(gaze = tuning.gaze.copy(lookHoldMs = it.roundTo(10))))

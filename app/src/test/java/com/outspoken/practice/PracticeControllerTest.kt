@@ -4,6 +4,7 @@ import com.outspoken.blink.BlinkSettings
 import com.outspoken.eye.EyeSample
 import com.outspoken.setup.Tuning
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -81,5 +82,29 @@ class PracticeControllerTest {
         controller.reset()
         assertEquals(0, controller.ui.value.caught)
         assertEquals(0, controller.ui.value.starAt)
+    }
+
+    @Test
+    fun `a long practice blink never sets the shortest blink above 400 ms`() {
+        blink(850)
+        assertEquals(400L, calibratedTuning!!.blink.minBlinkMs)
+    }
+
+    @Test
+    fun `accuracy counts caught stars against missed tries`() {
+        assertNull(controller.accuracyPercent)
+        blink(450)
+        // Shut long enough to be a try, too short to choose.
+        blink(160)
+        blink(450)
+        blink(450)
+        assertEquals(75f, controller.accuracyPercent!!, 0.01f)
+    }
+
+    @Test
+    fun `normal quick blinks are not counted as missed tries`() {
+        blink(450)
+        blink(100)
+        assertEquals(100f, controller.accuracyPercent!!, 0.01f)
     }
 }

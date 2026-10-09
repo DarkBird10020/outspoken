@@ -21,7 +21,7 @@ object AppLog : EventLog {
 
     private val _recent = MutableStateFlow<List<String>>(emptyList())
 
-    /** The last few blink and selection lines, for the debug screen. */
+    /** The last few blink, look and selection lines, for the debug screen. */
     val recent: StateFlow<List<String>> = _recent.asStateFlow()
 
     override fun write(area: String, message: String) {
@@ -30,7 +30,7 @@ object AppLog : EventLog {
     }
 
     private fun onScreen(area: String, message: String) =
-        area == "blink" || (area == "scan" && !message.startsWith("highlight"))
+        area == "blink" || area == "gaze" || (area == "scan" && !message.startsWith("highlight"))
 
-    private const val RECENT_LINES = 6
+    private const val RECENT_LINES = 8
 }

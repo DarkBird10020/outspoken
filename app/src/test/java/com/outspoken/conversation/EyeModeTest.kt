@@ -63,6 +63,18 @@ class EyeModeTest {
     }
 
     @Test
+    fun `with looking down off a look up moves to the next card and wraps round`() {
+        controller.upMovesNext = true
+        frames(500)
+        lookUp()
+        assertEquals(1, highlighted)
+        repeat(5) { lookUp() }
+        assertEquals(0, highlighted)
+        blink()
+        assertEquals(listOf("I need water"), said)
+    }
+
+    @Test
     fun `looking down then up comes back`() {
         frames(500)
         lookDown()
