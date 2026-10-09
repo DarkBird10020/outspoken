@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: a damaged model download is caught by its checksum and named plainly, instead of "Engine is not initialized" every 3 s. Download the model again; the app checks it once (about 2 s). Waiting for the phone test.
+Latest: "Share logs" on the eye check page sends the run logs straight into a chat, and `tools\phone-logs.ps1` keeps a live copy on the laptop (CLAUDE.md section 12). A damaged model download is caught by its checksum and named plainly, instead of "Engine is not initialized" every 3 s. Download the model again; the app checks it once (about 2 s). Waiting for the phone test.
 
 Also: choosing now needs the eyes held shut for 0.4 s; the phone starts speaking the moment it is reached. The phone logs of 2026-10-10 showed unprompted blinks of 200 to 242 ms picking cards ("I need water" five times in 11 s) and a double blink picking one, so the hold went up from 0.2 s and double blinks are off by default. Listening no longer drops the working on-device recogniser when the phone speaks. Time with no face no longer counts as eyes shut (a close seen under 0.2 s, then the face lost for 0.2 s, picked a card). The model now starts with Gemma 4's own drafter (MTP) on the GPU for faster replies, falling back to the plain GPU and then the CPU. Model replies now fit a person in bed being cared for (no more "I want a glass of wine" small talk) and avoid repeating cards just passed over. Also: laptop builds can sign with the shared key (`~/.android/outspoken-debug.keystore`), so any APK installs over the last one and nothing is uninstalled; a model picked with "Choose model file" is found at every start. Models stay in Downloads across reinstalls. Waiting for the phone test.
 
@@ -75,6 +75,14 @@ How to test on the phone:
 
 - [ ] **Download Gemma 4 E2B or E4B from the eye check page.** The phone's browser downloads the file (the app stays offline); the app moves it in from Downloads and loads it, and can switch between them. Needs the "see Downloads" permission. Code: `setup/ModelCatalog.kt`, `setup/ModelShelf.kt`, `suggest/OnDeviceModel.kt`, `MainActivity.kt`, `ui/EyeCheckScreen.kt`. Tests: `ModelCatalogTest`.
 - [ ] **App icon.** Code: `res/mipmap-*`.
+
+## Getting the phone logs (owner request: "so you can check what is going on")
+
+- [ ] **"Share logs" on the eye check page.** One tap puts every run log in one file and opens the phone's share sheet; pick the Claude app and send it into the chat. No laptop needed, and the app itself still sends nothing (no INTERNET permission). Code: `MainActivity.kt` (`shareLogs`), `ui/EyeCheckScreen.kt`, `AndroidManifest.xml` (file provider: lets the picked app read that one file), `res/xml/log_paths.xml`.
+- [ ] **Live copy on the laptop.** `tools\phone-logs.ps1` copies the run logs and the logcat lines into `phone-logs/` every 30 s while the phone is on USB or wireless debugging. Steps in `CLAUDE.md` section 12.
+- [ ] **Logs never go into the repo.** The repo is public and the logs hold what people said near the phone. `phone-logs/` is ignored by git, and CI fails if a log file is ever committed.
+
+How to test on the phone: eye check page → Share logs → Claude app; the file "outspoken-logs.txt" should attach. On the laptop: run the script with the phone plugged in; `phone-logs/` fills with `outspoken-*.log` files.
 
 ## Picks only from a held close (phone logs of 2026-10-10)
 
@@ -529,7 +537,7 @@ Run on every push and pull request (`.github/workflows/ci.yml`). The `main` rule
 
 | Check | What it catches |
 |---|---|
-| Unit tests | Logic that broke (`./gradlew testDebugUnitTest`) |
+| Unit tests | Logic that broke (`./gradlew testDebugUnitTest`). Also fails if a phone log is committed (`phone-logs/` or any `.log` file) |
 | Android lint | Common Android mistakes (`./gradlew lintDebug`) |
 | Build APK | Code that does not compile. Also fails if the APK asks for INTERNET. Uploads `outspoken-debug-apk` |
 
