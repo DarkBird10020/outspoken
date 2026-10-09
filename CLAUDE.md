@@ -89,3 +89,11 @@ The owner tests on the phone and is new to this, so `PROGRESS.md` is their recor
 - CI (`.github/workflows/ci.yml`) runs on every push and pull request: unit tests, Android lint, debug APK build with a no-INTERNET check. The APK is uploaded as `outspoken-debug-apk` so the owner can install it without building.
 - After every push, check CI. Red CI is the next job: fix the cause. Never skip, disable or loosen a check to get green.
 - When a new rule must never break (for example a forbidden permission or file), add a CI step for it and a row to the CI table in `PROGRESS.md`.
+
+## 11. Protecting `main`
+
+`main` is guarded by a GitHub ruleset named `main` (Settings → Rules → Rulesets). The owner manages it. It targets the default branch, blocks deletion and force pushes, requires a pull request (0 approvals, so the owner can merge their own), requires the CI checks `Unit tests`, `Android lint` and `Build APK`, and has an empty bypass list.
+
+- Never push to `main` directly. Work on a branch; open a pull request only when the owner asks.
+- The required checks are the job names in `.github/workflows/ci.yml`. Never rename or remove those jobs: a missing check stays pending and blocks every merge. When a new job must always pass, ask the owner to add it to the ruleset.
+- To set the ruleset up again, give the owner these steps: Settings → Rules → Rulesets → New ruleset → New branch ruleset. Name `main`, Enforcement status Active. Target branches → Add target → Include default branch. Tick Restrict deletions, Block force pushes, Require a pull request before merging (Required approvals 0) and Require status checks to pass (add `Unit tests`, `Android lint`, `Build APK`). Leave the bypass list empty. Create.

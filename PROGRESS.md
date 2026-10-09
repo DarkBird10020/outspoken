@@ -36,7 +36,7 @@ Extras beyond the PRD:
 
 ## CI checks
 
-Run on every push and pull request (`.github/workflows/ci.yml`). All must be green before merging to `main`.
+Run on every push and pull request (`.github/workflows/ci.yml`). The `main` ruleset requires all three to be green before a pull request can merge.
 
 | Check | What it catches |
 |---|---|
