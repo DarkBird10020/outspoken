@@ -25,6 +25,9 @@ class WinkDetector(
     private var sinceMs = 0L
     private var fired = false
 
+    /** One eye is held shut right now, whether or not the wink has fired yet. */
+    val active: Boolean get() = winking != null
+
     fun onSample(sample: EyeSample, settings: BlinkSettings): Wink? {
         val left = sample.leftOpen
         val right = sample.rightOpen
