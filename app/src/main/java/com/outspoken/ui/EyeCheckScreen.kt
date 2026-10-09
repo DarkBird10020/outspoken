@@ -80,6 +80,7 @@ fun EyeCheckScreen(
     onPreviewGone: (PreviewView) -> Unit,
     onChooseModel: () -> Unit,
     onSaveLogs: () -> Unit,
+    onCalibrate: () -> Unit,
 ) {
     val settings = tuning.blink
     val history = remember { mutableStateListOf<EyeSample>() }
@@ -127,6 +128,7 @@ fun EyeCheckScreen(
                     GazeBox(sample?.gaze, Modifier.size(88.dp))
                 }
                 recentLines.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                Button(onClick = onCalibrate, modifier = Modifier.padding(top = 12.dp)) { Text("Calibrate my eyes (25 s)") }
                 TuningSliders(tuning, onTuningChange, onTuningReset)
                 Text("Model: ${setup.modelLine}", style = MaterialTheme.typography.bodySmall)
                 Button(onClick = onChooseModel) { Text("Choose model file") }

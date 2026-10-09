@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: merged main's look-up-only stepping, crash fix, portrait lock and live eye view on the main page with the cloud branch's Gemma replies, model picker and Save logs. Waiting for the phone test.
+Latest: calibration (PRD F6) measures the eyes at every start and sets the look and blink lines from them, merged with Gemma replies, model picker and Save logs. Waiting for the phone test.
 
 ## Phone test history
 
@@ -14,6 +14,14 @@ Latest: merged main's look-up-only stepping, crash fix, portrait lock and live e
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
+
+## Calibration (PRD F6)
+
+- [ ] **Measures the eyes at every start, about 25 s, spoken.** "Look at the screen", "Look up, above the phone" (twice), "Close your eyes" (twice). From those: the look needed to move is half of the smaller look up measured, the shut line is halfway between closed and open, the open line three quarters of the way up. Saved, and logged as `calibration: ok: ...`. If a step is not seen (face out of view, no look up, eyes not closed) it says why and keeps the old lines; "Try again" or "Skip". Also a "Calibrate my eyes" button on the eye check page. Code: `setup/Calibration.kt`, `ui/CalibrationScreen.kt`, `MainActivity.kt`.
+- Why: the phone logs showed the eye readings move with where the phone sits. One test had the resting gaze at about 0.55 and eye closes at 0.22 to 0.36; the next had the resting gaze at about 0.0 and eye closes at 0.39 to 0.58. Fixed lines that worked in one test stopped looks or blinks completely in the next, and with the phone at eye level a look up had to reach the very top of the eyes.
+
+Unit tests:
+- `CalibrationTest`: lines set from the measured eyes, prompts in order, fails and says why with no look up, no eye close or no face, other settings kept.
 
 ## Eyes move the highlight (owner decision)
 
