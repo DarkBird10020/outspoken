@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: interactive practice tutorial screen (PRD F6) wired up for onboarding and calibration; bidirectional gaze stepping (look down = move down, look up = move up) with reading glance boundary; asymmetric eyelid and lid gap blink detection; spoken calibration, Gemma replies, visitor listening (F7), help alarm (F8), and session stats (S1) merged.
+Latest: interactive practice tutorial screen (PRD F6); faster choosing while eyes are still shut with 640x480 analysis; bidirectional gaze stepping with reading glance boundary; asymmetric eyelid and lid gap blink detection; spoken calibration, Gemma replies, visitor listening (F7), help alarm (F8), and session stats (S1) merged.
 
 ## Phone test history
 
@@ -25,6 +25,15 @@ The app now launches with an interactive practice round on first use, teaches th
 - [x] **Yaw jitter tolerance during eye closure.** When eyes shut, MediaPipe facial mesh points contract and yaw temporarily jumps up to -50°. In-progress closures are no longer cancelled by transient yaw spikes while the face remains detected. Code: `blink/BlinkDetector.kt`.
 - [x] **Reading glance isolation in GazeStepper.** Gaze stepping now requires eyes to look towards or above the top bezel (`gaze.y < 0.20f`) in addition to `-dy >= lookStrength`, preventing glances between cards on the screen from triggering unintended card jumps. Code: `scan/GazeStepper.kt`.
 - [x] **Stale preferences guard.** `TuningStore` upgrades hyper-sensitive legacy values (`minBlinkMs < 350` or `lookStrength < 0.35`) to recommended stable defaults. Code: `setup/Tuning.kt`.
+
+## Faster choosing (owner request)
+
+- [ ] **Choose while the eyes are still shut.** Before, a close only chose when the eyes opened again, so every choice waited the whole close plus the reopen. Now it chooses the moment the close reaches the shortest-blink time; the reopen does nothing more. Code: `blink/BlinkDetector.kt` (`chooseWhileShut`), `setup/Tuning.kt`.
+- [ ] **Shortest close 0.4 s to 0.3 s.** Published blink studies put spontaneous blinks at about 100 to 150 ms; with the lid gap check, 0.3 s still keeps them out.
+- [ ] **Analysed frames 1280x960 to 640x480.** Phone logs: 30 fps with no face in view, 20 to 25 fps with a face, so the per-frame work was the limit. MediaPipe crops the face to 256 x 256 anyway; preview stays 1280x960, same 4:3 shape so the dots line up. Code: `eye/FrontCamera.kt`.
+
+Unit tests:
+- `BlinkDetectorTest`: choosing while shut fires once at the shortest-blink time and not again on reopen; a normal blink still does nothing.
 
 ## Look down and up (owner request)
 
