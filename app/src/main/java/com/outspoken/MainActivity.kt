@@ -1,10 +1,13 @@
 package com.outspoken
 
 import android.Manifest
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.net.Uri
-import android.content.pm.PackageManager
+import android.os.BatteryManager
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.WindowManager
@@ -16,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -39,6 +43,7 @@ import com.outspoken.setup.TuningStore
 import com.outspoken.setup.checkOfflineVoice
 import com.outspoken.setup.findModelFile
 import com.outspoken.speech.Speaker
+import com.outspoken.stats.PitStats
 import com.outspoken.suggest.ModelImporter
 import com.outspoken.suggest.ModelState
 import com.outspoken.suggest.ModelSuggestionEngine
@@ -46,12 +51,14 @@ import com.outspoken.suggest.OnDeviceModel
 import com.outspoken.suggest.SuggestionEngine
 import com.outspoken.suggest.SuggestionRequest
 import com.outspoken.suggest.Turn
-import com.outspoken.ui.ConversationScreen
-import com.outspoken.ui.HelpAlertScreen
 import com.outspoken.ui.CalibrationScreen
+import com.outspoken.ui.ConversationScreen
 import com.outspoken.ui.EyeCheckScreen
 import com.outspoken.ui.EyeMonitor
+import com.outspoken.ui.HelpAlertScreen
 import com.outspoken.ui.SetupStatus
+import com.outspoken.ui.StatsScreen
+import com.outspoken.ui.StatsUi
 import com.outspoken.ui.describeReplies
 import com.outspoken.ui.theme.OutspokenTheme
 import kotlinx.coroutines.Dispatchers
@@ -65,7 +72,7 @@ import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
 
-    private enum class Screen { Conversation, EyeCheck, Calibrate, Help }
+    private enum class Screen { Conversation, EyeCheck, Calibrate, Help, Stats }
 
     private lateinit var speaker: Speaker
     private lateinit var camera: FrontCamera
@@ -91,6 +98,7 @@ class MainActivity : ComponentActivity() {
     private var tuning by mutableStateOf(Tuning())
     private lateinit var listener: Listener
     private lateinit var alarm: HelpAlarm
+    private val pitStats = PitStats(SystemClock.elapsedRealtime())
     private var cue: ToneGenerator? = null
     private val heardFilter = HeardFilter()
     private var listenLine by mutableStateOf("off")
@@ -203,7 +211,20 @@ class MainActivity : ComponentActivity() {
                     delay(TICK_MS)
                 }
             }
-            if (screen == Screen.Help) {
+            if (screen == Screen.Stats) {
+                BackHandler { show(Screen.Conversation) }
+                var nowMs by remember { mutableStateOf(now()) }
+                LaunchedEffect(Unit) {
+                    while (true) {
+                        nowMs = now()
+                        delay(STATS_REFRESH_MS)
+                    }
+                }
+                val modelState by OnDeviceModel.state.collectAsStateWithLifecycle()
+                OutspokenTheme {
+                    StatsScreen(statsUi(nowMs, modelState), onBack = { show(Screen.Conversation) })
+                }
+            } else if (screen == Screen.Help) {
                 BackHandler { stopHelp() }
                 OutspokenTheme {
                     HelpAlertScreen(
@@ -270,8 +291,7 @@ class MainActivity : ComponentActivity() {
                         ui = conversation,
                         // The practice round arrives in M3; until then this shows the live eye numbers.
                         onPractice = { show(Screen.EyeCheck) },
-                        // Session stats arrive in M4; until then this opens the eye check screen.
-                        onStats = { show(Screen.EyeCheck) },
+                        onStats = { show(Screen.Stats) },
                         onSelect = { controller.onTap(it, now()) },
                         eyeHint = if (tuning.moveByEyes) "Look up: next.  Close eyes: choose." else "Close your eyes when your choice lights up.",
                         eyeView = { modifier ->
@@ -373,6 +393,31 @@ class MainActivity : ComponentActivity() {
         if (controller.moveByEyes != next.moveByEyes) controller.moveByEyes = next.moveByEyes
     }
 
+    private fun statsUi(nowMs: Long, model: ModelState) = StatsUi(
+        replyTimeSeconds = pitStats.replyTimeSeconds,
+        tokensPerSecond = pitStats.tokensPerSecond,
+        repliesWritten = pitStats.repliesWritten,
+        phoneTempCelsius = phoneTemperature(),
+        modelName = (model as? ModelState.Ready)?.name?.removeSuffix(".litertlm") ?: "No model loaded",
+        runtime = "LiteRT-LM" + ((model as? ModelState.Ready)?.let { " on ${it.backend}" } ?: ""),
+        // The practice round that measures this is not rebuilt yet.
+        blinkAccuracyPercent = null,
+        sessionMillis = pitStats.sessionMillis(nowMs),
+        sentencesSpoken = controller.history.size,
+    )
+
+    /** Battery temperature, the phone's own reading, in °C; null when the phone does not give it. */
+    private fun phoneTemperature(): Float? {
+        val battery = ContextCompat.registerReceiver(
+            this,
+            null,
+            IntentFilter(Intent.ACTION_BATTERY_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        ) ?: return null
+        val tenths = battery.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
+        return if (tenths == Int.MIN_VALUE) null else tenths / 10f
+    }
+
     private fun onHelpStep(step: HelpStep) {
         when (step) {
             HelpStep.HoldReached -> cue?.startTone(ToneGenerator.TONE_PROP_BEEP2, CUE_MS)
@@ -419,6 +464,7 @@ class MainActivity : ComponentActivity() {
         replyJob = lifecycleScope.launch {
             val suggestions = engine.suggest(SuggestionRequest(turns, LocalTime.now().hour))
             lastReplyLine = describeReplies(suggestions.elapsedMs, suggestions.fromModel, suggestions.tokensPerSecond)
+            pitStats.onReplies(suggestions.elapsedMs, suggestions.fromModel, suggestions.tokensPerSecond)
             AppLog.write(
                 "model",
                 "replies in ${suggestions.elapsedMs} ms, ${suggestions.tokensPerSecond ?: "-"} tok/s, " +
@@ -478,6 +524,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private companion object {
+        const val STATS_REFRESH_MS = 1_000L
         const val CUE_MS = 200
         const val CUE_VOLUME = 80
         const val TICK_MS = 50L

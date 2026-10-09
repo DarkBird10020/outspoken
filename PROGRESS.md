@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: help alarm (F8) built: hold the eyes shut 2 s (a beep sounds), open them, blink once within 5 s, and the phone sounds its alarm at full volume with the designed help screen. Listening (F7) built before it. Waiting for the phone test.
+Latest: the stats screen (S1) shows this session's reply time, model speed, replies written, phone temperature, session length and sentences spoken. Before it: help alarm (F8) and listening (F7). Waiting for the phone test.
 
 ## Phone test history
 
@@ -214,20 +214,23 @@ Extras beyond the PRD:
 ## M4. Alarm, stats, laptop view (started)
 
 PRD pass test: the help alarm, the stats screen and the laptop view all shown in one run.
-Status: in progress. The help alarm is built; stats and the laptop view are next.
+Status: in progress. The help alarm and the stats screen are built; the laptop view is next.
 
 - [ ] **Help alarm** (F8). Eyes held shut for 2 s: a beep says the hold is done. Open the eyes and blink once within 5 s: the phone's alarm sound plays on the alarm channel, looping, at full volume, and the designed help screen fills the display with the last thing said. "I am here" (or back) stops it and returns to the cards; the speaker button silences it. The confirm blink never picks a card, and the hold itself never counts as a blink. Works even while the phone is speaking. Code: `help/HelpTrigger.kt`, `help/HelpAlarm.kt`, `conversation/ConversationController.kt`, `ui/HelpAlertScreen.kt`.
 - Why two steps: a person resting with their eyes closed should not set it off alone.
+- [ ] **Stats screen** (S1). The designed screen, opened with the stats button (bar chart). Average reply time and model speed (tokens per second) over this session's model answers, replies written, the phone's temperature (battery sensor), model name and runtime, session length, sentences spoken. Updates every second. Blink accuracy shows "-" until the practice round is rebuilt. Code: `stats/PitStats.kt`, `ui/StatsScreen.kt`, `MainActivity.kt`.
 
 How to test on the phone:
 1. On the conversation page, close your eyes and keep them closed until the beep (2 s).
 2. Open your eyes, then close them for about half a second once.
 3. The alarm sounds and the pink help screen shows "Help needed". Tap "I am here".
 4. Also try: close your eyes for 3 s and just open them, then wait 6 s. Nothing should happen.
+5. Tap the stats button (bar chart). After a few answers from the model, reply time and model speed fill in; session length counts up.
 
 Unit tests:
 - `HelpTriggerTest`: the cue once, alarm on the confirm blink, short closes do nothing, no confirm in 5 s cancels, the hold is never a pick.
 - `ConversationHelpTest`: hold, open, blink raises the alarm and says no card; a normal pick raises nothing.
+- `PitStatsTest`: averages, replies written, fallbacks kept apart, session length.
 
 ## Design (from the teammate)
 
