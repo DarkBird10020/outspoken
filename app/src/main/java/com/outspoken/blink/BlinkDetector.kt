@@ -41,6 +41,12 @@ data class BlinkSettings(
      * Evens out single-frame jitter; at 0.65 and 25 fps it adds about 15 ms.
      */
     val smoothing: Float = 1f,
+    /**
+     * Two quick closes in a row also choose, however short each is. With glasses on the owner's
+     * closes came through at 109 to 168 ms and were ignored; people blink again when a close does
+     * not take, and natural double blinks are rare.
+     */
+    val doubleBlink: Boolean = false,
 )
 
 sealed interface BlinkEvent {
@@ -67,6 +73,7 @@ class BlinkDetector(
 
     /** This close already chose a card, so its reopen must not choose again. */
     private var chosen = false
+    private var lastQuickCloseEndMs: Long? = null
     private var smoothLeft: Float? = null
     private var smoothRight: Float? = null
 
@@ -114,6 +121,15 @@ class BlinkDetector(
             if (duration in settings.minBlinkMs..settings.maxBlinkMs) {
                 log.write("blink", "blink $duration ms")
                 return BlinkEvent.Blink(closedSince, duration)
+            }
+            if (settings.doubleBlink && duration in DOUBLE_MIN_MS until settings.minBlinkMs) {
+                val previous = lastQuickCloseEndMs
+                lastQuickCloseEndMs = sample.timeMs
+                if (previous != null && closedSince - previous <= DOUBLE_GAP_MS) {
+                    lastQuickCloseEndMs = null
+                    log.write("blink", "double blink, second close $duration ms")
+                    return BlinkEvent.Blink(closedSince, duration)
+                }
             }
             val why = if (duration < settings.minBlinkMs) {
                 "shorter than ${settings.minBlinkMs} ms"
@@ -178,4 +194,12 @@ class BlinkDetector(
     }
 
     private fun open(value: Float) = String.format(Locale.US, "%.2f", value)
+
+    private companion object {
+        /** Shorter closes are noise or the start of a normal blink. */
+        const val DOUBLE_MIN_MS = 60L
+
+        /** Most the gap between the two closes of a double blink may be. */
+        const val DOUBLE_GAP_MS = 800L
+    }
 }
