@@ -15,7 +15,9 @@ data class BlinkSettings(
     val closedRatio: Float = 0.4f,
     val openRatio: Float = 0.65f,
     val minBlinkMs: Long = 500,
-    val maxBlinkMs: Long = 1500,
+    /** A blink at least this long chooses the card; a shorter one moves to the next card. */
+    val chooseBlinkMs: Long = 1000,
+    val maxBlinkMs: Long = 1900,
     // ML Kit only gives eye-open values for faces turned left or right at most 18 degrees.
     val maxYawDeg: Float = 18f,
     // Looking down at a phone on a table tilts the head, and ML Kit sets no limit for it.
@@ -26,8 +28,11 @@ data class BlinkSettings(
 )
 
 sealed interface BlinkEvent {
-    /** An intentional blink. [startMs] is when the eyes shut. */
-    data class Blink(val startMs: Long, val durationMs: Long) : BlinkEvent
+    /** An intentional blink. [startMs] is when the eyes shut; [long] means it chooses. */
+    data class Blink(val startMs: Long, val durationMs: Long, val long: Boolean) : BlinkEvent
+
+    /** The eyes are still shut and have now been shut long enough to choose. */
+    data object LongReached : BlinkEvent
 
     /** Eyes shut and opened again, but too short or too long to be a choice. */
     data class Rejected(val startMs: Long, val durationMs: Long) : BlinkEvent
@@ -71,6 +76,7 @@ class BlinkDetector(
     private var closedSinceMs: Long? = null
     private var openSinceMs = 0L
     private var openStreak = 0
+    private var longReported = false
 
     fun onSample(sample: EyeSample): BlinkEvent? {
         val left = sample.leftOpen
@@ -103,6 +109,7 @@ class BlinkDetector(
                 log.write("blink", "eyes shut (left ${open(left)}, right ${open(right)}, line ${open(closedBelow)})")
                 closedSinceMs = timeMs
                 openStreak = 0
+                longReported = false
                 lastLearnMs = null
             } else {
                 learnOpenLevel(timeMs)
@@ -112,11 +119,17 @@ class BlinkDetector(
 
         if (maxOf(left, right) <= openAbove) {
             openStreak = 0
+            val shutFor = timeMs - closedSince
             // Shut far longer than any blink: these lids are this person's open level.
-            if (timeMs - closedSince > STUCK_MS) {
+            if (shutFor > STUCK_MS) {
                 closedSinceMs = null
                 openLevel = eyeLevel / settings.openRatio
                 log.write("blink", "shut for over ${STUCK_MS / 1000} s, taking ${open(eyeLevel)} as open eyes")
+                return null
+            }
+            if (!longReported && shutFor in settings.chooseBlinkMs..settings.maxBlinkMs) {
+                longReported = true
+                return BlinkEvent.LongReached
             }
             return null
         }
@@ -131,8 +144,9 @@ class BlinkDetector(
         val accepted = duration in settings.minBlinkMs..settings.maxBlinkMs
         remember(Closure(duration, accepted))
         if (accepted) {
-            log.write("blink", "blink $duration ms")
-            return BlinkEvent.Blink(closedSince, duration)
+            val long = duration >= settings.chooseBlinkMs
+            log.write("blink", "${if (long) "long" else "short"} blink $duration ms")
+            return BlinkEvent.Blink(closedSince, duration, long)
         }
         val why = if (duration < settings.minBlinkMs) "shorter than ${settings.minBlinkMs} ms" else "longer than ${settings.maxBlinkMs} ms"
         log.write("blink", "ignored $duration ms, $why")

@@ -13,7 +13,6 @@ class PracticeSessionTest {
     private val session = PracticeSession(
         detector,
         startMs = 0,
-        scanIntervalMs = 1_200,
         measureMs = 3_000,
         litMs = 2_500,
         gapMs = 1_000,
@@ -122,6 +121,6 @@ class PracticeSessionTest {
         val ui = session.update(time)
         assertEquals(0.6f, ui.eyeOpen, 0.01f)
         assertEquals(detector.closedBelow, ui.blinkLevel, 0.0001f)
-        assertEquals(1.2f, ui.scanSpeedSeconds, 0.0001f)
+        assertEquals(1.0f, ui.longBlinkSeconds, 0.0001f)
     }
 }

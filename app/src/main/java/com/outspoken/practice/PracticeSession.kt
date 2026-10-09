@@ -15,7 +15,6 @@ import java.util.Locale
 class PracticeSession(
     private val detector: BlinkDetector,
     private val startMs: Long,
-    private val scanIntervalMs: Long,
     private val measureMs: Long = 8_000,
     private val litMs: Long = 2_500,
     private val gapMs: Long = 1_200,
@@ -84,7 +83,7 @@ class PracticeSession(
                 else -> "Steady"
             },
             holdTimeSeconds = detector.settings.minBlinkMs / 1000f,
-            scanSpeedSeconds = scanIntervalMs / 1000f,
+            longBlinkSeconds = detector.settings.chooseBlinkMs / 1000f,
         )
     }
 
@@ -102,12 +101,14 @@ class PracticeSession(
         detector.openLevel = levels.sorted()[levels.size / 2]
         naturalBlinks.filter { it < NATURAL_BLINK_LIMIT_MS }.maxOrNull()?.let { longest ->
             val hold = (longest + HOLD_MARGIN_MS).coerceIn(MIN_HOLD_MS, MAX_HOLD_MS)
-            detector.settings = detector.settings.copy(minBlinkMs = hold)
+            val choose = maxOf(detector.settings.chooseBlinkMs, hold + SHORT_TO_LONG_GAP_MS)
+            detector.settings = detector.settings.copy(minBlinkMs = hold, chooseBlinkMs = choose)
         }
         log.write(
             "practice",
             "calibrated: open level ${"%.2f".format(Locale.US, detector.openLevel)}, " +
-                "natural blinks ${naturalBlinks}, hold ${detector.settings.minBlinkMs} ms",
+                "natural blinks $naturalBlinks, short blink from ${detector.settings.minBlinkMs} ms, " +
+                "long blink from ${detector.settings.chooseBlinkMs} ms",
         )
         roundStartMs = maxOf(roundStartMs, nowMs + gapMs)
     }
@@ -145,5 +146,6 @@ class PracticeSession(
         const val HOLD_MARGIN_MS = 150L
         const val MIN_HOLD_MS = 400L
         const val MAX_HOLD_MS = 700L
+        const val SHORT_TO_LONG_GAP_MS = 400L
     }
 }

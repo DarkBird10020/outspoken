@@ -16,15 +16,17 @@ sealed interface ModelState {
     data class Failed(val name: String, val reason: String) : ModelState
 }
 
-/** Loads the model once per app process, so it survives the activity being recreated. */
+/** Holds the model for the whole app process, so it survives the activity being recreated. */
 object OnDeviceModel {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _state = MutableStateFlow<ModelState>(ModelState.Missing)
     val state: StateFlow<ModelState> = _state.asStateFlow()
 
-    fun loadOnce(file: File?, cacheDir: File) {
-        if (file == null || _state.value !is ModelState.Missing) return
+    /** Loads [file] unless a model is already loading or loaded. A failed load can be retried. */
+    fun load(file: File?, cacheDir: File) {
+        val current = _state.value
+        if (file == null || current is ModelState.Loading || current is ModelState.Ready) return
         _state.value = ModelState.Loading(file.name)
         scope.launch {
             val model = LiteRtLmModel(file.path, cacheDir.path)

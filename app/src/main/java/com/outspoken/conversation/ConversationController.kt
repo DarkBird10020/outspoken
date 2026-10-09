@@ -4,7 +4,6 @@ import com.outspoken.blink.BlinkDetector
 import com.outspoken.blink.BlinkEvent
 import com.outspoken.eye.EyeSample
 import com.outspoken.log.EventLog
-import com.outspoken.scan.Scanner
 import com.outspoken.suggest.Turn
 import com.outspoken.ui.ConversationUi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,11 +11,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * The blink-to-speech loop: eye samples in, highlighted card and spoken sentences out.
+ * The blink-to-speech loop. The highlight never moves by itself: a short blink moves it to the
+ * next card and a long blink chooses the lit card. [cue] sounds while the eyes are still shut,
+ * once they have been shut long enough to choose, since the person cannot see the screen then.
  *
  * New replies are asked for through [requestReplies], which returns false when no model is
  * there to answer, and come back through [onReplies]; only the answer to the latest request is
- * used. After speaking, scanning waits up to [replyWaitMs] for that answer so the cards do not
+ * used. After speaking, the board waits up to [replyWaitMs] for that answer so the cards do not
  * change under the person's eyes. All times share one clock. Call every method from the same
  * thread.
  */
@@ -24,8 +25,8 @@ class ConversationController(
     private val speak: (String) -> Unit,
     private val requestReplies: (requestId: Int, turns: List<Turn>) -> Boolean = { _, _ -> false },
     private val detector: BlinkDetector = BlinkDetector(),
-    private val scanner: Scanner = Scanner(),
     private val board: Board = Board(),
+    private val cue: () -> Unit = {},
     private val replyWaitMs: Long = 2_500,
     private val maxSpeakMs: Long = 10_000,
     private val log: EventLog = EventLog.None,
@@ -35,22 +36,24 @@ class ConversationController(
     private var repliesPending = false
     private var speakingSinceMs: Long? = null
     private var waitUntilMs: Long? = null
-    private var lastHighlighted = -1
+    private var cursor = 0
+    private var cardsChangedAtMs = Long.MIN_VALUE
     private var clockMs = Long.MIN_VALUE
 
     /** The conversation this session, oldest first. */
     val history: List<Turn> get() = turns
 
-    private val _ui = MutableStateFlow(ConversationUi(faceFound = false, heard = null, replies = board.replies, highlighted = -1))
+    private val _ui = MutableStateFlow(ConversationUi(faceFound = false, heard = null, replies = board.replies, highlighted = 0))
     val ui: StateFlow<ConversationUi> = _ui.asStateFlow()
 
     private val speaking get() = speakingSinceMs != null
-    private val scanning get() = detector.tracking && !speaking && waitUntilMs == null
+    private val ready get() = detector.tracking && !speaking && waitUntilMs == null
 
     fun onSample(sample: EyeSample) {
         val nowMs = advance(sample.timeMs)
         when (val event = detector.onSample(sample)) {
             is BlinkEvent.Blink -> onBlink(event, nowMs)
+            BlinkEvent.LongReached -> if (ready) cue()
             is BlinkEvent.Rejected, BlinkEvent.FaceFound, BlinkEvent.FaceLost, null -> Unit
         }
         publish(nowMs)
@@ -83,7 +86,7 @@ class ConversationController(
         repliesPending = false
         waitUntilMs = null
         board.showSuggestions(if (fromModel) replies else null)
-        scanner.restart(board.cards, now)
+        cardsChanged(now)
         publish(now)
     }
 
@@ -95,16 +98,15 @@ class ConversationController(
             waitUntilMs = nowMs + replyWaitMs
             log.write("scan", "speech done, waiting up to $replyWaitMs ms for new replies")
         } else {
-            log.write("scan", "speech done, scanning again")
+            log.write("scan", "speech done")
         }
-        scanner.restart(board.cards, nowMs)
+        cardsChanged(nowMs)
         publish(nowMs)
     }
 
     /**
      * Camera frames are stamped before face detection runs, so they arrive a little behind the
-     * screen ticks. The highlight only ever moves forward on the newest time seen; otherwise it
-     * flickers back to the previous card at every step.
+     * screen ticks. Time only ever moves forward on the newest value seen.
      */
     private fun advance(timeMs: Long): Long {
         clockMs = maxOf(clockMs, timeMs)
@@ -112,24 +114,26 @@ class ConversationController(
     }
 
     private fun onBlink(blink: BlinkEvent.Blink, nowMs: Long) {
-        if (!scanning) {
-            log.write("scan", "blink ignored, ${if (speaking) "speaking" else "waiting for new replies"}")
-            return
+        when {
+            !ready -> log.write("scan", "blink ignored, ${if (speaking) "speaking" else "waiting for new replies"}")
+            blink.startMs < cardsChangedAtMs -> log.write("scan", "blink ignored, it began before the cards changed")
+            blink.long -> {
+                val card = board.cards[cursor]
+                log.write("scan", "long blink chose ${label(card)}")
+                choose(card, nowMs)
+            }
+            else -> {
+                cursor = (cursor + 1) % board.cards.size
+                log.write("scan", "short blink, now on ${label(board.cards[cursor])}")
+            }
         }
-        val card = scanner.cardAt(blink.startMs)
-        if (card == null) {
-            log.write("scan", "blink ignored, it began before the cards changed")
-            return
-        }
-        log.write("scan", "blink picked ${label(card)}")
-        choose(card, nowMs)
     }
 
     private fun choose(card: Int, nowMs: Long) {
         val sentence = board.choose(card)
         if (sentence == null) {
             log.write("scan", "cards now ${board.replies}")
-            scanner.restart(board.cards, nowMs)
+            cardsChanged(nowMs)
             return
         }
         log.write("scan", "say \"$sentence\"")
@@ -137,9 +141,14 @@ class ConversationController(
         // The phrase bank shows at once while the model writes the next replies.
         board.showSuggestions(null)
         speakingSinceMs = nowMs
-        scanner.restart(board.cards, nowMs)
+        cardsChanged(nowMs)
         speak(sentence)
         refreshReplies()
+    }
+
+    private fun cardsChanged(nowMs: Long) {
+        cursor = 0
+        cardsChangedAtMs = nowMs
     }
 
     private fun publish(nowMs: Long) {
@@ -152,21 +161,17 @@ class ConversationController(
         }
         waitUntilMs?.let {
             if (nowMs >= it) {
-                log.write("scan", "no new replies yet, scanning the phrase bank")
+                log.write("scan", "no new replies yet, using the phrase bank")
                 waitUntilMs = null
-                scanner.restart(board.cards, nowMs)
+                cardsChanged(nowMs)
             }
         }
-        if (scanner.cards != board.cards) scanner.restart(board.cards, nowMs)
-        if (scanning) scanner.resume(nowMs) else scanner.pause(nowMs)
-        val highlighted = if (speaking || waitUntilMs != null) -1 else scanner.cardAt(nowMs) ?: -1
-        if (scanning && highlighted != lastHighlighted && highlighted != -1) log.write("scan", "highlight ${label(highlighted)}")
-        lastHighlighted = if (scanning) highlighted else -1
+        if (cursor >= board.cards.size) cursor = 0
         _ui.value = ConversationUi(
             faceFound = detector.tracking,
             heard = null,
             replies = board.replies,
-            highlighted = highlighted,
+            highlighted = if (speaking || waitUntilMs != null) -1 else board.cards[cursor],
         )
     }
 

@@ -6,7 +6,7 @@ The listener asks a question, an on-device Gemma model suggests four replies, an
 
 ## Status
 
-M2: blink at the highlighted card and the phone says it. After each sentence, Gemma on the phone writes four new replies that follow on; the built-in phrase bank shows while it thinks and whenever it fails.
+M2: a short blink moves the highlight to the next card, a long blink (a tick sounds at 1 second) chooses it, and the phone says it. After each sentence, Gemma on the phone writes four new replies that follow on; the built-in phrase bank shows while it thinks and whenever it fails.
 
 ## Setup
 
@@ -16,10 +16,7 @@ Every push builds a debug APK on GitHub Actions. Download `outspoken-debug-apk` 
    ```
    ./gradlew installDebug
    ```
-2. Open the app once so it creates its files folder, then push a Gemma model in LiteRT-LM format (a `.litertlm` file, for example Gemma3-1B-IT from the [LiteRT community on Hugging Face](https://huggingface.co/litert-community)). The model is not in this repo; it comes under the Gemma terms of use.
-   ```
-   adb push <model>.litertlm /sdcard/Android/data/com.outspoken/files/
-   ```
+2. Download a Gemma model in LiteRT-LM format (a `.litertlm` file, for example Gemma3-1B-IT from the [LiteRT community on Hugging Face](https://huggingface.co/litert-community)) onto the phone. In the app, tap the stats button, then "Choose model file", and pick it. The model is not in this repo; it comes under the Gemma terms of use.
 3. Make sure the phone's text-to-speech engine has an offline English voice installed. The app shows "Offline voice: ready" when it does.
 
 Stand the phone on a table or holder at arm's length, front camera facing the speaker.

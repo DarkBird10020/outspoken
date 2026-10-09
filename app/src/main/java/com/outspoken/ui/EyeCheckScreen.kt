@@ -68,6 +68,7 @@ fun EyeCheckScreen(
     onRequestCamera: () -> Unit,
     onPreviewReady: (PreviewView) -> Unit,
     onPreviewGone: () -> Unit,
+    onChooseModel: () -> Unit,
 ) {
     val history = remember { mutableStateListOf<EyeSample>() }
     LaunchedEffect(sample) {
@@ -106,6 +107,7 @@ fun EyeCheckScreen(
             EyeNumbers(sample, fps, settings)
             recentLines.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
             Text("Model: ${setup.modelLine}", style = MaterialTheme.typography.bodySmall)
+            Button(onClick = onChooseModel) { Text("Choose model file") }
             Text("Last replies: ${setup.lastReplyLine}", style = MaterialTheme.typography.bodySmall)
             setup.details.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
             Text(

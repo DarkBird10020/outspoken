@@ -1,6 +1,9 @@
 package com.outspoken
 
 import android.Manifest
+import android.media.AudioManager
+import android.media.ToneGenerator
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.SystemClock
@@ -24,11 +27,11 @@ import com.outspoken.eye.EyeSample
 import com.outspoken.eye.FrontCamera
 import com.outspoken.log.AppLog
 import com.outspoken.practice.PracticeSession
-import com.outspoken.scan.Scanner
 import com.outspoken.setup.checkOfflineVoice
 import com.outspoken.setup.findModelFile
 import com.outspoken.speech.Speaker
 import com.outspoken.suggest.ModelState
+import com.outspoken.suggest.ModelImporter
 import com.outspoken.suggest.ModelSuggestionEngine
 import com.outspoken.suggest.OnDeviceModel
 import com.outspoken.suggest.SuggestionEngine
@@ -58,12 +61,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var camera: FrontCamera
 
     private val detector = BlinkDetector(log = AppLog)
-    private val scanner = Scanner()
     private val controller = ConversationController(
         speak = { speaker.speak(it) },
         requestReplies = ::requestReplies,
         detector = detector,
-        scanner = scanner,
+        cue = { tone?.startTone(ToneGenerator.TONE_PROP_BEEP, CUE_MS) },
         log = AppLog,
     )
     private val eyeReader = EyeReader(onSample = ::onSample)
@@ -78,7 +80,12 @@ class MainActivity : ComponentActivity() {
     private var practiceAccuracy: Float? = null
 
     private var suggestionEngine: SuggestionEngine? = null
+    private var tone: ToneGenerator? = null
+    private var importLine by mutableStateOf<String?>(null)
     private var replyJob: Job? = null
+
+    private val modelPicker =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(::importModel) }
 
     private val cameraPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -93,6 +100,8 @@ class MainActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         speaker = Speaker(this) { controller.onSpeechDone(now()) }
+        // Tells the person, eyes still shut, that letting go now chooses the card.
+        tone = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, CUE_VOLUME) }.getOrNull()
         camera = FrontCamera(this, this)
         cameraGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
@@ -109,10 +118,10 @@ class MainActivity : ComponentActivity() {
             offlineVoice = it
         }
         val modelDir = getExternalFilesDir(null)
-        OnDeviceModel.loadOnce(findModelFile(modelDir), cacheDir)
+        OnDeviceModel.load(findModelFile(modelDir), cacheDir)
         lifecycleScope.launch {
             OnDeviceModel.state.collect { state ->
-                AppLog.write("model", modelLine(state, modelDir?.absolutePath))
+                AppLog.write("model", modelLine(state))
                 if (state is ModelState.Ready && suggestionEngine == null) {
                     suggestionEngine = ModelSuggestionEngine(state.model, ::now)
                     controller.refreshReplies()
@@ -146,7 +155,7 @@ class MainActivity : ComponentActivity() {
                             settings = eyeLines(),
                             recentLines = recent,
                             setup = SetupStatus(
-                                modelLine = modelLine(modelState, modelDir?.absolutePath),
+                                modelLine = importLine ?: modelLine(modelState),
                                 offlineVoice = offlineVoice,
                                 lastReplyLine = lastReplyLine,
                                 details = detectorLines(),
@@ -154,6 +163,7 @@ class MainActivity : ComponentActivity() {
                             onRequestCamera = { cameraPermission.launch(Manifest.permission.CAMERA) },
                             onPreviewReady = camera::showPreview,
                             onPreviewGone = camera::hidePreview,
+                            onChooseModel = { modelPicker.launch(arrayOf("*/*")) },
                         )
                     }
                 }
@@ -168,7 +178,8 @@ class MainActivity : ComponentActivity() {
                         ConversationScreen(
                             ui = conversation,
                             onPractice = ::startPractice,
-                            onStats = {},
+                            // Session stats arrive in M4; until then this opens the check screen.
+                            onStats = { show(Screen.EyeCheck) },
                             onSelect = { controller.onTap(it, now()) },
                             onStatusLongPress = { show(Screen.EyeCheck) },
                         )
@@ -192,6 +203,7 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         AppLog.write("app", "closed")
         speaker.shutdown()
+        tone?.release()
         eyeReader.close()
         analyzerExecutor.shutdown()
     }
@@ -206,7 +218,6 @@ class MainActivity : ComponentActivity() {
         practice = PracticeSession(
             detector = detector,
             startMs = now,
-            scanIntervalMs = scanner.intervalMs,
             log = AppLog,
         ).also { practiceUi = it.update(now) }
         show(Screen.Practice)
@@ -219,6 +230,28 @@ class MainActivity : ComponentActivity() {
         }
         practice = null
         show(Screen.Conversation)
+    }
+
+    private fun importModel(uri: Uri) {
+        importLine = "copying"
+        lifecycleScope.launch {
+            try {
+                val dir = checkNotNull(getExternalFilesDir(null)) { "no app folder" }
+                val file = ModelImporter(this@MainActivity).import(uri, dir) { percent ->
+                    importLine = if (percent >= 0) "copying, $percent%" else "copying"
+                }
+                AppLog.write("model", "imported ${file.name} (${file.length() / 1_000_000} MB)")
+                importLine = null
+                if (OnDeviceModel.state.value is ModelState.Ready) {
+                    importLine = "saved ${file.name}; close and reopen the app to switch to it"
+                } else {
+                    OnDeviceModel.load(file, cacheDir)
+                }
+            } catch (e: Exception) {
+                AppLog.write("model", "import failed: ${e.message}")
+                importLine = "could not import: ${e.message}"
+            }
+        }
     }
 
     private fun requestReplies(requestId: Int, turns: List<Turn>): Boolean {
@@ -254,8 +287,8 @@ class MainActivity : ComponentActivity() {
         EyeLines(detector.closedBelow, detector.openAbove, minBlinkMs, maxBlinkMs, maxYawDeg, maxPitchDeg)
     }
 
-    private fun modelLine(state: ModelState, dir: String?): String = when (state) {
-        ModelState.Missing -> "missing, push a .litertlm file to $dir"
+    private fun modelLine(state: ModelState): String = when (state) {
+        ModelState.Missing -> "missing. Download a Gemma .litertlm file on this phone, then tap Choose model file"
         is ModelState.Loading -> "${state.name}, loading"
         is ModelState.Ready -> "${state.name}, ready on ${state.backend}, ${modelSize()}"
         is ModelState.Failed -> "${state.name}, failed to load: ${state.reason}"
@@ -268,5 +301,7 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val TICK_MS = 50L
+        const val CUE_MS = 150
+        const val CUE_VOLUME = 80
     }
 }

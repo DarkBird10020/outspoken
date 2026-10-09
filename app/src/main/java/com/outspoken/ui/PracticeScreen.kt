@@ -55,7 +55,7 @@ data class PracticeUi(
     val blinkLevel: Float,
     val eyeState: String,
     val holdTimeSeconds: Float,
-    val scanSpeedSeconds: Float,
+    val longBlinkSeconds: Float,
 )
 
 private val BarFill = SurfaceStyle(
@@ -109,7 +109,7 @@ fun PracticeScreen(ui: PracticeUi, onBack: () -> Unit, onStart: () -> Unit) {
         EyeLevelCard(ui)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             SettingTile("Hold time", formatSeconds(ui.holdTimeSeconds), Modifier.weight(1f))
-            SettingTile("Scan speed", formatSeconds(ui.scanSpeedSeconds), Modifier.weight(1f))
+            SettingTile("Long blink", formatSeconds(ui.longBlinkSeconds), Modifier.weight(1f))
         }
         Spacer(Modifier.weight(1f))
         Box(
@@ -213,7 +213,7 @@ private fun PracticePreview() {
                 blinkLevel = 0.32f,
                 eyeState = "Steady",
                 holdTimeSeconds = 0.5f,
-                scanSpeedSeconds = 1.2f,
+                longBlinkSeconds = 1.0f,
             ),
             onBack = {},
             onStart = {},

@@ -3,7 +3,6 @@ package com.outspoken.log
 import com.outspoken.blink.BlinkDetector
 import com.outspoken.conversation.ConversationController
 import com.outspoken.eye.EyeSample
-import com.outspoken.scan.Scanner
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -15,7 +14,6 @@ class LogLinesTest {
     private val controller = ConversationController(
         speak = {},
         detector = BlinkDetector(log = log),
-        scanner = Scanner(intervalMs = 1_200),
         log = log,
     )
     private var time = 10_000L
@@ -32,16 +30,24 @@ class LogLinesTest {
         assertTrue("missing \"$line\" in\n${lines.joinToString("\n")}", line in lines)
 
     @Test
-    fun `an intentional blink logs what was picked and said`() {
+    fun `a long blink logs what was chosen and said`() {
+        frames(100, open = 0.95f)
+        frames(1_100, open = 0.05f)
+        frames(100, open = 0.95f)
+        assertLogged("blink: face found")
+        assertTrue(lines.any { it.startsWith("blink: eyes shut (left 0.05, right 0.05") })
+        assertTrue(lines.any { it.startsWith("blink: long blink") })
+        assertLogged("scan: long blink chose \"I need water\"")
+        assertLogged("scan: say \"I need water\"")
+    }
+
+    @Test
+    fun `a short blink logs where the highlight went`() {
         frames(100, open = 0.95f)
         frames(500, open = 0.05f)
         frames(100, open = 0.95f)
-        assertLogged("blink: face found")
-        assertLogged("scan: highlight \"I need water\"")
-        assertTrue(lines.any { it.startsWith("blink: eyes shut (left 0.05, right 0.05") })
-        assertLogged("blink: blink 528 ms")
-        assertLogged("scan: blink picked \"I need water\"")
-        assertLogged("scan: say \"I need water\"")
+        assertLogged("blink: short blink 528 ms")
+        assertLogged("scan: short blink, now on \"I am in pain\"")
     }
 
     @Test
@@ -55,9 +61,9 @@ class LogLinesTest {
     @Test
     fun `a long closure logs why it was ignored`() {
         frames(100, open = 0.95f)
-        frames(1_600, open = 0.05f)
+        frames(2_100, open = 0.05f)
         frames(100, open = 0.95f)
-        assertTrue(lines.any { it.startsWith("blink: ignored") && it.endsWith("longer than 1500 ms") })
+        assertTrue(lines.any { it.startsWith("blink: ignored") && it.endsWith("longer than 1900 ms") })
     }
 
     @Test

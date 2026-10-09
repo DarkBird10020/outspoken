@@ -38,9 +38,18 @@ class BlinkDetectorTest {
     }
 
     @Test
-    fun `seven tenths of a second is a blink`() {
+    fun `seven tenths of a second is a short blink`() {
         val blink = blink(700).single() as BlinkEvent.Blink
         assertTrue(blink.durationMs in 690..740)
+        assertFalse(blink.long)
+    }
+
+    @Test
+    fun `over a second is a long blink, with a cue while still shut`() {
+        val events = blink(1_300)
+        assertEquals(BlinkEvent.LongReached, events.first())
+        assertTrue((events.last() as BlinkEvent.Blink).long)
+        assertEquals(2, events.size)
     }
 
     @Test
@@ -57,8 +66,8 @@ class BlinkDetectorTest {
     }
 
     @Test
-    fun `long closure is ignored`() {
-        assertTrue(blink(1_800).single() is BlinkEvent.Rejected)
+    fun `closure past the long blink is ignored`() {
+        assertTrue(blink(2_100).last() is BlinkEvent.Rejected)
     }
 
     @Test
