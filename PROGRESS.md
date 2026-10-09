@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: blinks restored: the iris no longer has any say in whether the eyes are shut; the lid gap check alone keeps looks down from reading as closes. Waiting for the phone test.
+Latest: the resting iris is followed as it drifts, and the look down line never goes under 0.02, so resting eyes no longer step down on their own. Waiting for the phone test.
 
 ## Phone test history
 
@@ -14,6 +14,11 @@ Latest: blinks restored: the iris no longer has any say in whether the eyes are 
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
+
+## No more moving on its own (owner report)
+
+- [ ] **The resting iris is followed as it drifts.** In the 00:51 phone run the iris moved between -0.036 and +0.005 with the eyes at rest; the rest point only followed within half the 0.017 line, so once the eyes drifted further it stayed behind and resting eyes read as a look down again and again (five steps down in 7 s, 00:51:40 to 00:51:47). It now follows across the whole band below the line, and creeps 1% per frame during a look down. Code: `scan/GazeStepper.kt`. Test: `GazeStepperTest` "a drifting resting iris is followed instead of stepping again and again".
+- [ ] **The look down line is at least 0.02**, above the resting drift; calibration can only set it higher. Default 0.02. Code: `setup/Calibration.kt` (`MIN_IRIS_DOWN_LINE`), `setup/Tuning.kt`.
 
 ## Blinks restored: the iris no longer blocks a close (owner report)
 

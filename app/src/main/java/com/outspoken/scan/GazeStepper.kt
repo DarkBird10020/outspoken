@@ -98,8 +98,11 @@ class GazeStepper(
 
         if (direction == null) {
             if (abs(dy) < restBand()) restY = centre + dy * REST_FOLLOW
+            // The resting iris drifts by about 0.04 while the eyes rest (phone log 00:51). Follow it
+            // across the whole band below the line; following only within half the line left the
+            // rest behind and resting eyes read as a look down again and again.
             val rest = restIris
-            if (irisLine != null && irisY != null && rest != null && abs(irisY - rest) < irisLine / 2) {
+            if (irisLine != null && irisY != null && rest != null && abs(irisY - rest) < irisLine) {
                 restIris = rest + (irisY - rest) * REST_FOLLOW
             }
             looking = null
@@ -111,6 +114,12 @@ class GazeStepper(
         if (direction != lastStep && timeMs - lastStepMs < REBOUND_MS) {
             looking = null
             return null
+        }
+        // During a look the iris rest still creeps toward the eyes, so an offset that lasts
+        // seconds is absorbed instead of stepping again each time the gaze wobbles.
+        val rest = restIris
+        if (direction == GazeStep.Next && irisLine != null && irisY != null && rest != null) {
+            restIris = rest + (irisY - rest) * LOOK_CREEP
         }
         if (direction != looking) {
             looking = direction
@@ -143,6 +152,9 @@ class GazeStepper(
 
         /** After a step, a look the other way this soon is the eyes coming back, not a new look. */
         const val REBOUND_MS = 700L
+
+        /** Share of the way the iris rest creeps toward the eyes per frame during a look down. */
+        const val LOOK_CREEP = 0.01f
 
         /** Iris drop beyond this is shut eyes, not a look down. */
         const val IRIS_SHUT_ABOVE = 0.15f
