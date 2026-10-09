@@ -9,7 +9,9 @@ fun buildPrompt(request: SuggestionRequest): String = buildString {
     appendLine("You suggest replies for a person in bed who cannot move or speak, cared for by family or a nurse (the Visitor). They pick one by blinking, and the phone says it aloud.")
     appendLine("Write 4 different replies they may want to say next. If the last line is a question, answer it.")
     appendLine("Each reply: first person, plain everyday words, at most 8 words, said by the Person, never by the Visitor.")
-    appendLine("Mix the kinds: yes or no, a need or feeling such as pain, thirst or rest, and a question back.")
+    // "and a question back" gave questions the visitor would ask ("Thirsty? Do you want water?",
+    // "Do you want quiet now?"; 04:53 to 05:08 phone runs), and one was picked and said.
+    appendLine("Mix the kinds: yes or no, and a need or feeling such as pain, thirst or rest.")
     appendLine("Answer with only a JSON list of 4 strings.")
     appendLine()
     // One worked example: small models copy the shape of an example far more reliably than they

@@ -124,6 +124,26 @@ class CalibrationTest {
     }
 
     @Test
+    fun `a squeezed frame or two does not set the lid gap line`() {
+        calibration.start(time)
+        listOf(0.5f, 0f, 0.5f, 0f, 0.5f, 0.9f, 0.5f, 0.9f, 0.5f).forEachIndexed { i, gaze ->
+            step(if (i == 5 || i == 7) 0.7f else 0.9f, gaze, gap = 0.30f)
+        }
+        // Each close: held at a gap of 0.12, with a hard squeeze reading 0.01 for three frames.
+        repeat(2) { close ->
+            repeat(50) { frame ->
+                val gap = if (frame in 30..32) 0.01f else 0.12f
+                calibration.onSample(EyeSample(time, true, 0.4f, 0.4f, gaze = Dot(0f, 0.6f), dots = FaceDots(emptyList(), emptyList(), 0.75f, gap, gap)))
+                time += 50
+            }
+            step(0.9f, 0.5f, gap = 0.30f)
+        }
+        val result = calibration.result(Tuning()) as Calibration.Result.Ok
+        assertEquals(0.12f, result.measured.closedGap!!, 0.001f)
+        assertEquals(0.138f, result.tuning.blink.shapeClosedBelow!!, 0.001f)
+    }
+
+    @Test
     fun `no lid gap reading leaves the gap check off`() {
         run()
         val blink = (calibration.result(Tuning()) as Calibration.Result.Ok).tuning.blink

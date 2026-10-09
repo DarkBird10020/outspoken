@@ -44,6 +44,7 @@ class PromptTest {
         assertTrue(prompt.contains("a person in bed who cannot move or speak"))
         assertTrue(prompt.contains("said by the Person, never by the Visitor"))
         assertTrue(prompt.contains("a need or feeling such as pain, thirst or rest"))
+        assertFalse(prompt.contains("a question back"))
     }
 
     @Test

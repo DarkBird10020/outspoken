@@ -106,7 +106,7 @@ class ConversationController(
             null -> Unit
         }
         // Help works at any time, even while the phone speaks.
-        help.onEyes(detector.shutSinceMs, nowMs)?.let(onHelp)
+        help.onEyes(detector.shutSinceMs, nowMs, detector.settings.maxBlinkMs)?.let(onHelp)
         if (moveByEyes && !speaking && !waiting && detector.tracking) {
             // Only shut eyes stop a look; half-lowered lids still count as open here.
             // Owner request: left wink moves down, right wink moves up; both eyes shut chooses.

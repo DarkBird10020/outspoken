@@ -74,6 +74,17 @@ class ConversationHelpTest {
     }
 
     @Test
+    fun `hold, open, hold again raises the alarm without saying a card`() {
+        frames(300, open = 0.95f)
+        frames(2_300, open = 0.05f)
+        frames(3_400, open = 0.95f)
+        frames(2_800, open = 0.05f)
+        frames(500, open = 0.95f)
+        assertEquals(listOf(HelpStep.HoldReached, HelpStep.Alarm), steps)
+        assertTrue(said.isEmpty())
+    }
+
+    @Test
     fun `a normal pick does not raise the alarm`() {
         frames(300, open = 0.95f)
         frames(600, open = 0.05f)
