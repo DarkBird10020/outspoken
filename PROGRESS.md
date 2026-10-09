@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: blinks work again with the iris look down: shut eyes read as a huge iris drop and were taken for a look down. Waiting for the phone test.
+Latest: blinks restored: the iris no longer has any say in whether the eyes are shut; the lid gap check alone keeps looks down from reading as closes. Waiting for the phone test.
 
 ## Phone test history
 
@@ -14,6 +14,12 @@ Latest: blinks work again with the iris look down: shut eyes read as a huge iris
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
+
+## Blinks restored: the iris no longer blocks a close (owner report)
+
+- [ ] **Removed "a clear look down is not a close".** After the 0.15 cap, closes still did not start: in the 00:46 phone run a real close (eye-open 0.39/0.42, lid gap 0.07/0.10) read an iris drop of only +0.039 from rest, inside the look down range, so it was still taken for a look. The lid gap check alone separates them in the same run: looks down 0.15 to 0.24, closes 0.07 to 0.10, gap shut line 0.13. Whether the eyes are shut is now the eye-open value plus the lid gap only, as in the builds where blinking worked. Code: `blink/BlinkDetector.kt`, `conversation/ConversationController.kt`.
+- [ ] **Shut eyes never move the highlight**, whatever the iris reads, so a blink cannot also step down. Code: `scan/GazeStepper.kt`.
+- Tests: `EyeModeTest` "a blink chooses when shut eyes read inside the iris look down range" (the 00:46:18 numbers); `GazeStepperTest` "shut eyes never step even when the iris reads in the look down range". The BlinkDetector test for the removed rule was deleted on purpose.
 
 ## Blinks blocked by the iris look down (owner report)
 

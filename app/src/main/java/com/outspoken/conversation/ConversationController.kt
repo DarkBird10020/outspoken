@@ -75,8 +75,7 @@ class ConversationController(
 
     fun onSample(sample: EyeSample) {
         val nowMs = advance(sample.timeMs)
-        val lookingDown = moveByEyes && gaze.irisLooksDown(sample.irisY)
-        when (val event = detector.onSample(sample, lookingDown)) {
+        when (val event = detector.onSample(sample)) {
             is BlinkEvent.Blink -> onBlink(event, nowMs)
             BlinkEvent.FaceFound -> scanner.resume(nowMs)
             BlinkEvent.FaceLost -> scanner.pause(nowMs)
