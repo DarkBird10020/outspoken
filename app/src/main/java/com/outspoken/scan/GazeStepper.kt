@@ -12,6 +12,12 @@ data class GazeSettings(
     val downStrength: Float? = 0.3f,
     /** How long a look must last before the highlight moves. */
     val lookHoldMs: Long = 250,
+    /**
+     * How far the iris must drop between the eye corners from rest to count as a look down
+     * (`FaceMesh.irisDrop`). When set it replaces [downStrength]: with the phone below eye level
+     * the "look down" blendshape had almost no room and moved with the lids.
+     */
+    val irisDownStrength: Float? = null,
 )
 
 enum class GazeStep { Next, Previous }
@@ -31,6 +37,7 @@ class GazeStepper(
     private val log: EventLog = EventLog.None,
 ) {
     private var restY: Float? = null
+    private var restIris: Float? = null
     private var looking: GazeStep? = null
     private var lookingSinceMs = 0L
     private var stepped = false
@@ -38,15 +45,33 @@ class GazeStepper(
     /** Where the eyes rest up and down, the centre that looks are measured from; null until seen. */
     val restGaze: Float? get() = restY
 
+    /** Where the iris rests between the eye corners; null until seen. */
+    val restIrisDrop: Float? get() = restIris
+
     /** Starts from a measured resting gaze, for example the one calibration found. */
-    fun restAt(y: Float) {
+    fun restAt(y: Float, iris: Float? = null) {
         restY = y
+        if (iris != null) restIris = iris
         looking = null
         stepped = false
     }
 
-    fun onSample(gaze: Dot?, eyesOpen: Boolean, timeMs: Long): GazeStep? {
-        if (gaze == null || !eyesOpen) {
+    /** True when the iris points down far enough to be a look down rather than anything else. */
+    fun irisLooksDown(irisY: Float?): Boolean {
+        val line = settings.irisDownStrength ?: return false
+        val rest = restIris ?: return false
+        return irisY != null && irisY - rest >= line
+    }
+
+    /**
+     * [irisY] is [FaceMesh.irisDrop]. In iris mode a look down counts even while the lids read as
+     * shut, since looking down drops them; the blink detector is told not to start a close then.
+     */
+    fun onSample(gaze: Dot?, eyesOpen: Boolean, timeMs: Long, irisY: Float? = null): GazeStep? {
+        val irisLine = settings.irisDownStrength
+        if (irisY != null && restIris == null) restIris = irisY
+        val irisDown = irisLooksDown(irisY)
+        if (gaze == null || (!eyesOpen && !irisDown)) {
             looking = null
             return null
         }
@@ -54,13 +79,18 @@ class GazeStepper(
         val dy = gaze.y - centre
         val down = settings.downStrength
         val direction = when {
-            -dy >= settings.lookStrength -> GazeStep.Previous
+            eyesOpen && -dy >= settings.lookStrength -> GazeStep.Previous
+            irisLine != null -> if (irisDown) GazeStep.Next else null
             down != null && dy >= down -> GazeStep.Next
             else -> null
         }
 
         if (direction == null) {
             if (abs(dy) < restBand()) restY = centre + dy * REST_FOLLOW
+            val rest = restIris
+            if (irisLine != null && irisY != null && rest != null && abs(irisY - rest) < irisLine / 2) {
+                restIris = rest + (irisY - rest) * REST_FOLLOW
+            }
             looking = null
             stepped = false
             return null
@@ -76,13 +106,18 @@ class GazeStepper(
             // Looking one way this long is a new posture, not a look.
             log.write("gaze", "new resting gaze ${format(gaze.y)}")
             restY = gaze.y
+            if (direction == GazeStep.Next && irisY != null) restIris = irisY
             looking = null
             stepped = false
             return null
         }
         if (stepped || heldMs < settings.lookHoldMs) return null
         stepped = true
-        val words = if (direction == GazeStep.Next) "down ${format(dy)} held $heldMs ms -> next" else "up ${format(-dy)} held $heldMs ms -> previous"
+        val words = when {
+            direction == GazeStep.Previous -> "up ${format(-dy)} held $heldMs ms -> previous"
+            irisLine != null -> "down (iris ${format((irisY ?: 0f) - (restIris ?: 0f))}) held $heldMs ms -> next"
+            else -> "down ${format(dy)} held $heldMs ms -> next"
+        }
         log.write("gaze", "look $words")
         return direction
     }

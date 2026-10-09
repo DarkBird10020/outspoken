@@ -33,6 +33,9 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
         val closedOpen: Float,
         /** How far the eyes moved down from rest; 0 when no look down was seen. */
         val downReach: Float = 0f,
+        /** Iris drop between the eye corners at rest and how far it dropped looking down; null if not read. */
+        val restIris: Float? = null,
+        val irisDownReach: Float? = null,
         /** Lid gap (`eyeShape`, the wider eye) looking at the screen and with the eyes closed; null if not read. */
         val restGap: Float? = null,
         val closedGap: Float? = null,
@@ -85,6 +88,13 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
         val upReach = reaches.min()
         if (upReach < MIN_UP_REACH) return Result.Failed("Look up not seen; look higher above the phone")
 
+        val restIris = median(rests.mapNotNull { it.irisY })
+        val irisDownReach = restIris?.let { rest ->
+            listOf(Step.Down1, Step.Down2).minOf { down ->
+                seen[down].orEmpty().mapNotNull { it.irisY }.maxOfOrNull { it - rest } ?: 0f
+            }
+        }
+
         // A look down that is not seen only turns looking down off; up still moves.
         val downReach = listOf(Step.Down1, Step.Down2).minOf { down ->
             seen[down].orEmpty().mapNotNull { it.gaze?.y }.maxOfOrNull { it - restGaze } ?: 0f
@@ -95,17 +105,20 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
             if (frames.size < MIN_FRAMES) return Result.Failed("Face not seen with the eyes closed")
             frames.minOf { open(it) }
         }
-        val closedOpen = depths.max()
+        // The deeper of the two closes. Taking the shallower let one weak or late close set the
+        // lines almost at open: the 00:13 phone run measured closed 0.54 against open 0.88 and a
+        // lid gap of 0.22 against 0.31, and normal looking then chose "I need water" by itself.
+        val closedOpen = depths.min()
         val range = restOpen - closedOpen
         if (range < MIN_CLOSE_RANGE) return Result.Failed("Closed eyes not seen; close them fully")
 
         val restGap = median(rests.mapNotNull { gap(it) })
         val closedGaps = listOf(Step.Close1, Step.Close2).map { close -> seen[close].orEmpty().mapNotNull { gap(it) }.minOrNull() }
-        val closedGap = if (closedGaps.any { it == null }) null else closedGaps.maxOf { it!! }
+        val closedGap = if (closedGaps.any { it == null }) null else closedGaps.minOf { it!! }
         val gapRange = if (restGap != null && closedGap != null) restGap - closedGap else null
         val useGap = gapRange != null && gapRange >= MIN_GAP_RANGE
 
-        val measured = Measured(restGaze, restOpen, upReach, closedOpen, downReach, restGap, closedGap)
+        val measured = Measured(restGaze, restOpen, upReach, closedOpen, downReach, restIris, irisDownReach, restGap, closedGap)
         val tuning = current.copy(
             blink = current.blink.copy(
                 closedBelow = closedOpen + range * SHUT_SHARE,
@@ -116,6 +129,7 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
             gaze = current.gaze.copy(
                 lookStrength = upReach * LOOK_SHARE,
                 downStrength = if (downReach >= MIN_DOWN_REACH) downReach * LOOK_SHARE else null,
+                irisDownStrength = irisDownReach?.takeIf { it >= MIN_IRIS_DOWN_REACH }?.let { it * LOOK_SHARE },
             ),
         )
         return Result.Ok(tuning, measured)
@@ -136,6 +150,9 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
         const val MIN_FRAMES = 5
         const val MIN_UP_REACH = 0.1f
         const val MIN_DOWN_REACH = 0.1f
+
+        /** Iris drop as a share of the eye width; a deliberate look down moves it several times this. */
+        const val MIN_IRIS_DOWN_REACH = 0.02f
         const val MIN_CLOSE_RANGE = 0.12f
 
         /** A look counts at half of the smaller of the two measured looks up. */

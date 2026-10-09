@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: the gaze box is centred on the resting gaze with the look lines drawn, and calibration sets the resting gaze directly. Waiting for the phone test.
+Latest: looking down is read from the iris position between the eye corners, so it works as easily as looking up even with the phone below eye level. Waiting for the phone test.
 
 ## Phone test history
 
@@ -14,6 +14,23 @@ Latest: the gaze box is centred on the resting gaze with the look lines drawn, a
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
+
+## Look down read from the iris (owner report)
+
+- [ ] **Looking down moves the highlight with a small eye movement, like looking up.** The owner found up responsive and down dead. Phone run at 00:21: resting gaze 0.52 to 0.71 down, the furthest look down 0.78, so the "look down" blendshape had about 0.1 of room, the same as its wobble at rest, and calibration turned looking down off (reach 0.09). The lids also drop when looking down (eye-open 0.45/0.52, lid gap 0.14 at 00:21:25), close to a real close. Now looking down is measured from where the iris centre sits between the two eye corners (`FaceMesh.irisDrop`): the corners do not move with the lids, the iris does move with the eye. Calibration measures the iris drop when looking down and the line is half of it, like up. Up is unchanged. Code: `eye/FaceMesh.kt`, `eye/EyeReader.kt`, `scan/GazeStepper.kt`, `setup/Calibration.kt`.
+- [ ] **A look down is not a close.** While the iris clearly points down, dropping lids do not start a close, so looking down cannot choose a card. Code: `blink/BlinkDetector.kt` (`lookingDown`), `conversation/ConversationController.kt`.
+- [ ] **Gaze box shows both directions in line units**: the dashed lines are where up and down move the highlight; down follows the iris when that is in use. The iris drop is in the per-second log line and the calibration line.
+- [ ] **APK for arm64 only**: native libraries for every chip type made it 140 MB and over 20 minutes to reach the phone.
+
+Unit tests:
+- `FaceMeshTest`: iris below the corner line reads down, a head tilt alone does not, both eyes averaged.
+- `GazeStepperTest`: look down read from the iris even with lids drooping; a small iris movement does nothing.
+- `BlinkDetectorTest`: dropping lids while the iris looks down do not start a close.
+- `CalibrationTest`: iris look down line is half the measured iris drop.
+
+## Calibration uses the deeper close
+
+- [ ] **One weak close no longer sets the lines.** Calibration took the shallower of the two "Close your eyes" steps. In the 00:13 phone run that was closed 0.54 against open 0.88 and a lid gap of 0.22 against 0.31, so the shut lines landed at 0.71 and 0.25, next to open, and normal looking chose "I need water" by itself four times. It now takes the deeper close. Code: `setup/Calibration.kt`. Test: `CalibrationTest` "one weak close does not set the lines".
 
 ## Gaze box centred on the resting gaze (owner report)
 

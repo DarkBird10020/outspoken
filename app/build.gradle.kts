@@ -17,6 +17,12 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1"
+
+        // Only the iQOO's chip type. Native libraries for every chip made the APK 140 MB, which
+        // took over 20 minutes to reach the phone; it is the only device the app runs on.
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
     }
 
     buildTypes {

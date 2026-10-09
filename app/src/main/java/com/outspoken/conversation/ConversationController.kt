@@ -75,7 +75,8 @@ class ConversationController(
 
     fun onSample(sample: EyeSample) {
         val nowMs = advance(sample.timeMs)
-        when (val event = detector.onSample(sample)) {
+        val lookingDown = moveByEyes && gaze.irisLooksDown(sample.irisY)
+        when (val event = detector.onSample(sample, lookingDown)) {
             is BlinkEvent.Blink -> onBlink(event, nowMs)
             BlinkEvent.FaceFound -> scanner.resume(nowMs)
             BlinkEvent.FaceLost -> scanner.pause(nowMs)
@@ -86,7 +87,7 @@ class ConversationController(
         if (moveByEyes && !speaking && !waiting && detector.tracking) {
             // Only shut eyes stop a look; half-lowered lids still count as open here.
             val eyesOpen = !detector.eyesShut(sample)
-            when (gaze.onSample(sample.gaze, eyesOpen, nowMs)) {
+            when (gaze.onSample(sample.gaze, eyesOpen, nowMs, sample.irisY)) {
                 GazeStep.Next -> moveCursor(cursor + 1, nowMs)
                 GazeStep.Previous -> moveCursor(cursor - 1, nowMs)
                 null -> Unit

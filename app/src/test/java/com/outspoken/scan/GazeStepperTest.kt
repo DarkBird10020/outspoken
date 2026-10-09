@@ -2,6 +2,7 @@ package com.outspoken.scan
 
 import com.outspoken.eye.Dot
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GazeStepperTest {
@@ -97,5 +98,25 @@ class GazeStepperTest {
         // Still eyes at the measured rest do nothing; a look down from there steps.
         assertEquals(emptyList<GazeStep>(), look(500, y = 0.5f))
         assertEquals(listOf(GazeStep.Next), look(500, y = 0.85f))
+    }
+
+    @Test
+    fun `with the iris line set, a look down is read from the iris even with lids drooping`() {
+        stepper.settings = stepper.settings.copy(irisDownStrength = 0.04f)
+        val steps = mutableListOf<GazeStep>()
+        repeat(10) { stepper.onSample(Dot(0f, 0.6f), true, time, irisY = 0.10f); time += 50 }
+        // Looking down: blendshape barely moves, lids read as shut, iris drops 0.06.
+        repeat(10) { stepper.onSample(Dot(0f, 0.65f), false, time, irisY = 0.16f)?.let(steps::add); time += 50 }
+        assertEquals(listOf(GazeStep.Next), steps)
+        assertTrue(stepper.irisLooksDown(0.16f))
+    }
+
+    @Test
+    fun `with the iris line set, a small iris movement does nothing`() {
+        stepper.settings = stepper.settings.copy(irisDownStrength = 0.04f)
+        val steps = mutableListOf<GazeStep>()
+        repeat(10) { stepper.onSample(Dot(0f, 0.6f), true, time, irisY = 0.10f); time += 50 }
+        repeat(20) { stepper.onSample(Dot(0f, 0.9f), true, time, irisY = 0.12f)?.let(steps::add); time += 50 }
+        assertEquals(emptyList<GazeStep>(), steps)
     }
 }

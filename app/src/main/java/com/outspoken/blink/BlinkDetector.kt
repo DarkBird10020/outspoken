@@ -73,7 +73,8 @@ class BlinkDetector(
     /** When the eyes shut, while they are still shut; null while they are open. */
     val shutSinceMs: Long? get() = closedSinceMs
 
-    fun onSample(sample: EyeSample): BlinkEvent? {
+    /** [lookingDown]: the iris clearly points down, so dropping lids are a look, not a close. */
+    fun onSample(sample: EyeSample, lookingDown: Boolean = false): BlinkEvent? {
         val rawLeft = sample.leftOpen
         val rawRight = sample.rightOpen
         if (!sample.faceFound || rawLeft == null || rawRight == null || !facingCamera(sample)) {
@@ -97,7 +98,7 @@ class BlinkDetector(
         if (!wasTracking) log.write("blink", "face found")
         val closedSince = closedSinceMs
         if (closedSince == null) {
-            if (left < settings.closedBelow && right < settings.closedBelow && lidsShut(sample)) {
+            if (left < settings.closedBelow && right < settings.closedBelow && lidsShut(sample) && !lookingDown) {
                 closedSinceMs = sample.timeMs
                 val gaze = sample.gaze?.let { ", gaze up/down ${open(it.y)}" } ?: ""
                 val shape = sample.dots?.let { d -> ", lid gap ${d.leftShape?.let { open(it) }} / ${d.rightShape?.let { open(it) }}" } ?: ""

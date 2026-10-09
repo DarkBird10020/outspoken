@@ -276,6 +276,7 @@ class MainActivity : ComponentActivity() {
                         onPreviewReady = camera::showPreview,
                         onPreviewGone = camera::hidePreview,
                         restGaze = gazeStepper.restGaze,
+                        restIris = gazeStepper.restIrisDrop,
                         onChooseModel = { modelPicker.launch(arrayOf("*/*")) },
                         onSaveLogs = { logSaver.launch("outspoken-logs.txt") },
                         onCalibrate = ::startCalibration,
@@ -334,13 +335,13 @@ class MainActivity : ComponentActivity() {
             is Calibration.Result.Ok -> {
                 applyTuning(result.tuning)
                 tuningStore.save(result.tuning)
-                gazeStepper.restAt(result.measured.restGaze)
+                gazeStepper.restAt(result.measured.restGaze, result.measured.restIris)
                 val m = result.measured
                 AppLog.write(
                     "calibration",
                     "ok: rest gaze ${fmt(m.restGaze)}, look up reach ${fmt(m.upReach)}, look down reach ${fmt(m.downReach)}, open ${fmt(m.restOpen)}, " +
                         "closed ${fmt(m.closedOpen)} -> look ${fmt(result.tuning.gaze.lookStrength)}, " +
-                        "look down ${result.tuning.gaze.downStrength?.let { fmt(it) } ?: "off"}, shut line ${fmt(result.tuning.blink.closedBelow)}, open line ${fmt(result.tuning.blink.openAbove)}, " +
+                        "look down ${result.tuning.gaze.downStrength?.let { fmt(it) } ?: "off"}, iris rest ${m.restIris?.let { fmt(it) }} down reach ${m.irisDownReach?.let { fmt(it) }} -> iris look down ${result.tuning.gaze.irisDownStrength?.let { String.format(Locale.US, "%.3f", it) } ?: "off"}, shut line ${fmt(result.tuning.blink.closedBelow)}, open line ${fmt(result.tuning.blink.openAbove)}, " +
                         "lid gap open ${m.restGap?.let { fmt(it) }} closed ${m.closedGap?.let { fmt(it) }} -> gap shut line " +
                         "${result.tuning.blink.shapeClosedBelow?.let { fmt(it) }}, gap open line ${result.tuning.blink.shapeOpenAbove?.let { fmt(it) }}",
                 )

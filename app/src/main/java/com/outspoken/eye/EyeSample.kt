@@ -14,6 +14,8 @@ data class EyeSample(
     val pitchDeg: Float = 0f,
     val gaze: Dot? = null,
     val dots: FaceDots? = null,
+    /** [FaceMesh.irisDrop] of both eyes, positive when the eyes look down; null when not read. */
+    val irisY: Float? = null,
 )
 
 /** A point in the upright camera image. */
