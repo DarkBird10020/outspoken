@@ -49,6 +49,11 @@ class TuningStore(context: Context) {
             moveByEyes = prefs.getBoolean("moveByEyes", default.moveByEyes),
             gaze = GazeSettings(
                 lookStrength = safeLookStrength,
+                downStrength = if (prefs.contains("downStrength")) {
+                    prefs.getFloat("downStrength", NOT_SET).takeIf { it != NOT_SET }
+                } else {
+                    default.gaze.downStrength
+                },
                 lookHoldMs = prefs.getLong("lookHoldMs", default.gaze.lookHoldMs),
             ),
         )
@@ -71,6 +76,7 @@ class TuningStore(context: Context) {
             .putLong("scanMs", tuning.scanMs)
             .putBoolean("moveByEyes", tuning.moveByEyes)
             .putFloat("lookStrength", tuning.gaze.lookStrength)
+            .putFloat("downStrength", tuning.gaze.downStrength ?: NOT_SET)
             .putLong("lookHoldMs", tuning.gaze.lookHoldMs)
             .apply()
     }

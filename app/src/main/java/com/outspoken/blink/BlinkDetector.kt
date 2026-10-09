@@ -54,6 +54,9 @@ class BlinkDetector(
     private var closedSinceMs: Long? = null
     private var missingSinceMs: Long? = null
 
+    /** When the eyes shut, while they are still shut; null while they are open. */
+    val shutSinceMs: Long? get() = closedSinceMs
+
     fun onSample(sample: EyeSample): BlinkEvent? {
         val left = sample.leftOpen
         val right = sample.rightOpen
@@ -106,6 +109,13 @@ class BlinkDetector(
             }
         }
         return if (wasTracking) null else BlinkEvent.FaceFound
+    }
+
+    /** Whether this frame reads as eyes shut: both eye-open values and both lid gaps below the lines. */
+    fun eyesShut(sample: EyeSample): Boolean {
+        val left = sample.leftOpen ?: return false
+        val right = sample.rightOpen ?: return false
+        return left < settings.closedBelow && right < settings.closedBelow && lidsShut(sample)
     }
 
     /** Both lid gaps below the shut line, or true when there is no gap check or no gap reading. */

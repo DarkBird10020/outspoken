@@ -8,6 +8,8 @@ import kotlin.math.abs
 data class GazeSettings(
     /** How far the eyes must move up from where they rest to count as a look (0..1). */
     val lookStrength: Float = 0.45f,
+    /** How far the eyes must move down from rest to count as a look; null turns looking down off. */
+    val downStrength: Float? = 0.3f,
     /** How long a look must last before the highlight moves. */
     val lookHoldMs: Long = 250,
 )
@@ -15,11 +17,14 @@ data class GazeSettings(
 enum class GazeStep { Next, Previous }
 
 /**
- * Turns a look up, above the phone, into one step to the next card. Only up counts: on the phone,
- * looking down drops the upper lids and the face tracker reads it as the eyes closing (seen in the
- * logs: gaze down 0.81 to 0.87 arrived as "eyes shut"), so down looks would both miss and fake
- * blinks. Sideways looks are ignored too. One look is one step; the eyes come back to rest before
- * the next. Looks are measured from the resting gaze, which slowly follows posture.
+ * Turns up and down eye movement into single steps: looking down moves the highlight down
+ * ([GazeStep.Next]), looking up moves it up ([GazeStep.Previous]). Sideways looks are ignored.
+ * One look is one step; the eyes come back to rest before the next. Looks are measured from the
+ * resting gaze, which slowly follows posture, because the phone usually sits below eye level.
+ *
+ * Shut eyes never step. Looking down drops the upper lids, so the caller decides "shut" with the
+ * lid gap check in the blink detector rather than the eye-open value alone, which read a look down
+ * as a close on the phone.
  */
 class GazeStepper(
     var settings: GazeSettings = GazeSettings(),
@@ -30,7 +35,6 @@ class GazeStepper(
     private var lookingSinceMs = 0L
     private var stepped = false
 
-    /** [eyesOpen] false while the eyes are closing or shut: lids dropping reads as looking down. */
     fun onSample(gaze: Dot?, eyesOpen: Boolean, timeMs: Long): GazeStep? {
         if (gaze == null || !eyesOpen) {
             looking = null
@@ -38,10 +42,15 @@ class GazeStepper(
         }
         val centre = restY ?: gaze.y.also { restY = it }
         val dy = gaze.y - centre
-        val direction = if (-dy >= settings.lookStrength && gaze.y < LOOK_UP_MAX_Y) GazeStep.Next else null
+        val down = settings.downStrength
+        val direction = when {
+            -dy >= settings.lookStrength && gaze.y < LOOK_UP_MAX_Y -> GazeStep.Previous
+            down != null && dy >= down -> GazeStep.Next
+            else -> null
+        }
 
         if (direction == null) {
-            if (abs(dy) < settings.lookStrength / 2) restY = centre + dy * REST_FOLLOW
+            if (abs(dy) < restBand()) restY = centre + dy * REST_FOLLOW
             looking = null
             stepped = false
             return null
@@ -63,9 +72,13 @@ class GazeStepper(
         }
         if (stepped || heldMs < settings.lookHoldMs) return null
         stepped = true
-        log.write("gaze", "look up ${format(-dy)} held $heldMs ms -> next")
+        val words = if (direction == GazeStep.Next) "down ${format(dy)} held $heldMs ms -> next" else "up ${format(-dy)} held $heldMs ms -> previous"
+        log.write("gaze", "look $words")
         return direction
     }
+
+    /** Gaze this close to rest counts as resting and slowly moves the rest point. */
+    private fun restBand() = minOf(settings.lookStrength, settings.downStrength ?: settings.lookStrength) / 2
 
     private fun format(value: Float) = String.format(Locale.US, "%.2f", value)
 

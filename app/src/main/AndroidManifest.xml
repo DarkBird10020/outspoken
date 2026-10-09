@@ -9,7 +9,12 @@
         android:name="android.hardware.camera.front"
         android:required="true" />
 
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false" />
+
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <!-- Libraries can merge these in. The app must stay fully offline. -->
     <uses-permission
@@ -22,6 +27,9 @@
     <queries>
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
         </intent>
     </queries>
 

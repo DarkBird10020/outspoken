@@ -24,12 +24,23 @@ class CalibrationTest {
     }
 
     /** A person whose eyes rest at 0.9 open, gaze 0.5, look up to 0.0 and close to 0.4. */
-    private fun run(upGaze: Float = 0f, closedOpen: Float = 0.4f, face: Boolean = true, openGap: Float? = null, closedGap: Float? = null) {
+    private fun run(
+        upGaze: Float = 0f,
+        downGaze: Float = 0.9f,
+        closedOpen: Float = 0.4f,
+        face: Boolean = true,
+        openGap: Float? = null,
+        closedGap: Float? = null,
+    ) {
         calibration.start(time)
         step(0.9f, 0.5f, face, openGap)
         step(0.9f, upGaze, face, openGap)
         step(0.9f, 0.5f, face, openGap)
         step(0.9f, upGaze, face, openGap)
+        step(0.9f, 0.5f, face, openGap)
+        step(0.7f, downGaze, face, openGap)
+        step(0.9f, 0.5f, face, openGap)
+        step(0.7f, downGaze, face, openGap)
         step(0.9f, 0.5f, face, openGap)
         step(closedOpen, 0.6f, face, closedGap)
         step(0.9f, 0.5f, face, openGap)
@@ -96,5 +107,20 @@ class CalibrationTest {
         run()
         val blink = (calibration.result(Tuning()) as Calibration.Result.Ok).tuning.blink
         assertEquals(null, blink.shapeClosedBelow)
+    }
+
+    @Test
+    fun `look down line is set from the measured look down`() {
+        run(downGaze = 0.9f)
+        val gaze = (calibration.result(Tuning()) as Calibration.Result.Ok).tuning.gaze
+        assertEquals(0.2f, gaze.downStrength!!, 0.001f)
+    }
+
+    @Test
+    fun `no look down turns looking down off but keeps the rest`() {
+        run(downGaze = 0.52f)
+        val result = calibration.result(Tuning()) as Calibration.Result.Ok
+        assertEquals(null, result.tuning.gaze.downStrength)
+        assertEquals(0.25f, result.tuning.gaze.lookStrength, 0.001f)
     }
 }

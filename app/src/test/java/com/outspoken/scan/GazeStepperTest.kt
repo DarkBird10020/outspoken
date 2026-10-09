@@ -6,7 +6,7 @@ import org.junit.Test
 
 class GazeStepperTest {
 
-    private val stepper = GazeStepper(GazeSettings(lookStrength = 0.45f, lookHoldMs = 250))
+    private val stepper = GazeStepper(GazeSettings(lookStrength = 0.45f, downStrength = 0.3f, lookHoldMs = 250))
     private var time = 0L
 
     /** Feeds one frame per 50 ms for [ms] and returns the steps seen. Up is negative y. */
@@ -26,15 +26,22 @@ class GazeStepperTest {
     }
 
     @Test
-    fun `looking up moves to the next card once`() {
+    fun `looking down moves the highlight down once`() {
         look(500)
-        assertEquals(listOf(GazeStep.Next), look(1_000, y = -0.7f))
+        assertEquals(listOf(GazeStep.Next), look(1_000, y = 0.4f))
     }
 
     @Test
-    fun `looking down does nothing`() {
+    fun `looking up moves the highlight up once`() {
         look(500)
-        assertEquals(emptyList<GazeStep>(), look(1_000, y = 0.4f))
+        assertEquals(listOf(GazeStep.Previous), look(1_000, y = -0.7f))
+    }
+
+    @Test
+    fun `looking down can be switched off`() {
+        stepper.settings = stepper.settings.copy(downStrength = null)
+        look(500)
+        assertEquals(emptyList<GazeStep>(), look(1_000, y = 0.6f))
     }
 
     @Test
@@ -44,28 +51,28 @@ class GazeStepperTest {
     }
 
     @Test
-    fun `a small look up from reading the cards does nothing`() {
+    fun `small up and down movement from reading the cards does nothing`() {
         look(500)
-        assertEquals(emptyList<GazeStep>(), look(1_000, y = -0.3f))
+        assertEquals(emptyList<GazeStep>(), look(1_000, y = -0.3f) + look(300) + look(1_000, y = 0.2f))
     }
 
     @Test
     fun `a glance shorter than the hold time does nothing`() {
         look(500)
-        assertEquals(emptyList<GazeStep>(), look(200, y = -0.7f))
+        assertEquals(emptyList<GazeStep>(), look(200, y = -0.7f) + look(300) + look(200, y = 0.5f))
     }
 
     @Test
     fun `each look needs a return to rest`() {
         look(500)
-        val steps = look(500, y = -0.7f) + look(300) + look(500, y = -0.7f)
+        val steps = look(500, y = 0.5f) + look(300) + look(500, y = 0.5f)
         assertEquals(listOf(GazeStep.Next, GazeStep.Next), steps)
     }
 
     @Test
     fun `shut eyes never step`() {
         look(500)
-        assertEquals(emptyList<GazeStep>(), look(500, y = -0.7f, eyesOpen = false))
+        assertEquals(emptyList<GazeStep>(), look(500, y = 0.6f, eyesOpen = false) + look(500, y = -0.7f, eyesOpen = false))
     }
 
     @Test
@@ -73,11 +80,11 @@ class GazeStepperTest {
         // Phone below eye level: resting gaze already points down.
         look(1_000, y = 0.6f)
         assertEquals(emptyList<GazeStep>(), look(1_000, y = 0.5f))
-        assertEquals(listOf(GazeStep.Next), look(500, y = -0.1f))
+        assertEquals(listOf(GazeStep.Previous), look(500, y = -0.1f))
     }
 
     @Test
-    fun `holding up for long becomes the new rest`() {
+    fun `holding one way for long becomes the new rest`() {
         look(500)
         look(3_500, y = -0.7f)
         assertEquals(emptyList<GazeStep>(), look(1_000, y = -0.7f))
