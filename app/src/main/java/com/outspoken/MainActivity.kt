@@ -40,6 +40,7 @@ import com.outspoken.suggest.SuggestionRequest
 import com.outspoken.suggest.Turn
 import com.outspoken.ui.ConversationScreen
 import com.outspoken.ui.EyeCheckScreen
+import com.outspoken.ui.EyeMonitor
 import com.outspoken.ui.SetupStatus
 import com.outspoken.ui.describeReplies
 import com.outspoken.ui.theme.OutspokenTheme
@@ -104,6 +105,7 @@ class MainActivity : ComponentActivity() {
         applyTuning(tuningStore.load())
         AppLog.write("app", "tuning $tuning")
         eyeReader = EyeReader(this) { controller.onSample(it) }
+        eyeReader.dotsOn = true
         speaker = Speaker(this) { controller.onSpeechDone(now()) }
         camera = FrontCamera(this, this)
         cameraGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
@@ -176,6 +178,11 @@ class MainActivity : ComponentActivity() {
                         // Session stats arrive in M4; until then this opens the eye check screen.
                         onStats = { show(Screen.EyeCheck) },
                         onSelect = { controller.onTap(it, now()) },
+                        eyeHint = if (tuning.moveByEyes) "Look up: next.  Close eyes: choose." else "Close your eyes when your choice lights up.",
+                        eyeView = { modifier ->
+                            val sample by eyeReader.samples.collectAsStateWithLifecycle()
+                            EyeMonitor(sample, tuning.blink, camera::showPreview, camera::hidePreview, modifier)
+                        },
                     )
                 }
             }
@@ -196,7 +203,9 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         AppLog.write("app", "closed")
         speaker.shutdown()
-        eyeReader.close()
+        // Closed on the camera thread, after any frame already being analysed, so no frame reaches
+        // a closed face tracker.
+        analyzerExecutor.execute { eyeReader.close() }
         analyzerExecutor.shutdown()
     }
 
@@ -213,7 +222,6 @@ class MainActivity : ComponentActivity() {
     private fun show(next: Screen) {
         AppLog.write("ui", "screen $next")
         screen = next
-        eyeReader.dotsOn = next == Screen.EyeCheck
     }
 
     private fun requestReplies(requestId: Int, turns: List<Turn>): Boolean {

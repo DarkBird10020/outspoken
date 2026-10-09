@@ -7,17 +7,18 @@ import com.outspoken.scan.GazeSettings
 /** Blink and scan settings the person at the bedside can adjust on the eye check screen. */
 data class Tuning(
     val blink: BlinkSettings = BlinkSettings(
-        // MediaPipe's blink score rarely reaches 1 with the eyes shut, so "open" here
-        // (1 - blink score) bottoms out well above 0. Start points; the sliders adjust them.
-        closedBelow = 0.55f,
-        openAbove = 0.7f,
-        minBlinkMs = 250,
-        maxBlinkMs = 900,
+        // From the iQOO logs: deliberate closes reached 0.22 to 0.36 and lasted 0.31 to 0.65 s;
+        // normal blinks bottomed at 0.40 to 0.53 and lasted up to 0.25 s. Looking down at the
+        // phone alone drops the value to about 0.6, so the open line sits below that.
+        closedBelow = 0.45f,
+        openAbove = 0.55f,
+        minBlinkMs = 400,
+        maxBlinkMs = 1_500,
         // MediaPipe reads eyes further round than ML Kit's 18°.
         maxHeadTurnDeg = 30f,
     ),
     val scanMs: Long = 1_200,
-    /** The highlight moves when the eyes look down or up. Off: it moves on its own every [scanMs]. */
+    /** The highlight moves when the eyes look up. Off: it moves on its own every [scanMs]. */
     val moveByEyes: Boolean = true,
     val gaze: GazeSettings = GazeSettings(),
 )

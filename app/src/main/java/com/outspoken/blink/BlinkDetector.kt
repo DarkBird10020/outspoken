@@ -68,7 +68,8 @@ class BlinkDetector(
         if (closedSince == null) {
             if (left < settings.closedBelow && right < settings.closedBelow) {
                 closedSinceMs = sample.timeMs
-                log.write("blink", "eyes shut (left ${open(left)}, right ${open(right)})")
+                val gaze = sample.gaze?.let { ", gaze up/down ${open(it.y)}" } ?: ""
+                log.write("blink", "eyes shut (left ${open(left)}, right ${open(right)}$gaze)")
             }
         } else if (maxOf(left, right) > settings.openAbove) {
             closedSinceMs = null

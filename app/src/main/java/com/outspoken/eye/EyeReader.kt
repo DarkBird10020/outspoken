@@ -30,6 +30,9 @@ class EyeReader(context: Context, private val onSample: (EyeSample) -> Unit) : I
     private val mainExecutor = ContextCompat.getMainExecutor(context)
     private val landmarker: FaceLandmarker? = create(context.applicationContext)
 
+    @Volatile
+    private var closed = false
+
     /** Fills [EyeSample.dots] for the debug screen. */
     @Volatile
     var dotsOn = false
@@ -49,7 +52,7 @@ class EyeReader(context: Context, private val onSample: (EyeSample) -> Unit) : I
 
     override fun analyze(image: ImageProxy) {
         val model = landmarker
-        if (model == null) {
+        if (model == null || closed) {
             image.close()
             return
         }
@@ -64,10 +67,16 @@ class EyeReader(context: Context, private val onSample: (EyeSample) -> Unit) : I
         } else {
             Bitmap.createBitmap(frame, 0, 0, frame.width, frame.height, Matrix().apply { postRotate(rotation.toFloat()) }, false)
         }
-        model.detectAsync(BitmapImageBuilder(upright).build(), timeMs)
+        try {
+            model.detectAsync(BitmapImageBuilder(upright).build(), timeMs)
+        } catch (e: RuntimeException) {
+            // MediaPipe throws once it is shut down; a frame can still be in flight then.
+            if (!closed) AppLog.write("eyes", "frame not analysed: $e")
+        }
     }
 
     fun close() {
+        closed = true
         landmarker?.close()
     }
 

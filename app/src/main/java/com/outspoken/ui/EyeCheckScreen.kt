@@ -77,7 +77,7 @@ fun EyeCheckScreen(
     onTuningReset: () -> Unit,
     onRequestCamera: () -> Unit,
     onPreviewReady: (PreviewView) -> Unit,
-    onPreviewGone: () -> Unit,
+    onPreviewGone: (PreviewView) -> Unit,
     onChooseModel: () -> Unit,
     onSaveLogs: () -> Unit,
 ) {
@@ -102,8 +102,7 @@ fun EyeCheckScreen(
                     .weight(1f)
             ) {
                 if (cameraGranted) {
-                    CameraPreview(onPreviewReady, onPreviewGone, Modifier.fillMaxSize())
-                    EyeDots(sample, settings, Modifier.fillMaxSize())
+                    EyeMonitor(sample, settings, onPreviewReady, onPreviewGone, Modifier.fillMaxSize())
                 } else {
                     Button(onClick = onRequestCamera) { Text("Allow camera") }
                 }
@@ -146,8 +145,23 @@ fun EyeCheckScreen(
     }
 }
 
+/** The front camera with the eyelid and iris dots drawn on it. */
 @Composable
-fun CameraPreview(onReady: (PreviewView) -> Unit, onGone: () -> Unit, modifier: Modifier = Modifier) {
+fun EyeMonitor(
+    sample: EyeSample?,
+    settings: BlinkSettings,
+    onPreviewReady: (PreviewView) -> Unit,
+    onPreviewGone: (PreviewView) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier) {
+        CameraPreview(onPreviewReady, onPreviewGone, Modifier.fillMaxSize())
+        EyeDots(sample, settings, Modifier.fillMaxSize())
+    }
+}
+
+@Composable
+fun CameraPreview(onReady: (PreviewView) -> Unit, onGone: (PreviewView) -> Unit, modifier: Modifier = Modifier) {
     AndroidView(
         factory = { context ->
             PreviewView(context).apply {
@@ -156,7 +170,7 @@ fun CameraPreview(onReady: (PreviewView) -> Unit, onGone: () -> Unit, modifier: 
             }.also(onReady)
         },
         modifier = modifier,
-        onRelease = { onGone() },
+        onRelease = { onGone(it) },
     )
 }
 
@@ -291,14 +305,14 @@ private fun TuningSliders(tuning: Tuning, onChange: (Tuning) -> Unit, onReset: (
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            if (tuning.moveByEyes) "Highlight moves with the eyes (look down / up)" else "Highlight moves on a timer",
+            if (tuning.moveByEyes) "Highlight moves with the eyes (look up = next)" else "Highlight moves on a timer",
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.weight(1f),
         )
         Switch(checked = tuning.moveByEyes, onCheckedChange = { onChange(tuning.copy(moveByEyes = it)) })
     }
     if (tuning.moveByEyes) {
-        LabeledSlider("Look distance: ${tuning.gaze.lookStrength.formatOpen()}", tuning.gaze.lookStrength, 0.05f..0.6f) {
+        LabeledSlider("Look distance: ${tuning.gaze.lookStrength.formatOpen()}", tuning.gaze.lookStrength, 0.1f..0.9f) {
             onChange(tuning.copy(gaze = tuning.gaze.copy(lookStrength = it)))
         }
         LabeledSlider("Look hold: ${tuning.gaze.lookHoldMs} ms", tuning.gaze.lookHoldMs.toFloat(), 100f..1_000f) {

@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: "Save logs" on the eye check screen puts all run logs in one file you choose (for example in Downloads), so they can be sent without a laptop. Still not working well on the phone; waiting for those logs to find out why.
+Latest: the main page shows the live camera with the eye dots above the cards; look up for the next card, close your eyes to choose; app locked to portrait. Gemma writes the next four replies after each sentence (M2), the model file is picked in the app, and "Save logs" on the eye check screen puts all run logs in one file you can send. Waiting for the next phone test and its logs.
 
 ## Phone test history
 
@@ -18,7 +18,12 @@ Latest: "Save logs" on the eye check screen puts all run logs in one file you ch
 
 The owner asked for the highlight to follow the eyes instead of moving on a timer. This replaces PRD F2 timed scanning as the default; the timer stays as a switch.
 
-- [ ] **Look down = next card, look up = previous, blink = say it.** One look is one step; the eyes come back to rest before the next. Looks are measured from where the eyes rest, which slowly follows posture, because the phone sits below eye level. Sideways looks do nothing. Shut eyes never count as looking down. Code: `scan/GazeStepper.kt`, `conversation/ConversationController.kt`.
+- [ ] **Look up = next card, close eyes about 0.4 s = say it.** One look up (above the top of the phone) is one step; the eyes come back to rest before the next; after the last card it goes back to the first. Looking down and sideways do nothing. Why only up: in the phone logs every look up registered (gaze -0.65 to -0.92), but every look down (gaze 0.81 to 0.87) arrived as "eyes shut", because looking down drops the upper lids. So down looks never moved the highlight ("stuck in the middle") and could fake a blink. Code: `scan/GazeStepper.kt`, `conversation/ConversationController.kt`.
+- [ ] **Eyes and cards on one page.** The main page shows the live camera with the eyelid and iris dots above the cards, and a one-line hint ("Look up: next. Close eyes: choose."), so the person sees their eyes are being read while choosing. The eye check page stays for tuning. Code: `ui/ConversationScreen.kt` (`eyeView`), `ui/EyeCheckScreen.kt` (`EyeMonitor`).
+- [ ] **Portrait only.** The log showed Android rebuilding the screen mid-test (`app: closed` then a fresh start at 22:38:21), the usual sign of a rotation, and that rebuild led to the crash below. The app is now locked to portrait and does not restart on rotation. Code: `AndroidManifest.xml`.
+- [ ] **Switching pages keeps the camera.** Leaving one page could stop the camera preview the next page had just started. Only the page showing the preview can stop it now. Code: `eye/FrontCamera.kt`.
+- [ ] **Crash on close fixed.** Logged `MediaPipeException: The task graph hasn't been started` from `EyeReader.analyze`: a camera frame reached the face tracker after it was closed. It now closes on the camera thread and ignores late frames. Code: `eye/EyeReader.kt`, `MainActivity.kt`.
+- [ ] **Blink and look settings from the logs.** Deliberate closes went down to 0.22 to 0.36 and lasted 0.31 to 0.65 s; normal blinks stayed at 0.40 to 0.53 and up to 0.25 s; at 0.25 s minimum, normal blinks said "I need water" three times in 8 s. Now: shut line 0.45, open line 0.55, 0.4 to 1.5 s. Looks up measured 0.65 to 0.92 from rest while reading the cards moved the eyes about 0.3, so a look must be 0.45 and last 0.25 s. Code: `setup/Tuning.kt`, `scan/GazeStepper.kt`.
 - [ ] **Eye reading switched from ML Kit to MediaPipe Face Landmarker.** Phone logs showed ML Kit could not do this: its dots trace the eyelids, not the eyeball, so they never moved with the eyes; one eye often read 0.01 while the other read 0.3; and it lost the face for single frames 16 times in a minute. MediaPipe gives 478 face points including both irises, a blink score per eye and gaze scores (look up, down, in, out). Model: `assets/face_landmarker.task` (Google, Apache 2.0). Code: `eye/EyeReader.kt`, `eye/FaceMesh.kt`.
 - [ ] **Face lost only after 0.4 s.** Single dropped frames no longer flip "Eyes found" off and on, and a face dropout during a blink no longer cancels it. Code: `blink/BlinkDetector.kt`.
 - [ ] **Tuning on the phone.** Eye check screen sliders: shut line, open line, shortest and longest blink, look distance, look hold, eyes or timer. Saved on the phone, reset button. No rebuild needed to tune. Code: `setup/Tuning.kt`, `ui/EyeCheckScreen.kt`.
@@ -26,13 +31,13 @@ The owner asked for the highlight to follow the eyes instead of moving on a time
 
 How to test on the phone:
 1. Main screen: the highlight stays on the first card until you move your eyes.
-2. Look down at the bottom of the phone for a moment, then back: the highlight moves down one card. Look up and back: it moves up one.
+2. Look up above the top of the phone for a moment, then back: the highlight moves to the next card.
 3. On the card you want, shut your eyes for about half a second: the phone says it.
 4. If looks are missed or too easy, open the eye check screen and move "Look distance" and "Look hold". If blinks are missed, watch the graph and move the shut line.
 
 Unit tests:
-- `GazeStepperTest`: rest does nothing, down and up step once, sideways and short glances do nothing, closing eyes is not a look, rest follows posture.
-- `EyeModeTest`: highlight waits for the eyes, down moves, up wraps, blink says the card the eyes moved to, back to top after speaking.
+- `GazeStepperTest`: rest does nothing, up steps once, down, sideways, small reading glances and short glances do nothing, shut eyes never step, rest follows posture.
+- `EyeModeTest`: highlight waits for the eyes, up moves to the next card and wraps after the last, down does nothing, blink says the card the eyes moved to, back to top after speaking.
 - `FaceMeshTest`: head turn from the nose position, gaze direction, point lists.
 - `BlinkDetectorTest`: short face dropout keeps the blink and is not face lost. The tests "losing the face cancels a blink" and "turning away counts as face lost" now hold the face away for 0.5 s, since a shorter gap is ignored on purpose.
 
@@ -190,6 +195,7 @@ Unit tests:
 
 Design gaps, for the teammate to decide. Each uses the closest existing style for now:
 - No design for the "Choose model file" button; it is on the plain eye check screen.
+- Main page live camera with eye dots (owner asked for it): a 150 dp rounded box under the status row, and a hint line in the soft ink style.
 - Highlight on "More options" and "Yes / No": pink glow, no "Blink" badge (the badge is taller than these cards).
 - Face lost: same pill reading "Looking for you" with a grey dot.
 - Nothing heard yet: the "Heard" card is hidden.
