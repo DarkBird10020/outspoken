@@ -83,11 +83,13 @@ fun Modifier.surface(style: SurfaceStyle, shape: Shape): Modifier {
 fun Modifier.dottedCanvas(): Modifier = background(Canvas).drawWithCache {
     val step = 18.dp.toPx()
     val dot = 1.dp.toPx()
+    val width = size.width
+    val height = size.height
     val points = buildList {
         var y = step / 2
-        while (y < size.height) {
+        while (y < height) {
             var x = step / 2
-            while (x < size.width) {
+            while (x < width) {
                 add(Offset(x, y))
                 x += step
             }

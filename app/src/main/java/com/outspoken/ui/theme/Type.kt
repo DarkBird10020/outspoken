@@ -1,6 +1,7 @@
 package com.outspoken.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -11,6 +12,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import com.outspoken.R
 
+@OptIn(ExperimentalTextApi::class)
 private fun urbanist(weight: Int) = Font(
     resId = R.font.urbanist,
     weight = FontWeight(weight),
