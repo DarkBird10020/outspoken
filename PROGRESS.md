@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: look down is off by default (look up = next card), blink only mode on a timer, the eye graph is one tap from the main page, and a 0.6 s blink length saved by the old practice round is cleared. Winks are off unless switched on (eye check screen). The highlight no longer moves by itself after speaking or after you shift position. Waiting for the ten-in-a-row test in both modes.
+Latest: synced with main. Look down is off by default (look up = next card), winks are off unless switched on, blink only mode on a timer, the eye graph is one tap from the main page, a 0.6 s blink length saved by the old practice round is cleared, and the highlight no longer moves by itself after speaking or after a shift in position. Waiting for the phone test.
 
 ## Phone test history
 

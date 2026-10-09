@@ -386,8 +386,6 @@ private fun TuningSliders(tuning: Tuning, onChange: (Tuning) -> Unit, onReset: (
             )
             Switch(checked = tuning.winks, onCheckedChange = { onChange(tuning.copy(winks = it)) })
         }
-    }
-    if (tuning.moveByEyes) {
         LabeledSlider("Look up distance: ${tuning.gaze.lookStrength.formatOpen()}", tuning.gaze.lookStrength, 0.1f..0.9f) {
             onChange(tuning.copy(gaze = tuning.gaze.copy(lookStrength = it)))
         }

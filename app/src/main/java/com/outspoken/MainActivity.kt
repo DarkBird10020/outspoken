@@ -413,8 +413,10 @@ class MainActivity : ComponentActivity() {
 
     private fun eyeHint(tuning: Tuning) = when {
         !tuning.moveByEyes -> "Close your eyes when your choice lights up."
-        else -> (if (tuning.lookDown) "Look up or down" else "Look up for the next card") +
-            (if (tuning.winks) ", or wink (left wink down, right wink up)" else "") + ".  Close both eyes: choose."
+        tuning.lookDown && tuning.winks -> "Look up or down, or wink, to move.  Close both eyes: choose."
+        tuning.lookDown -> "Look up or down to move.  Close both eyes: choose."
+        tuning.winks -> "Look up or wink to move (left wink down, right wink up).  Close both eyes: choose."
+        else -> "Look up to move to the next card.  Close both eyes: choose."
     }
 
     private fun fmt(value: Float) = String.format(Locale.US, "%.2f", value)
