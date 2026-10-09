@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: M0 code, unit tests and CI added. Waiting for the first green CI run and the phone test.
+Latest: M0 code, unit tests and CI added. CI is green. Waiting for the phone test.
 
 ## M0. Skeleton
 
