@@ -95,13 +95,16 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
             if (frames.size < MIN_FRAMES) return Result.Failed("Face not seen with the eyes closed")
             frames.minOf { open(it) }
         }
-        val closedOpen = depths.max()
+        // The deeper of the two closes. Taking the shallower let one weak or late close set the
+        // lines almost at open: the 00:13 phone run measured closed 0.54 against open 0.88 and a
+        // lid gap of 0.22 against 0.31, and normal looking then chose "I need water" by itself.
+        val closedOpen = depths.min()
         val range = restOpen - closedOpen
         if (range < MIN_CLOSE_RANGE) return Result.Failed("Closed eyes not seen; close them fully")
 
         val restGap = median(rests.mapNotNull { gap(it) })
         val closedGaps = listOf(Step.Close1, Step.Close2).map { close -> seen[close].orEmpty().mapNotNull { gap(it) }.minOrNull() }
-        val closedGap = if (closedGaps.any { it == null }) null else closedGaps.maxOf { it!! }
+        val closedGap = if (closedGaps.any { it == null }) null else closedGaps.minOf { it!! }
         val gapRange = if (restGap != null && closedGap != null) restGap - closedGap else null
         val useGap = gapRange != null && gapRange >= MIN_GAP_RANGE
 

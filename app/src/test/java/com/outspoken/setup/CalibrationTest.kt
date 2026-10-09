@@ -123,4 +123,26 @@ class CalibrationTest {
         assertEquals(null, result.tuning.gaze.downStrength)
         assertEquals(0.25f, result.tuning.gaze.lookStrength, 0.001f)
     }
+
+    @Test
+    fun `one weak close does not set the lines`() {
+        calibration.start(time)
+        step(0.9f, 0.5f, gap = 0.30f)
+        step(0.9f, 0f, gap = 0.30f)
+        step(0.9f, 0.5f, gap = 0.30f)
+        step(0.9f, 0f, gap = 0.30f)
+        step(0.9f, 0.5f, gap = 0.30f)
+        step(0.7f, 0.9f, gap = 0.30f)
+        step(0.9f, 0.5f, gap = 0.30f)
+        step(0.7f, 0.9f, gap = 0.30f)
+        step(0.9f, 0.5f, gap = 0.30f)
+        step(0.4f, 0.6f, gap = 0.06f)
+        step(0.9f, 0.5f, gap = 0.30f)
+        // Second close only half done.
+        step(0.7f, 0.6f, gap = 0.22f)
+        step(0.9f, 0.5f, gap = 0.30f)
+        val result = calibration.result(Tuning()) as Calibration.Result.Ok
+        assertEquals(0.4f, result.measured.closedOpen, 0.001f)
+        assertEquals(0.06f, result.measured.closedGap!!, 0.001f)
+    }
 }

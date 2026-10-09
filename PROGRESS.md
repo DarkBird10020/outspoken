@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: the gaze box is centred on the resting gaze with the look lines drawn, and calibration sets the resting gaze directly. Waiting for the phone test.
+Latest: calibration uses the deeper of the two eye closes, so one weak close cannot put the shut lines next to open. Waiting for the phone test.
 
 ## Phone test history
 
@@ -14,6 +14,10 @@ Latest: the gaze box is centred on the resting gaze with the look lines drawn, a
 | 2026-10-09 | M1, M2 | The highlight moved on its own; the owner wants to move it with the eyes. The model was missing | Eye movement control kept as the way to move (look down / up, blink to say). Gemma model replies added on top. "Choose model file" in the app |
 | 2026-10-09 | Eye movement build | Still not working well | "Save logs" button added so the run logs can be sent and read |
 | 2026-10-09 | Look up / down build | Looks down never registered (they read as eyes closing), crash when the app closed | Look up = next only, crash fixed, portrait lock, eyes shown on the main page |
+
+## Calibration uses the deeper close
+
+- [ ] **One weak close no longer sets the lines.** Calibration took the shallower of the two "Close your eyes" steps. In the 00:13 phone run that was closed 0.54 against open 0.88 and a lid gap of 0.22 against 0.31, so the shut lines landed at 0.71 and 0.25, next to open, and normal looking chose "I need water" by itself four times. It now takes the deeper close. Code: `setup/Calibration.kt`. Test: `CalibrationTest` "one weak close does not set the lines".
 
 ## Gaze box centred on the resting gaze (owner report)
 
