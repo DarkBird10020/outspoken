@@ -2,7 +2,6 @@ package com.outspoken.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,8 +10,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,6 +25,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.outspoken.R
 import com.outspoken.conversation.Board
 import com.outspoken.listen.QuickTopics
@@ -163,7 +166,15 @@ private fun ReplyCard(text: String, highlighted: Boolean, onClick: () -> Unit, m
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text, style = type(24, 500), modifier = Modifier.weight(1f))
+        // Each card gets a quarter of the space left, and a reply of two lines did not fit: the
+        // second line was cut off ("Yes, please, let me see them.", owner's screenshot, 07:46).
+        // The text shrinks until it fits; a reply that fits keeps the designed 24 sp.
+        BasicText(
+            text,
+            style = type(24, 500),
+            modifier = Modifier.weight(1f),
+            autoSize = TextAutoSize.StepBased(minFontSize = 16.sp, maxFontSize = 24.sp, stepSize = 1.sp),
+        )
         if (highlighted) {
             Box(
                 Modifier
