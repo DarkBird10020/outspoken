@@ -511,7 +511,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handHint(tuning: Tuning) =
-        if (tuning.handGestures) "  Hand: 1 to 4 fingers light a card, a fist says it." else ""
+        if (tuning.handGestures) "  Hand: 1 to 4 fingers (thumb folded) light a card, a fist says it, an open hand: please wait." else ""
 
     private fun eyeHint(tuning: Tuning) = when {
         !tuning.moveByEyes -> "Close your eyes when your choice lights up."

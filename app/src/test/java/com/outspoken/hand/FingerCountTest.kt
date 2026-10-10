@@ -60,7 +60,10 @@ class FingerCountTest {
         assertEquals(HandSign.ClosedFist, HandSign.read("Closed_Fist", 0))
         assertEquals(HandSign.OneFinger, HandSign.read("Pointing_Up", 1))
         assertEquals(HandSign.TwoFingers, HandSign.read("Victory", 2))
-        assertEquals(HandSign.FourFingers, HandSign.read("Open_Palm", 4))
+        // The whole hand open says "Please wait"; four fingers with the thumb folded light card 4.
+        assertEquals(HandSign.OpenPalm, HandSign.read("Open_Palm", 4))
+        assertEquals(HandAction.Say("Please wait"), HandSign.OpenPalm.action)
+        assertEquals(HandSign.FourFingers, HandSign.read("None", 4))
         // Three fingers has no label of the model's: the count decides.
         assertEquals(HandSign.ThreeFingers, HandSign.read("None", 3))
         assertNull(HandSign.read("None", 0))
