@@ -49,7 +49,15 @@ class ModelSuggestionEngine(
         }
         val answer = parseWordAnswer(generation.text, request.sentence)
         val usable = answer.completion != null || answer.words.isNotEmpty()
-        return WordSuggestions(answer.completion, answer.words, usable, clockMs() - startMs, generation.tokensPerSecond, generation.timing)
+        return WordSuggestions(
+            answer.completion,
+            answer.words,
+            usable,
+            clockMs() - startMs,
+            generation.tokensPerSecond,
+            generation.timing,
+            sentences = answer.sentences,
+        )
     }
 
     private fun topUp(replies: List<String>, lastSaid: String?): List<String> {

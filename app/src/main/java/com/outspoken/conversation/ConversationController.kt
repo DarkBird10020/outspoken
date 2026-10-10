@@ -232,9 +232,13 @@ class ConversationController(
         val sentence = builder ?: return
         if (requestId != latestWordRequest) return
         val nowMs = advance(timeMs)
+        val lit = if (moveByEyes) cards.getOrNull(cursor) else null
         sentence.showModel(words, completion)
         log.write("scan", "words from the model: ${sentence.shown}, finish: ${sentence.completion ?: "none"}")
-        restartBuilderCards(nowMs)
+        // A look already on Speak, Delete or More words stays there, as those still do the same:
+        // on the phone the new words pulled the highlight off "Speak" 0.5 s after a look up had
+        // reached it (10:18:13). On a word, the highlight goes back to the first new word.
+        if (lit != null && lit in STEADY_CARDS) moveCursor(cards.indexOf(lit), nowMs) else restartBuilderCards(nowMs)
         publish(nowMs)
     }
 
@@ -483,6 +487,9 @@ class ConversationController(
     }
 
     private companion object {
+        /** Builder buttons that mean the same before and after the model's words come. */
+        val STEADY_CARDS = setOf(SentenceBuilder.MORE_WORDS, SentenceBuilder.DELETE, SentenceBuilder.SPEAK)
+
         /** Looks are ignored this long after one eye stops reading lower than the other. */
         const val AFTER_WINK_MS = 800L
 
