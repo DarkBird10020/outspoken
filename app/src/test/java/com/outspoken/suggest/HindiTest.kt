@@ -20,6 +20,8 @@ class HindiTest {
     fun `the reply prompt asks for Hindi with a Hindi example, and English does not`() {
         val hindi = buildPrompt(SuggestionRequest(heardInHindi, hourOfDay = 10, language = AppLanguage.Hindi))
         assertTrue(hindi.contains(HINDI_LINE))
+        // 18:01 on the phone: curt तुम commands and the masculine form in every card.
+        assertTrue(HINDI_LINE.contains("कृपया") && HINDI_LINE.contains("gender"))
         assertTrue(hindi.contains(EXAMPLE_ANSWER_HINDI))
         val english = buildPrompt(SuggestionRequest(listOf(Turn(true, "Are you in pain?")), hourOfDay = 10))
         assertFalse(english.contains(HINDI_LINE))
