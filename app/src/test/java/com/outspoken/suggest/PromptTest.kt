@@ -53,7 +53,47 @@ class PromptTest {
         val turns = listOf(Turn(false, "Need water, yes?"), Turn(true, "In pain"))
         val prompt = buildPrompt(SuggestionRequest(turns, hourOfDay = 4))
         assertFalse(prompt.contains("Offered"))
-        assertTrue(prompt.endsWith("Visitor: In pain\nAnswer:"))
+        assertTrue(prompt.contains("Visitor: In pain\n"))
+        assertTrue(prompt.endsWith("Answer:"))
+    }
+
+    @Test
+    fun `a yes or no question just asked decides the replies`() {
+        // Phone 05:27:38: "Are you in pain" got rest and water cards, none about pain.
+        val turns = listOf(Turn(false, "Yes, I need a nap."), Turn(true, "Are you in pain"))
+        val prompt = buildPrompt(SuggestionRequest(turns, hourOfDay = 5))
+        assertTrue(
+            prompt.endsWith(
+                "The Visitor just said: \"Are you in pain\". All 4 replies must reply to that directly. " +
+                    "Give a yes, a no, and two more specific answers.\nAnswer:",
+            ),
+        )
+        assertFalse(prompt.contains("Mix the kinds"))
+    }
+
+    @Test
+    fun `a greeting is replied to without asking for yes or no`() {
+        val prompt = buildPrompt(SuggestionRequest(listOf(Turn(true, "Hello")), hourOfDay = 9))
+        assertTrue(prompt.contains("The Visitor just said: \"Hello\". All 4 replies must reply to that directly.\n"))
+        assertFalse(prompt.contains("Give a yes"))
+    }
+
+    @Test
+    fun `after the person speaks the replies mix needs`() {
+        val turns = listOf(Turn(true, "Are you in pain"), Turn(false, "Yes, my back hurts"))
+        val prompt = buildPrompt(SuggestionRequest(turns, hourOfDay = 9))
+        assertTrue(prompt.contains("Mix the kinds"))
+        assertFalse(prompt.contains("The Visitor just said"))
+    }
+
+    @Test
+    fun `yes or no questions are told apart from the first word`() {
+        assertTrue(isYesNoQuestion("Are you in pain"))
+        assertTrue(isYesNoQuestion("Hey you need anything"))
+        assertTrue(isYesNoQuestion("Do you want to eat in the breakfast"))
+        assertFalse(isYesNoQuestion("What would you like for breakfast"))
+        assertFalse(isYesNoQuestion("Hello"))
+        assertFalse(isYesNoQuestion(""))
     }
 
     @Test

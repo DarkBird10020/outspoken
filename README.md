@@ -4,6 +4,13 @@ Outspoken lets people who cannot move or speak talk out loud by blinking at a ph
 
 The listener asks a question, an on-device Gemma model suggests four replies, and the speaker blinks to pick one. The phone speaks it. Everything runs on the phone and the app has no internet permission.
 
+## Measured on the phone
+
+iQOO (vivo I2501, Android 16), from the app's own run logs of 2026-10-10:
+- Gemma 4 E2B through LiteRT-LM on the GPU with multi-token prediction (MTP): four replies in 0.6 to 1.4 s, 37 to 93 tokens per second. Without MTP: 1.6 to 1.9 s, 26 to 29 tokens per second.
+- Speech recognition and speech on the phone, offline.
+- Eye tracking at about 25 frames per second.
+
 ## Status
 
 Working on M1 to M4 together. Look up above the phone for the next card and close your eyes for about half a second to say the lit card, or switch to blink only mode, where the highlight moves on a timer. The phone listens to the visitor's question, and Gemma on the phone writes four replies that fit; the built-in phrase bank shows while it thinks and whenever it fails. A practice round, a help alarm, a stats screen and a live transcript are built.
@@ -28,7 +35,7 @@ To run exactly the same app on two phones, install the CI APK (`outspoken-debug-
 1. At every start the phone talks the speaker through calibration (about 30 s): look at the screen, look up, look down, close the eyes. It sets the look and blink lines from this person's eyes.
 2. On the main page, the visitor asks a question out loud. It shows on the "Heard" card and four replies appear.
 3. The speaker moves the highlight and closes both eyes for about half a second to say the lit card.
-4. Holding the eyes shut for 2 s, then one blink, sounds the help alarm.
+4. Holding the eyes shut for 2 s (a beep), then opening them and closing them again within 5 s, as a blink or a longer close, sounds the help alarm.
 
 Two ways to move the highlight, switched on the eye check page:
 - **Eyes** (default): look up, above the phone, for the next card; it wraps round. Looking down and winks can be switched on too.
@@ -36,11 +43,11 @@ Two ways to move the highlight, switched on the eye check page:
 
 Buttons on the main page, top right:
 - **Star**: practice round. Catch three stars by blinking; it sets the blink length and gives the blink accuracy on the stats screen.
-- **Eye**: eye check page. Live graph of both eyes with the shut and open lines, OPEN / SHUT in large letters, the gaze box, the last decisions, the mode switches and sliders, "Calibrate my eyes", "Choose model file" and "Save logs". Sized to be read from about two metres for a demo.
+- **Eye**: eye check page. Live graph of both eyes with the shut and open lines, OPEN / SHUT in large letters, the gaze box, the last decisions, the mode switches and sliders, "Calibrate my eyes", "Choose model file", "Share logs" and "Save logs". Sized to be read from about two metres for a demo.
 - **Transcript**: the conversation in large type, for a laptop through Office Kit.
 - **Stats**: reply time, model speed, blink accuracy, session length, sentences spoken.
 
-Run logs stay on the phone in `Android/data/com.outspoken/files/logs/`. Read them with `adb logcat -s Outspoken`, or tap "Save logs" on the eye check page.
+Run logs stay on the phone in `Android/data/com.outspoken/files/logs/`. Tap "Share logs" on the eye check page to send them to another app, or "Save logs" to keep a copy; on a laptop, `tools/phone-logs.ps1` copies them over USB or wireless debugging. Logs are never committed: they hold what people said.
 
 ## Checks
 
