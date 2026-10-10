@@ -188,7 +188,7 @@ private fun HandCard(tuning: Tuning, reading: HandReading, onChange: (Tuning) ->
         }
         ToggleRow("Hand signs in view of the camera", tuning.handGestures) { onChange(tuning.copy(handGestures = it)) }
         if (tuning.handGestures) {
-            Text(describeHandReading(reading.sign, reading.score), style = type(15, color = InkSoft))
+            Text(describeHandReading(reading), style = type(15, color = InkSoft))
             HandSign.entries.forEach { sign ->
                 ToggleRow("${sign.symbol}  ${sign.meaning}", sign in tuning.handSigns) { on ->
                     onChange(tuning.copy(handSigns = if (on) tuning.handSigns + sign else tuning.handSigns - sign))

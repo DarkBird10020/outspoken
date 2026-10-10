@@ -439,7 +439,7 @@ class MainActivity : ComponentActivity() {
                         onEyeCheck = { show(Screen.EyeCheck) },
                         onTranscript = { show(Screen.Transcript) },
                         onSelect = { controller.onTap(it, now()) },
-                        eyeHint = eyeHint(tuning),
+                        eyeHint = eyeHint(tuning) + handHint(tuning),
                         onAsk = { question ->
                             AppLog.write("listen", "quick topic \"$question\"")
                             controller.onHeard(question, now())
@@ -509,6 +509,9 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    private fun handHint(tuning: Tuning) =
+        if (tuning.handGestures) "  Hand: 1 to 4 fingers light a card, a fist says it." else ""
 
     private fun eyeHint(tuning: Tuning) = when {
         !tuning.moveByEyes -> "Close your eyes when your choice lights up."
@@ -657,7 +660,7 @@ class MainActivity : ComponentActivity() {
         val acting = screen == Screen.Conversation
         val held = handHold.onFrame(reading.sign.takeIf { acting }, reading.score, timeMs, tuning.handSigns) ?: return
         val sign = held.sign
-        AppLog.write("hand", "${sign.label} held ${held.heldMs} ms, ${held.steadyReadings} of ${held.readings} readings, ${sign.meaning}")
+        AppLog.write("hand", "${sign.key} held ${held.heldMs} ms, ${held.steadyReadings} of ${held.readings} readings, ${sign.meaning}")
         controller.onHandSign(sign.action, now())
     }
 

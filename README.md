@@ -46,7 +46,7 @@ Everything runs on the phone. The app has no internet permission, and CI fails a
 | **Choose by blinking** | Our own blink detector, calibrated to each person, tells a deliberate close (about 0.4 s) from a normal blink. |
 | **Two ways to move** | *Look up to move*: look above the phone for the next card. *Blink only*: the highlight moves on a timer, and a blink chooses. |
 | **Say anything** | Build any sentence a few words at a time: the model suggests the next four words and a finished sentence that one blink says. |
-| **Hand signs (optional)** | For someone who can still lift a hand into the camera's view: 👍 "Yes", 👎 "No", ✌️ "Thank you", 🤟 "I love you", ☝️ "Please call the nurse", ✋ "Please wait", ✊ chooses the lit card. Held about half a second (the fist a second); each sign can be switched off for a person. Off by default. |
+| **Hand signs (optional)** | For someone who can still lift a hand into the camera's view: one to four fingers light the first to fourth card and a fist says it, so any card can be chosen by hand; 👍 "Yes", 👎 "No", 🤟 "I love you". Held a moment (the fist a second); each sign can be switched off for a person. Off by default. |
 | **Help alarm** | Eyes shut for 2 seconds, then a blink, sounds a loud alarm and shows a full-screen alert. |
 | **Calibration and practice** | Every start measures this person's eyes in about 30 seconds. A practice round teaches the blink and measures accuracy. |
 | **Listening** | On-device speech recognition hears the visitor. Typed questions and one-tap topics cover noisy rooms. |

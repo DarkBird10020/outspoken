@@ -1,34 +1,67 @@
 package com.outspoken.hand
 
-/** What a held hand sign does: says a phrase, or chooses the lit card as a blink would. */
+/** The sign read now, how sure the model is, and the fingers counted; for the settings screen. */
+data class HandReading(val sign: HandSign?, val score: Float, val fingers: Int? = null)
+
+/** What a held hand sign does: says a phrase, lights one of the cards, or says the lit card. */
 sealed interface HandAction {
     data class Say(val text: String) : HandAction
+
+    /** Moves the highlight to the card at [index] (0 is the first reply), without saying it. */
+    data class Light(val index: Int) : HandAction
     data object ChooseLit : HandAction
 }
 
 /**
- * The seven signs MediaPipe's gesture model knows, by the label it gives them, each with what it
- * does here. Phrases are short things a person in bed needs said at once; a fist is a second way
- * to choose, for someone whose blinks are hard to read.
+ * The hand signs and what each does. One to four fingers light the first to the fourth card and a
+ * fist says the lit card, so any card can be chosen by hand in two steps, as with the eyes: a
+ * count read on the way to another (one and two pass by on the way to three) only lights a card,
+ * it never says one. Thumbs up and down and the I-love-you hand say their phrase at once.
+ * [key] is how a sign is saved in the settings.
  */
-enum class HandSign(val label: String, val symbol: String, val action: HandAction) {
+enum class HandSign(val key: String, val symbol: String, val action: HandAction) {
     ThumbUp("Thumb_Up", "👍", HandAction.Say("Yes")),
     ThumbDown("Thumb_Down", "👎", HandAction.Say("No")),
-    Victory("Victory", "✌️", HandAction.Say("Thank you")),
     LoveYou("ILoveYou", "🤟", HandAction.Say("I love you")),
-    PointingUp("Pointing_Up", "☝️", HandAction.Say("Please call the nurse")),
-    OpenPalm("Open_Palm", "✋", HandAction.Say("Please wait")),
+    OneFinger("One_Finger", "☝️", HandAction.Light(0)),
+    TwoFingers("Two_Fingers", "✌️", HandAction.Light(1)),
+    ThreeFingers("Three_Fingers", "3️⃣", HandAction.Light(2)),
+    FourFingers("Four_Fingers", "✋", HandAction.Light(3)),
     ClosedFist("Closed_Fist", "✊", HandAction.ChooseLit);
 
     /** What it does, in a few words for the settings screen. */
     val meaning: String
         get() = when (action) {
             is HandAction.Say -> "says \"${action.text}\""
-            HandAction.ChooseLit -> "chooses the lit card"
+            is HandAction.Light -> "lights card ${action.index + 1}"
+            HandAction.ChooseLit -> "says the lit card"
         }
 
     companion object {
-        /** The sign for one of the model's labels; null for "None" or anything else. */
-        fun fromLabel(label: String?): HandSign? = entries.firstOrNull { it.label == label }
+        fun fromKey(key: String?): HandSign? = entries.firstOrNull { it.key == key }
+
+        /**
+         * The sign for one reading: the model's own label for the thumbs, the I-love-you hand and
+         * the fist; its pointing up, victory and open palm as one, two and four fingers; and the
+         * counted [fingers] when the model has no label for the hand ("None"), as three fingers is
+         * not one of its signs.
+         */
+        fun read(label: String?, fingers: Int?): HandSign? = when (label) {
+            "Thumb_Up" -> ThumbUp
+            "Thumb_Down" -> ThumbDown
+            "ILoveYou" -> LoveYou
+            "Closed_Fist" -> ClosedFist
+            "Pointing_Up" -> OneFinger
+            "Victory" -> TwoFingers
+            "Open_Palm" -> FourFingers
+            "None" -> when (fingers) {
+                1 -> OneFinger
+                2 -> TwoFingers
+                3 -> ThreeFingers
+                4 -> FourFingers
+                else -> null
+            }
+            else -> null
+        }
     }
 }

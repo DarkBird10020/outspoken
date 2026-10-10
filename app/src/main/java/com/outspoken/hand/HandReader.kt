@@ -16,12 +16,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** The sign the model reads now, and how sure it is; for the settings screen. */
-data class HandReading(val sign: HandSign?, val score: Float)
-
 /**
  * Camera frames in, hand signs out, using MediaPipe's Gesture Recognizer (`gesture_recognizer.task`,
- * the same tasks-vision library as the face). It takes the eye reader's frames on the camera
+ * the same tasks-vision library as the face): its own label for the hand, and the fingers counted
+ * from its 21 hand points ([fingersOut]) for counts it has no label for. It takes the eye reader's frames on the camera
  * thread and uses every second one: a sign is held for over half a second, and the face tracking
  * must keep its full rate. The model loads on the first frame after [enabled] is set, on the
  * camera thread, which is where it then runs. [onReading] runs on the main thread.
@@ -78,7 +76,7 @@ class HandReader(context: Context, private val onReading: (HandReading, timeMs: 
                 val options = GestureRecognizer.GestureRecognizerOptions.builder()
                     .setBaseOptions(BaseOptions.builder().setModelAssetPath(MODEL).setDelegate(delegate).build())
                     .setRunningMode(RunningMode.LIVE_STREAM)
-                    .setResultListener { result: GestureRecognizerResult, _: MPImage -> onResult(result) }
+                    .setResultListener { result: GestureRecognizerResult, input: MPImage -> onResult(result, input.width, input.height) }
                     .setErrorListener { error: RuntimeException -> AppLog.write("hand", "gesture recognizer error: $error") }
                     .build()
                 return GestureRecognizer.createFromOptions(appContext, options).also {
@@ -92,13 +90,21 @@ class HandReader(context: Context, private val onReading: (HandReading, timeMs: 
     }
 
     /** Runs on MediaPipe's thread. */
-    private fun onResult(result: GestureRecognizerResult) {
+    private fun onResult(result: GestureRecognizerResult, width: Int, height: Int) {
         val timeMs = result.timestampMs()
         val handFound = result.gestures().isNotEmpty()
         val top = result.gestures().firstOrNull()?.maxByOrNull { it.score() }
-        val reading = HandReading(HandSign.fromLabel(top?.categoryName()), top?.score() ?: 0f)
-        val label = top?.categoryName() ?: "no hand"
-        mainExecutor.execute { publish(reading, timeMs, handFound, label) }
+        val label = top?.categoryName()
+        val fingers = result.landmarks().firstOrNull()?.let { points ->
+            fingersOut(points.map { HandPoint(it.x() * width, it.y() * height) })
+        }
+        val sign = HandSign.read(label, fingers)
+        // A count is measured, not guessed by the model, so the model's score for "None" says
+        // nothing about it.
+        val score = if (label == NO_LABEL && sign != null) 1f else top?.score() ?: 0f
+        val reading = HandReading(sign, score, fingers)
+        val seenAs = sign?.key ?: if (handFound) "no sign" else "no hand"
+        mainExecutor.execute { publish(reading, timeMs, handFound, seenAs) }
     }
 
     private fun publish(reading: HandReading, timeMs: Long, handFound: Boolean, label: String) {
@@ -122,6 +128,7 @@ class HandReader(context: Context, private val onReading: (HandReading, timeMs: 
 
     private companion object {
         const val MODEL = "gesture_recognizer.task"
+        const val NO_LABEL = "None"
         const val EVERY_NTH_FRAME = 2
         const val SUMMARY_EVERY_MS = 5_000L
     }

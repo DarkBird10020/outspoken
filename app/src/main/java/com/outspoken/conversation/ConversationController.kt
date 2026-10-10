@@ -184,9 +184,10 @@ class ConversationController(
     }
 
     /**
-     * A hand sign held on purpose: a phrase is said as if its card were chosen, and a fist chooses
-     * the lit card as a blink would. Nothing while the phone speaks or waits for new cards, and
-     * no phrase while "Say anything" is open, where it would cut the sentence being built.
+     * A hand sign held on purpose: a phrase is said as if its card were chosen, a finger count
+     * lights that card, and a fist chooses the lit card as a blink would. Nothing while the phone
+     * speaks or waits for new cards, and no phrase while "Say anything" is open, where it would
+     * cut the sentence being built.
      */
     fun onHandSign(action: HandAction, timeMs: Long) {
         val nowMs = advance(timeMs)
@@ -194,6 +195,7 @@ class ConversationController(
             speaking || waiting -> log.write("hand", "sign ignored while ${if (speaking) "speaking" else "waiting for new replies"}")
             action is HandAction.Say && builder != null -> log.write("hand", "\"${action.text}\" ignored while Say anything is open")
             action is HandAction.Say -> say(action.text, nowMs)
+            action is HandAction.Light -> lightCard(action.index, nowMs)
             else -> {
                 val card = if (moveByEyes) cards.getOrNull(cursor) else scanner.cardAt(nowMs)
                 if (card == null) {
@@ -205,6 +207,19 @@ class ConversationController(
             }
         }
         publish(nowMs)
+    }
+
+    /** Moves the eye-mode highlight to the card at [index]. In timed scanning the timer owns it. */
+    private fun lightCard(index: Int, nowMs: Long) {
+        val card = cards.getOrNull(index)
+        when {
+            !moveByEyes -> log.write("hand", "card ${index + 1} sign ignored: cards are lit by hand only in Look up to move")
+            card == null -> log.write("hand", "no card ${index + 1} to light")
+            else -> {
+                moveCursor(index, nowMs)
+                log.write("hand", "lit ${label(card)}")
+            }
+        }
     }
 
     fun onSpeechDone(timeMs: Long) {

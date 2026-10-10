@@ -1,6 +1,6 @@
 package com.outspoken.ui
 
-import com.outspoken.hand.HandSign
+import com.outspoken.hand.HandReading
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -32,9 +32,15 @@ fun liveStatsLine(replyTimeSeconds: Float?, tokensPerSecond: Float?, repliesWrit
         "$repliesWritten replies written",
     )
 
-/** What the camera reads from the hand now, for the settings screen: "Seen now: 👍 (0.91)". */
-fun describeHandReading(sign: HandSign?, score: Float): String =
-    if (sign == null) "No sign seen. Hold a hand up where the camera can see it." else "Seen now: ${sign.symbol} (${String.format(Locale.US, "%.2f", score)})"
+/** What the camera reads from the hand now, for the settings screen: "Seen now: ✌️ lights card 2 (1.00)". */
+fun describeHandReading(reading: HandReading): String {
+    val sign = reading.sign
+    return when {
+        sign != null -> "Seen now: ${sign.symbol} ${sign.meaning} (${String.format(Locale.US, "%.2f", reading.score)})"
+        reading.fingers != null -> "A hand with ${reading.fingers} fingers out, no sign"
+        else -> "No sign seen. Hold a hand up where the camera can see it."
+    }
+}
 
 /** Session length as minutes and seconds, "MM:SS". */
 fun formatClock(millis: Long): String {
