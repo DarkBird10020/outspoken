@@ -1,7 +1,6 @@
 package com.outspoken.hand
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -53,7 +52,7 @@ class GestureHoldTest {
 
     @Test
     fun `a sign held on fires only once`() {
-        assertEquals(listOf(HandSign.Victory), show(HandSign.Victory, 3_000))
+        assertEquals(listOf(HandSign.LoveYou), show(HandSign.LoveYou, 3_000))
     }
 
     @Test
@@ -88,8 +87,8 @@ class GestureHoldTest {
     fun `readings flipping between a point and a fist fire neither until one is steady`() {
         // Phone, 15:33:13 to 15:33:17: a raised finger read as Pointing_Up and Closed_Fist in turn,
         // and the fist fired, saying the lit card.
-        assertEquals(emptyList<HandSign>(), flip(HandSign.PointingUp, HandSign.ClosedFist, 2_000))
-        assertEquals(listOf(HandSign.PointingUp), show(HandSign.PointingUp, 900))
+        assertEquals(emptyList<HandSign>(), flip(HandSign.OneFinger, HandSign.ClosedFist, 2_000))
+        assertEquals(listOf(HandSign.OneFinger), show(HandSign.OneFinger, 900))
     }
 
     @Test
@@ -117,12 +116,17 @@ class GestureHoldTest {
     }
 
     @Test
-    fun `labels map to signs and None to nothing`() {
-        assertEquals(HandSign.ThumbUp, HandSign.fromLabel("Thumb_Up"))
-        assertEquals(HandSign.LoveYou, HandSign.fromLabel("ILoveYou"))
-        assertNull(HandSign.fromLabel("None"))
-        assertNull(HandSign.fromLabel(null))
-        assertEquals(HandAction.Say("Yes"), HandSign.ThumbUp.action)
-        assertEquals(HandAction.ChooseLit, HandSign.ClosedFist.action)
+    fun `a finger count lights a card after a shorter hold, and one count can follow another`() {
+        assertEquals(emptyList<HandSign>(), show(HandSign.TwoFingers, 250))
+        assertEquals(listOf(HandSign.TwoFingers), show(HandSign.TwoFingers, 250))
+        assertEquals(listOf(HandSign.ThreeFingers), show(HandSign.ThreeFingers, 600))
+        assertEquals(listOf(HandSign.ClosedFist), show(HandSign.ClosedFist, 1_200))
+    }
+
+    @Test
+    fun `counts passed on the way to three do not light a card`() {
+        show(HandSign.OneFinger, 166)
+        show(HandSign.TwoFingers, 166)
+        assertEquals(listOf(HandSign.ThreeFingers), show(HandSign.ThreeFingers, 600))
     }
 }

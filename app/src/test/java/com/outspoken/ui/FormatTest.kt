@@ -1,5 +1,7 @@
 package com.outspoken.ui
 
+import com.outspoken.hand.HandReading
+import com.outspoken.hand.HandSign
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -53,8 +55,10 @@ class FormatTest {
 
     @Test
     fun `hand reading for the settings screen`() {
-        assertEquals("Seen now: 👍 (0.91)", describeHandReading(com.outspoken.hand.HandSign.ThumbUp, 0.912f))
-        assertTrue(describeHandReading(null, 0f).startsWith("No sign seen"))
+        assertEquals("Seen now: 👍 says \"Yes\" (0.91)", describeHandReading(HandReading(HandSign.ThumbUp, 0.912f)))
+        assertEquals("Seen now: 3️⃣ lights card 3 (1.00)", describeHandReading(HandReading(HandSign.ThreeFingers, 1f, fingers = 3)))
+        assertEquals("A hand with 0 fingers out, no sign", describeHandReading(HandReading(null, 0.8f, fingers = 0)))
+        assertTrue(describeHandReading(HandReading(null, 0f)).startsWith("No sign seen"))
     }
 
     @Test

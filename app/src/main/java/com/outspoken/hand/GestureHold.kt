@@ -5,7 +5,8 @@ data class HeldSign(val sign: HandSign, val heldMs: Long, val steadyReadings: In
 
 /**
  * Turns hand signs read frame by frame into one event per deliberate sign. A sign fires once it
- * has been held for [holdMs] ([chooseHoldMs] for the fist, which says the lit card) and at least
+ * has been held for [holdMs] ([chooseHoldMs] for the fist, which says the lit card, and
+ * [lightHoldMs] for a finger count, which only lights a card) and at least
  * [minShare] of the readings over that time were that sign. Readings of nothing, or of another
  * sign, for up to [gapMs] do not break a hold: on the phone the model flipped between pointing
  * up and a fist while a finger was raised (15:33:13 to 15:33:28: Pointing_Up 15, Closed_Fist 9),
@@ -19,6 +20,7 @@ data class HeldSign(val sign: HandSign, val heldMs: Long, val steadyReadings: In
 class GestureHold(
     private val holdMs: Long = 600,
     private val chooseHoldMs: Long = 1_000,
+    private val lightHoldMs: Long = 400,
     private val gapMs: Long = 250,
     private val releaseMs: Long = 500,
     private val minScore: Float = 0.6f,
@@ -62,5 +64,9 @@ class GestureHold(
         return HeldSign(held, timeMs - sinceMs, steady, window.size)
     }
 
-    private fun holdFor(sign: HandSign) = if (sign.action == HandAction.ChooseLit) chooseHoldMs else holdMs
+    private fun holdFor(sign: HandSign) = when (sign.action) {
+        HandAction.ChooseLit -> chooseHoldMs
+        is HandAction.Light -> lightHoldMs
+        is HandAction.Say -> holdMs
+    }
 }

@@ -46,4 +46,22 @@ class ConversationHandTest {
         controller.onHandSign(HandAction.ChooseLit, time + 200)
         assertEquals("I", controller.ui.value.builder!!.sentence)
     }
+
+    @Test
+    fun `by eyes a finger count lights that card and a fist says it`() {
+        controller.moveByEyes = true
+        controller.onTick(time)
+        controller.onHandSign(HandAction.Light(2), time + 100)
+        assertEquals(2, controller.ui.value.highlighted)
+        assertTrue(said.isEmpty())
+        controller.onHandSign(HandAction.ChooseLit, time + 1_200)
+        assertEquals(listOf("Please call the nurse"), said)
+    }
+
+    @Test
+    fun `in timed scanning a finger count leaves the highlight to the timer`() {
+        controller.onTick(time)
+        controller.onHandSign(HandAction.Light(2), time + 100)
+        assertEquals(0, controller.ui.value.highlighted)
+    }
 }
