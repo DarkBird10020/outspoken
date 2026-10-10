@@ -573,12 +573,12 @@ class MainActivity : ComponentActivity() {
 
     /** Listens on the conversation and mirrored transcript pages while the app is on screen. */
     private fun updateListening() {
-        if (micGranted && visible && (screen == Screen.Conversation || screen == Screen.Transcript)) listener.start() else listener.stop()
+        if (micGranted && visible && screen in LISTENING_SCREENS) listener.start() else listener.stop()
     }
 
     private fun transcriptUi() = TranscriptUi(
         turns = controller.allTurns,
-        isListening = micGranted && visible && (screen == Screen.Conversation || screen == Screen.Transcript),
+        isListening = micGranted && visible && screen in LISTENING_SCREENS,
         totalSentences = controller.history.size,
     )
 
@@ -755,6 +755,11 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val STATS_REFRESH_MS = 1_000L
+
+        // The stats screen listens too: without it nothing new could happen while it was open, and
+        // only the session length moved (owner's screenshot, 08:00). A question asked there now
+        // brings replies, and the reply numbers change in front of the judges.
+        val LISTENING_SCREENS = setOf(Screen.Conversation, Screen.Transcript, Screen.Stats)
         const val DOWNLOAD_CHECK_MS = 3_000L
         const val CUE_MS = 200
         const val CUE_VOLUME = 80
