@@ -116,19 +116,24 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
         if (range < MIN_CLOSE_RANGE) return Result.Failed("Closed eyes not seen; close them fully")
 
         val restGap = median(rests.mapNotNull { gap(it) })
-        // The typical gap of each close, not its single deepest frame: a hard squeeze reads 0.00
-        // to 0.03 for a frame or two, and a line just above that missed held closes. On the phone
-        // (05:04 run) the line came out at 0.09 while held closes read 0.10 to 0.15, and a help
-        // hold only counted from 1.2 s in. Lines from earlier runs ranged from 0.045 to 0.21.
-        val closedGaps = listOf(Step.Close1, Step.Close2).map { close -> median(seen[close].orEmpty().mapNotNull { gap(it) }) }
-        val closedGap = if (closedGaps.any { it == null }) null else closedGaps.minOf { it!! }
+        // The typical gap while the eyes read shut. The single deepest frame (a hard squeeze reads
+        // 0.00 to 0.03) set a line of 0.09 that held closes of 0.10 to 0.15 missed (05:04 run).
+        // The median of the whole step took in the open frames before the person closed, as
+        // "Close your eyes" takes 1.3 s to say: closed 0.28 against open 0.29 turned the gap
+        // check off, and open eyes looking down picked cards (05:36 run).
+        val shutLine = closedOpen + range * SHUT_SHARE
+        val closedGaps = listOf(Step.Close1, Step.Close2).map { close ->
+            median(seen[close].orEmpty().filter { open(it) < shutLine }.mapNotNull { gap(it) })
+        }
+        // A close with no shut frames (half done) leaves the other to set the line.
+        val closedGap = closedGaps.filterNotNull().minOrNull()
         val gapRange = if (restGap != null && closedGap != null) restGap - closedGap else null
         val useGap = gapRange != null && gapRange >= MIN_GAP_RANGE
 
         val measured = Measured(restGaze, restOpen, upReach, closedOpen, downReach, restIris, irisDownReach, restGap, closedGap)
         val tuning = current.copy(
             blink = current.blink.copy(
-                closedBelow = closedOpen + range * SHUT_SHARE,
+                closedBelow = shutLine,
                 openAbove = closedOpen + range * OPEN_SHARE,
                 shapeClosedBelow = if (useGap) closedGap!! + gapRange!! * GAP_SHUT_SHARE else null,
                 shapeOpenAbove = if (useGap) closedGap!! + gapRange!! * GAP_OPEN_SHARE else null,
