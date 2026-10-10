@@ -242,11 +242,17 @@ class BlinkDetector(
         fun gap(value: Float?) = value?.let { open(it) } ?: "not read"
         fun line(rightEye: Boolean) = settings.gapShutLine(rightEye)?.let { open(it) } ?: "off"
         val gaze = halfShutGaze?.let { ", gaze up/down ${open(it)}" } ?: ""
-        log.write(
-            "blink",
-            "half shut $duration ms, not counted: eye-open read shut but the lid gaps came down only to " +
-                "left ${gap(halfShutLeftGap)} / right ${gap(halfShutRightGap)} (shut lines ${line(false)} / ${line(true)}$gaze)",
-        )
+        val gaps = "left ${gap(halfShutLeftGap)} / right ${gap(halfShutRightGap)} (shut lines ${line(false)} / ${line(true)}$gaze)"
+        // Lids that stayed at the look-down height (above the open lines, which sit three quarters
+        // of the way from closed to looking down) were a look down, not a close the lines missed:
+        // 17:51:58 and 17:52:08 read 0.21 / 0.16 against a calibrated look down of 0.18 / 0.16, and
+        // asked for a calibration nobody needed.
+        val nearlyShut = pastLines(halfShutLeftGap, halfShutRightGap) { settings.gapOpenLine(it) }?.let { it < 0f } ?: true
+        if (!nearlyShut) {
+            log.write("blink", "half shut $duration ms with the lids at the look-down height, a look down: $gaps")
+            return
+        }
+        log.write("blink", "half shut $duration ms, not counted: eye-open read shut but the lid gaps came down only to $gaps")
         missedInARow++
         if (missedInARow == MISSED_BEFORE_ASKING) {
             log.write("blink", "$missedInARow closes in a row not counted; asking for a calibration (with glasses on, if worn)")
@@ -285,13 +291,17 @@ class BlinkDetector(
      */
     private fun pastLines(sample: EyeSample, line: (rightEye: Boolean) -> Float?): Float? {
         val dots = sample.dots ?: return null
+        return pastLines(dots.leftShape, dots.rightShape, line)
+    }
+
+    private fun pastLines(leftGap: Float?, rightGap: Float?, line: (rightEye: Boolean) -> Float?): Float? {
         fun eye(gap: Float?, rightEye: Boolean): Float? {
             val at = line(rightEye) ?: return null
             val shut = settings.gapShutLine(rightEye) ?: return null
             val span = settings.gapOpenLine(rightEye)?.let { it - shut } ?: 0f
             return ((gap ?: return null) - at) / maxOf(span, MIN_GAP_SPAN)
         }
-        return (eye(dots.leftShape, false) ?: return null) + (eye(dots.rightShape, true) ?: return null)
+        return (eye(leftGap, false) ?: return null) + (eye(rightGap, true) ?: return null)
     }
 
     /** Both lid gaps, together, below their shut lines; true when there is no gap check or reading. */

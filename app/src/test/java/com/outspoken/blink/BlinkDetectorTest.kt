@@ -209,6 +209,28 @@ class BlinkDetectorTest {
     }
 
     @Test
+    fun `lids at the look-down height are a look down, not a missed close`() {
+        // 17:51:58 and 17:52:08 on the phone: gaps 0.21 / 0.16 against a calibrated look down of
+        // 0.18 / 0.16 asked for a calibration nobody needed.
+        val lines = mutableListOf<String>()
+        val logged = BlinkDetector(gapSettings) { _, message -> lines += message }
+        fun feed(ms: Long, sample: () -> EyeSample) {
+            val end = time + ms
+            while (time < end) {
+                logged.onSample(sample())
+                time += 33
+            }
+        }
+        feed(500) { withGap(0.9f, 0.30f) }
+        repeat(2) {
+            feed(900) { withGap(0.40f, 0.20f) }
+            feed(300) { withGap(0.9f, 0.30f) }
+        }
+        assertEquals(0, logged.missedInARow)
+        assertEquals(2, lines.count { it.contains("a look down") })
+    }
+
+    @Test
     fun `new lines clear the missed closes`() {
         detector.settings = gapSettings
         hold(500) { withGap(0.9f, 0.30f) }
