@@ -11,6 +11,7 @@ import com.outspoken.log.EventLog
 import com.outspoken.scan.GazeStep
 import com.outspoken.scan.GazeStepper
 import com.outspoken.scan.Scanner
+import com.outspoken.stats.BlinkTally
 import com.outspoken.suggest.Turn
 import com.outspoken.ui.ConversationUi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -84,6 +85,16 @@ class ConversationController(
     val frequentPhrases: List<String>
         get() = phraseFrequencies.entries.sortedByDescending { it.value }.map { it.key }
 
+    // Blink accuracy (PRD S1), counted as the conversation goes: a close held long enough to
+    // choose, begun while a card was lit, is a try; it is caught when it chose a card.
+    private var tryStartMs: Long? = null
+    private var tryCounts = false
+    private var tryChose = false
+
+    /** Tries to choose with the eyes this session, and how many chose a card. */
+    var blinks = BlinkTally()
+        private set
+
     private val speaking get() = speakingSinceMs != null
     private val waiting get() = waitUntilMs != null
 
@@ -106,7 +117,11 @@ class ConversationController(
             null -> Unit
         }
         // Help works at any time, even while the phone speaks.
-        help.onEyes(detector.shutSinceMs, nowMs, detector.settings.maxBlinkMs)?.let(onHelp)
+        help.onEyes(detector.shutSinceMs, nowMs, detector.settings.maxBlinkMs)?.let {
+            tryCounts = false
+            onHelp(it)
+        }
+        countTry()
         if (moveByEyes && !speaking && !waiting && detector.tracking) {
             // Only shut eyes stop a look; half-lowered lids still count as open here.
             // Owner request: left wink moves down, right wink moves up; both eyes shut chooses.
@@ -209,10 +224,14 @@ class ConversationController(
 
     private fun onBlink(blink: BlinkEvent.Blink, nowMs: Long) {
         help.onBlink(blink.startMs)?.let {
+            tryCounts = false
             onHelp(it)
             return
         }
-        if (help.isHold(blink.durationMs)) return
+        if (help.isHold(blink.durationMs)) {
+            tryCounts = false
+            return
+        }
         if (speaking || waiting) {
             log.write("scan", "blink ignored while ${if (speaking) "speaking" else "waiting for new replies"}")
             return
@@ -223,7 +242,33 @@ class ConversationController(
             return
         }
         log.write("scan", "blink picked ${label(card)}")
+        tryChose = true
         choose(card, nowMs)
+    }
+
+    /**
+     * Counts each close once it ends. A close that ended with no face, or was part of a help
+     * call, is not a try; nor is one shorter than the pick hold, as unprompted blinks reach 242 ms.
+     */
+    private fun countTry() {
+        val shutSince = detector.shutSinceMs
+        if (shutSince != null) {
+            if (tryStartMs == null) {
+                tryStartMs = shutSince
+                tryCounts = !speaking && !waiting
+                tryChose = false
+            }
+            return
+        }
+        if (tryStartMs == null) return
+        tryStartMs = null
+        val closeMs = detector.lastCloseMs
+        if (tryChose) {
+            blinks = blinks.copy(caught = blinks.caught + 1)
+        } else if (tryCounts && detector.tracking && closeMs >= detector.settings.minBlinkMs && !help.isHold(closeMs)) {
+            blinks = blinks.copy(missed = blinks.missed + 1)
+            log.write("scan", "missed try: eyes shut $closeMs ms, no card chosen (${blinks.caught} of ${blinks.caught + blinks.missed} caught)")
+        }
     }
 
     private fun choose(card: Int, nowMs: Long) {

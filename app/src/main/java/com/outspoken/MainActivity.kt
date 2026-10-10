@@ -260,15 +260,22 @@ class MainActivity : ComponentActivity() {
             if (screen == Screen.Stats) {
                 BackHandler { show(Screen.Conversation) }
                 var nowMs by remember { mutableStateOf(now()) }
+                var phoneTemp by remember { mutableStateOf(phoneTemperature()) }
                 LaunchedEffect(Unit) {
                     while (true) {
                         nowMs = now()
                         delay(STATS_REFRESH_MS)
                     }
                 }
+                LaunchedEffect(Unit) {
+                    while (true) {
+                        phoneTemp = phoneTemperature()
+                        delay(TEMPERATURE_REFRESH_MS)
+                    }
+                }
                 val modelState by OnDeviceModel.state.collectAsStateWithLifecycle()
                 OutspokenTheme {
-                    StatsScreen(statsUi(nowMs, modelState), onBack = { show(Screen.Conversation) })
+                    StatsScreen(statsUi(nowMs, modelState, phoneTemp), onBack = { show(Screen.Conversation) })
                 }
             } else if (screen == Screen.Help) {
                 BackHandler { stopHelp() }
@@ -499,15 +506,17 @@ class MainActivity : ComponentActivity() {
         controller.winks = next.winks
     }
 
-    private fun statsUi(nowMs: Long, model: ModelState) = StatsUi(
-        replyTimeSeconds = pitStats.replyTimeSeconds,
+    private fun statsUi(nowMs: Long, model: ModelState, phoneTemp: Float?) = StatsUi(
+        replyTimeSeconds = pitStats.replyTimeSeconds(nowMs),
         tokensPerSecond = pitStats.tokensPerSecond,
         repliesWritten = pitStats.repliesWritten,
-        phoneTempCelsius = phoneTemperature(),
+        phoneTempCelsius = phoneTemp,
         modelName = (model as? ModelState.Ready)?.name?.removeSuffix(".litertlm") ?: "No model loaded",
         runtime = "LiteRT-LM" + ((model as? ModelState.Ready)?.let { " on ${it.backend}" } ?: ""),
-        blinkAccuracyPercent = practiceController.accuracyPercent,
-        sessionMillis = pitStats.sessionMillis(nowMs),
+        // The last practice round's stars and every try at a card since the app started.
+        blinkAccuracyPercent = (practiceController.blinks + controller.blinks).percent,
+        // Whole seconds, so the screen only redraws when a number on it changes.
+        sessionMillis = pitStats.sessionMillis(nowMs) / 1_000 * 1_000,
         sentencesSpoken = controller.history.size,
     )
 
@@ -591,6 +600,7 @@ class MainActivity : ComponentActivity() {
     private fun requestReplies(requestId: Int, turns: List<Turn>): Boolean {
         val engine = suggestionEngine ?: return false
         replyJob?.cancel()
+        pitStats.onAsked(now())
         replyJob = lifecycleScope.launch {
             val suggestions = engine.suggest(SuggestionRequest(turns, LocalTime.now().hour))
             lastReplyLine = describeReplies(suggestions.elapsedMs, suggestions.fromModel, suggestions.tokensPerSecond)
@@ -754,7 +764,11 @@ class MainActivity : ComponentActivity() {
     private fun gigabytes(bytes: Long) = "%.2f GB".format(Locale.US, bytes / 1_000_000_000.0)
 
     private companion object {
-        const val STATS_REFRESH_MS = 1_000L
+        // Fast enough for the reply time to count up in tenths while the model writes.
+        const val STATS_REFRESH_MS = 100L
+
+        // The battery reports its temperature far less often than this.
+        const val TEMPERATURE_REFRESH_MS = 1_000L
 
         // The stats screen listens too: without it nothing new could happen while it was open, and
         // only the session length moved (owner's screenshot, 08:00). A question asked there now

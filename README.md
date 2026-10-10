@@ -44,10 +44,10 @@ Two ways to move the highlight, switched on the eye check page:
 - **Blink only**: the highlight moves on a timer (scan speed slider); blink when the right card lights.
 
 Buttons on the main page, top right:
-- **Star**: practice round. Catch three stars by blinking; it sets the blink length and gives the blink accuracy on the stats screen.
+- **Star**: practice round. Catch three stars by blinking; it sets the blink length and adds to the blink accuracy on the stats screen.
 - **Eye**: eye check page. Live graph of both eyes with the shut and open lines, OPEN / SHUT in large letters, the gaze box, the last decisions, the mode switches and sliders, "Calibrate my eyes", "Choose model file", "Share logs" and "Save logs". Sized to be read from about two metres for a demo.
 - **Transcript**: the conversation in large type, for a laptop through Office Kit.
-- **Stats**: reply time, model speed, blink accuracy, session length, sentences spoken.
+- **Stats**: reply time, model speed, blink accuracy, session length, sentences spoken, all live. Reply time counts up while the model writes.
 
 Run logs stay on the phone in `Android/data/com.outspoken/files/logs/`. Tap "Share logs" on the eye check page to send them to another app, or "Save logs" to keep a copy; on a laptop, `tools/phone-logs.ps1` copies them over USB or wireless debugging. Logs are never committed: they hold what people said.
 
