@@ -66,6 +66,6 @@ class TuningDefaultsTest {
     @Test
     fun `cards start in English`() {
         assertEquals(com.outspoken.conversation.AppLanguage.English, Tuning().language)
-        assertEquals(false, Tuning().autoLanguage)
+        assertEquals(true, Tuning().autoLanguage)
     }
 }

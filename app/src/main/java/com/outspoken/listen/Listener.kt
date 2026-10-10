@@ -57,9 +57,7 @@ class Listener(
         }
     }
     private val checkTimeout = Runnable {
-        if (!checking) return@Runnable
-        checking = false
-        guessPlan("no answer from the speech pack check in ${CHECK_TIMEOUT_MS / 1000} s")
+        if (checking) checkFailed("no answer in ${CHECK_TIMEOUT_MS / 1000} s")
     }
 
     /** The languages to listen in; see [planSpeech]. */
@@ -76,6 +74,7 @@ class Listener(
 
     private var plan: SpeechPlan? = null
     private var checking = false
+    private var checkRetried = false
     private val askedFor = mutableSetOf<String>()
     private val broken = mutableSetOf<String>()
     private var switching = true
@@ -266,6 +265,7 @@ class Listener(
             override fun onSupportResult(support: RecognitionSupport) {
                 if (!checking) return
                 checking = false
+                checkRetried = false
                 main.removeCallbacks(checkTimeout)
                 val installed = support.installedOnDeviceLanguages
                 val pending = support.pendingOnDeviceLanguages
@@ -285,22 +285,36 @@ class Listener(
             }
 
             override fun onError(error: Int) {
-                if (!checking) return
-                checking = false
-                main.removeCallbacks(checkTimeout)
-                guessPlan("pack check failed, error ${errorName(error)}")
+                if (checking) checkFailed("error ${errorName(error)}")
             }
         })
+    }
+
+    /**
+     * The check failed: once more with a new checker, then a plan without it. On the phone the
+     * checker failed with "server disconnected" after Android installed a pack (16:38:06), so the
+     * plan was guessed and no language switching was set up.
+     */
+    private fun checkFailed(why: String) {
+        checking = false
+        main.removeCallbacks(checkTimeout)
+        packs?.destroy()
+        packs = null
+        if (!checkRetried && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            checkRetried = true
+            AppLog.write("listen", "speech pack check failed ($why); checking again")
+            checkPacks()
+            return
+        }
+        checkRetried = false
+        guessPlan("pack check failed, $why")
     }
 
     /** The pack checker reports a lost connection here, not to the check's own callback. */
     private val packCallbacks = object : RecognitionListener {
         override fun onError(error: Int) {
             AppLog.write("listen", "speech pack checker error ${errorName(error)}")
-            if (!checking) return
-            checking = false
-            main.removeCallbacks(checkTimeout)
-            guessPlan("pack check failed, error ${errorName(error)}")
+            if (checking) checkFailed("checker error ${errorName(error)}")
         }
 
         override fun onReadyForSpeech(params: Bundle?) = Unit
@@ -522,6 +536,12 @@ class Listener(
         if (!fed) return
         if (sessionHeard || SystemClock.elapsedRealtime() - sessionStartMs > FEED_TRIAL_MS) {
             micFailures = 0
+            return
+        }
+        val current = plan
+        if (switching && current != null && current.switchTo.isNotEmpty()) {
+            switching = false
+            AppLog.write("listen", "a session with language switching failed at once ($what); listening without switching")
             return
         }
         micFailures++

@@ -44,6 +44,15 @@ class HindiTest {
     }
 
     @Test
+    fun `Hindi cards are topped up only with Hindi phrases`() = runBlocking {
+        // 16:39:49 on the phone an English line said earlier filled the fourth Hindi card.
+        val answer = """["नहीं, मैं ठीक हूँ", "थोड़ा और बोलो", "हाँ, सुन रहा हूँ"]"""
+        val engine = ModelSuggestionEngine(FakeModel(answer), frequentPhrases = { listOf("Yes, I can hear you.", "मुझे दर्द हो रहा है") }) { 0L }
+        val result = engine.suggest(SuggestionRequest(heardInHindi, 10, AppLanguage.Hindi))
+        assertEquals("मुझे दर्द हो रहा है", result.replies[3])
+    }
+
+    @Test
     fun `the Hindi line just said is still not offered again`() = runBlocking {
         val said = heardInHindi + Turn(false, "मुझे पानी चाहिए")
         val answer = """["मुझे पानी चाहिए", "नहीं, मैं ठीक हूँ"]"""

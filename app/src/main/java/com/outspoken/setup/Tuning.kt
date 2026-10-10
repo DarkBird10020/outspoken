@@ -55,8 +55,9 @@ data class Tuning(
     /**
      * The cards follow the language the visitor speaks, English or Hindi, and the recogniser may
      * switch between them (owner request: detect the language). [language] is where it starts.
+     * On by default, as the owner asked for it and did not find the switch in the 16:37 run.
      */
-    val autoLanguage: Boolean = false,
+    val autoLanguage: Boolean = true,
 ) {
     /** The gaze settings the stepper uses: the look down lines only when looking down is on. */
     val activeGaze: GazeSettings

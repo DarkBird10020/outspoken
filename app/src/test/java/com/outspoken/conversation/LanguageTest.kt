@@ -38,6 +38,10 @@ class LanguageTest {
         // Mostly Hindi with one English word, as people talk.
         assertEquals(AppLanguage.Hindi, spokenLanguage("क्या आपको pain है"))
         assertEquals(null, spokenLanguage("? 123"))
+        // Hindi as the English recogniser wrote it on the phone (16:38:27), and English beside it.
+        assertEquals(AppLanguage.Hindi, spokenLanguage("Kya Tumhen Meri Awaaz sunai de rahi hai"))
+        assertEquals(AppLanguage.English, spokenLanguage("Hello are you able to hear me"))
+        assertEquals(AppLanguage.English, spokenLanguage("I need pani"))
     }
 
     @Test

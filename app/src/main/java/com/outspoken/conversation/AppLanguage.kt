@@ -20,6 +20,8 @@ enum class AppLanguage(
     val fixedCards: List<String>,
     /** Built-in first words for "Say anything" before the model answers. */
     val firstWords: List<String>,
+    /** What a hand sign says, by its English phrase; a phrase not listed is said as it is. */
+    val signPhrases: Map<String, String> = emptyMap(),
 ) {
     English(
         label = "English",
@@ -68,6 +70,8 @@ enum class AppLanguage(
         ),
         fixedCards = listOf("और विकल्प", "हाँ / नहीं", "कुछ भी कहें"),
         firstWords = listOf("मुझे", "कृपया", "मैं", "मेरा", "क्या", "हाँ", "नहीं", "धन्यवाद", "अभी", "थोड़ा", "पानी", "दर्द"),
+        // "मुझे आपसे प्यार है" reads the same whoever says it; "करता / करती हूँ" would need a gender.
+        signPhrases = mapOf("Yes" to "हाँ", "No" to "नहीं", "I love you" to "मुझे आपसे प्यार है", "Please wait" to "कृपया रुकिए"),
     );
 
     companion object {
@@ -76,8 +80,10 @@ enum class AppLanguage(
 }
 
 /**
- * Hindi when most letters in [text] are Devanagari, English when most are Latin, null when it has
- * neither. The recogniser writes Hindi in Devanagari, so the letters tell what the visitor spoke.
+ * Hindi when most letters in [text] are Devanagari, or when it is Hindi written in English letters;
+ * English when most letters are Latin otherwise; null when it has neither. The Hindi recogniser
+ * writes Devanagari; the English one writes Hindi in English letters ("kya Tumhen Meri Awaaz
+ * sunai de rahi hai", 16:38:27), so half or more of the words being everyday Hindi counts too.
  */
 fun spokenLanguage(text: String): AppLanguage? {
     var devanagari = 0
@@ -88,9 +94,22 @@ fun spokenLanguage(text: String): AppLanguage? {
             c in 'a'..'z' || c in 'A'..'Z' -> latin++
         }
     }
-    return when {
-        devanagari == 0 && latin == 0 -> null
-        devanagari >= latin -> AppLanguage.Hindi
-        else -> AppLanguage.English
-    }
+    if (devanagari == 0 && latin == 0) return null
+    if (devanagari >= latin) return AppLanguage.Hindi
+    val words = text.lowercase().split(NOT_LATIN).filter { it.isNotEmpty() }
+    val hindi = words.count { it in ROMAN_HINDI }
+    return if (hindi >= 2 && hindi * 2 >= words.size) AppLanguage.Hindi else AppLanguage.English
 }
+
+private val NOT_LATIN = Regex("[^a-z]+")
+
+/** Everyday Hindi words in English letters; none is also a common English word. */
+private val ROMAN_HINDI = setOf(
+    "kya", "hai", "hain", "hoon", "ho", "tum", "tumhe", "tumhen", "tumko", "aap", "aapko", "apko",
+    "mujhe", "mujhko", "mera", "meri", "mere", "tera", "teri", "tere", "nahi", "nahin", "haan",
+    "kaise", "kaisa", "kaisi", "kuch", "kuchh", "abhi", "theek", "thik", "raha", "rahi", "rahe",
+    "karo", "karna", "karte", "chahiye", "pani", "dard", "bhi", "aur", "sunai", "awaaz", "awaz",
+    "ko", "se", "ka", "ki", "ke", "mein", "yeh", "kab", "kahan", "kyun", "kyon", "accha", "acha",
+    "achha", "bahut", "thoda", "thodi", "khana", "neend", "jaldi", "batao", "bolo", "sakte",
+    "sakta", "sakti", "gaye", "gaya", "gayi", "lagi", "laga", "hua", "hui",
+)

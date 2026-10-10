@@ -1,6 +1,7 @@
 package com.outspoken.suggest
 
 import com.outspoken.conversation.AppLanguage
+import com.outspoken.conversation.spokenLanguage
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
@@ -62,15 +63,21 @@ class ModelSuggestionEngine(
     }
 
     private fun topUp(replies: List<String>, lastSaid: String?, language: AppLanguage): List<String> {
-        val pool = (frequentPhrases() + language.phrases).filterNot { words(it) == lastSaid }
+        val pool = (frequentIn(language) + language.phrases).filterNot { words(it) == lastSaid }
         val candidates = pool.filter { phrase -> replies.none { it.equals(phrase, ignoreCase = true) } }.distinct()
         return (replies + candidates).take(REPLY_COUNT)
     }
 
+    /**
+     * Phrases said often, in the cards' language only: an English one said before topped up the
+     * Hindi cards ("Yes, I can hear you.", 16:39:49).
+     */
+    private fun frequentIn(language: AppLanguage) = frequentPhrases().filter { spokenLanguage(it) == language }
+
     private fun words(text: String) = text.lowercase().replace(NOT_A_WORD, " ").trim().replace(SPACES, " ")
 
     private fun fallback(startMs: Long, language: AppLanguage): Suggestions {
-        val pool = (frequentPhrases() + language.phrases).distinct()
+        val pool = (frequentIn(language) + language.phrases).distinct()
         return Suggestions(pool.take(REPLY_COUNT), fromModel = false, clockMs() - startMs)
     }
 
