@@ -25,7 +25,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
@@ -174,18 +176,31 @@ private fun FinishCard(completion: String?, highlighted: Boolean, onClick: () ->
 @Composable
 private fun WordCard(word: String, highlighted: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val shape = RoundedCornerShape(28.dp)
-    Row(
+    // The badge sits in the bottom corner, not beside the word as in the design: beside it, a
+    // half-width card left too little room and "please" broke into "pleas / e" (phone, 08:07).
+    Box(
         modifier
             .fillMaxHeight()
             .surface(if (highlighted) Surfaces.Pink else Surfaces.Glass, shape)
             .clip(shape)
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(start = 20.dp, end = if (highlighted) 12.dp else 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .clickable(role = Role.Button, onClick = onClick),
     ) {
-        Text(word, style = type(26, 500), modifier = Modifier.weight(1f))
-        if (highlighted) BlinkBadge()
+        BasicText(
+            word,
+            style = type(26, 500),
+            maxLines = 2,
+            autoSize = TextAutoSize.StepBased(minFontSize = 18.sp, maxFontSize = 26.sp, stepSize = 1.sp),
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(horizontal = 20.dp),
+        )
+        if (highlighted) {
+            Box(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(10.dp)
+            ) { BlinkBadge() }
+        }
     }
 }
 
