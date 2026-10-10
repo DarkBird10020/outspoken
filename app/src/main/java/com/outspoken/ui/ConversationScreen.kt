@@ -164,20 +164,23 @@ fun QuickTopicRow(onAsk: (String) -> Unit) {
 }
 
 /**
- * A line of text that [read] fills again every [refreshMs]. Only this line redraws, and only when
- * the text changes.
+ * A row of short values that [read] fills again every [refreshMs], spread across the width with
+ * even gaps (owner's screenshot, 09:06: the values run together with dots between them). Only this
+ * row redraws, and only when a value changes.
  */
 @Composable
-fun LiveStatsLine(refreshMs: Long, read: () -> String) {
+fun LiveStatsLine(refreshMs: Long, read: () -> List<String>) {
     val latestRead by rememberUpdatedState(read)
-    var text by remember { mutableStateOf(read()) }
+    var values by remember { mutableStateOf(read()) }
     LaunchedEffect(refreshMs) {
         while (true) {
-            text = latestRead()
+            values = latestRead()
             delay(refreshMs)
         }
     }
-    Text(text, style = type(14, color = InkSoft), maxLines = 1)
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        values.forEach { Text(it, style = type(14, color = InkSoft), maxLines = 1) }
+    }
 }
 
 @Composable
