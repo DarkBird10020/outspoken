@@ -1,6 +1,7 @@
 package com.outspoken.setup
 
 import com.outspoken.eye.EyeSample
+import com.outspoken.eye.FaceDots
 
 /**
  * About 30 seconds of spoken steps that measure this person's eyes in the phone's current
@@ -40,7 +41,28 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
         /** Lid gap (`eyeShape`, the wider eye) looking at the screen and with the eyes closed; null if not read. */
         val restGap: Float? = null,
         val closedGap: Float? = null,
+        /** Each eye's own lid gaps; null if not read. */
+        val leftGaps: EyeGaps? = null,
+        val rightGaps: EyeGaps? = null,
     )
+
+    /**
+     * One eye's lid gap looking at the screen, closed, and looking down (null when no look down
+     * was seen). The gap has to tell a close from a look down, so with a look down measured the
+     * shut line sits halfway between the two and the open line three quarters of the way to the
+     * look down. On the phone with glasses (17:18) the old line, just above the calibration close
+     * (0.07 -> 0.10), missed the everyday closes of 0.10 to 0.14, while looking down read 0.18 to
+     * 0.22 (left eye). Without a look down the lines stay just above the close, as before.
+     */
+    data class EyeGaps(val rest: Float, val closed: Float, val down: Float?) {
+        val usable: Boolean get() = rest - closed >= MIN_GAP_RANGE
+
+        val shutLine: Float
+            get() = if (down != null) closed + (down - closed) * DOWN_GAP_SHUT_SHARE else closed + (rest - closed) * GAP_SHUT_SHARE
+
+        val openLine: Float
+            get() = if (down != null) closed + (down - closed) * DOWN_GAP_OPEN_SHARE else closed + (rest - closed) * GAP_OPEN_SHARE
+    }
 
     sealed interface Result {
         data class Ok(val tuning: Tuning, val measured: Measured) : Result
@@ -119,28 +141,33 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
         val range = restOpen - closedOpen
         if (range < MIN_CLOSE_RANGE) return Result.Failed("Closed eyes not seen; close them fully")
 
-        val restGap = median(rests.mapNotNull { gap(it) })
-        // The typical gap while the eyes read shut. The single deepest frame (a hard squeeze reads
-        // 0.00 to 0.03) set a line of 0.09 that held closes of 0.10 to 0.15 missed (05:04 run).
-        // The median of the whole step took in the open frames before the person closed, as
-        // "Close your eyes" takes 1.3 s to say: closed 0.28 against open 0.29 turned the gap
-        // check off, and open eyes looking down picked cards (05:36 run).
         val shutLine = closedOpen + range * SHUT_SHARE
-        val closedGaps = listOf(Step.Close1, Step.Close2).map { close ->
-            median(seen[close].orEmpty().filter { open(it) < shutLine }.mapNotNull { gap(it) })
+        // Frames clearly looking down: at least half way to the smaller of the two looks.
+        val lookingDown = if (downReach >= MIN_DOWN_REACH) {
+            listOf(Step.Down1, Step.Down2).flatMap { seen[it].orEmpty() }
+                .filter { frame -> frame.gaze?.let { it.y - restGaze >= downReach * DOWN_FRAME_SHARE } == true }
+        } else {
+            emptyList()
         }
-        // A close with no shut frames (half done) leaves the other to set the line.
-        val closedGap = closedGaps.filterNotNull().minOrNull()
-        val gapRange = if (restGap != null && closedGap != null) restGap - closedGap else null
-        val useGap = gapRange != null && gapRange >= MIN_GAP_RANGE
+        val left = eyeGaps(rests, shutLine, lookingDown) { it.leftShape }
+        val right = eyeGaps(rests, shutLine, lookingDown) { it.rightShape }
+        val useGap = left?.usable == true && right?.usable == true
 
-        val measured = Measured(restGaze, restOpen, upReach, closedOpen, downReach, restIris, irisDownReach, restGap, closedGap)
+        val measured = Measured(
+            restGaze, restOpen, upReach, closedOpen, downReach, restIris, irisDownReach,
+            restGap = if (left != null && right != null) maxOf(left.rest, right.rest) else null,
+            closedGap = if (left != null && right != null) maxOf(left.closed, right.closed) else null,
+            leftGaps = left,
+            rightGaps = right,
+        )
         val tuning = current.copy(
             blink = current.blink.copy(
                 closedBelow = shutLine,
                 openAbove = closedOpen + range * OPEN_SHARE,
-                shapeClosedBelow = if (useGap) closedGap!! + gapRange!! * GAP_SHUT_SHARE else null,
-                shapeOpenAbove = if (useGap) closedGap!! + gapRange!! * GAP_OPEN_SHARE else null,
+                shapeClosedBelow = if (useGap) left!!.shutLine else null,
+                shapeOpenAbove = if (useGap) left!!.openLine else null,
+                rightShapeClosedBelow = if (useGap) right!!.shutLine else null,
+                rightShapeOpenAbove = if (useGap) right!!.openLine else null,
             ),
             gaze = current.gaze.copy(
                 lookStrength = if (upSeen) maxOf(upReach * LOOK_SHARE, MIN_UP_LINE) else current.gaze.lookStrength,
@@ -153,10 +180,22 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
 
     private fun open(sample: EyeSample) = minOf(sample.leftOpen ?: 0f, sample.rightOpen ?: 0f)
 
-    /** The wider of the two lid gaps, since both must be below the line to count as shut. */
-    private fun gap(sample: EyeSample): Float? {
-        val dots = sample.dots ?: return null
-        return maxOf(dots.leftShape ?: return null, dots.rightShape ?: return null)
+    /**
+     * One eye's gaps, or null if not read. Closed is the typical gap while the eyes read shut, in
+     * the deeper of the two closes. The single deepest frame (a hard squeeze reads 0.00 to 0.03)
+     * set a line of 0.09 that held closes of 0.10 to 0.15 missed (05:04 run). The median of the
+     * whole step took in the open frames before the person closed, as "Close your eyes" takes
+     * 1.3 s to say: closed 0.28 against open 0.29 turned the gap check off, and open eyes looking
+     * down picked cards (05:36 run). A close with no shut frames (half done) leaves the other.
+     */
+    private fun eyeGaps(rests: List<EyeSample>, shutLine: Float, lookingDown: List<EyeSample>, gapOf: (FaceDots) -> Float?): EyeGaps? {
+        fun gaps(frames: List<EyeSample>) = frames.mapNotNull { frame -> frame.dots?.let(gapOf) }
+        val rest = median(gaps(rests)) ?: return null
+        val closed = listOf(Step.Close1, Step.Close2).mapNotNull { close ->
+            median(gaps(seen[close].orEmpty().filter { open(it) < shutLine }))
+        }.minOrNull() ?: return null
+        val down = median(gaps(lookingDown))?.takeIf { it > closed }
+        return EyeGaps(rest, closed, down)
     }
 
     private fun median(values: List<Float>): Float? =
@@ -208,5 +247,12 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
         const val GAP_SHUT_SHARE = 0.1f
         const val GAP_OPEN_SHARE = 0.3f
         const val MIN_GAP_RANGE = 0.08f
+
+        /** With a look down measured: shut line halfway from closed to looking down, open line three quarters. */
+        const val DOWN_GAP_SHUT_SHARE = 0.5f
+        const val DOWN_GAP_OPEN_SHARE = 0.75f
+
+        /** A frame counts as looking down once the gaze is this share of the way to the smaller look down. */
+        const val DOWN_FRAME_SHARE = 0.5f
     }
 }

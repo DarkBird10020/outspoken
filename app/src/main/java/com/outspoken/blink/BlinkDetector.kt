@@ -31,6 +31,14 @@ data class BlinkSettings(
     val shapeClosedBelow: Float? = null,
     val shapeOpenAbove: Float? = null,
     /**
+     * The right eye's own lid gap lines, when calibration measured each eye; [shapeClosedBelow]
+     * and [shapeOpenAbove] are then the left eye's. With glasses the owner's eyes differed (17:18
+     * calibration): closed left 0.07 to 0.11, right 0.05 to 0.08; looking down left 0.18 to 0.22,
+     * right 0.11 to 0.17. One line for both was too low for the left eye and too high for the right.
+     */
+    val rightShapeClosedBelow: Float? = null,
+    val rightShapeOpenAbove: Float? = null,
+    /**
      * Choose as soon as the eyes have been shut for [minBlinkMs], without waiting for them to
      * open again. Waiting for the reopen added the whole rest of the close to every choice, which
      * felt slow on the phone. [maxBlinkMs] then no longer applies.
@@ -47,7 +55,13 @@ data class BlinkSettings(
      * not take, and natural double blinks are rare.
      */
     val doubleBlink: Boolean = false,
-)
+) {
+    /** One eye's lid gap shut line: the right eye's own when calibration set it. */
+    fun gapShutLine(rightEye: Boolean): Float? = if (rightEye) rightShapeClosedBelow ?: shapeClosedBelow else shapeClosedBelow
+
+    /** One eye's lid gap open line: the right eye's own when calibration set it. */
+    fun gapOpenLine(rightEye: Boolean): Float? = if (rightEye) rightShapeOpenAbove ?: shapeOpenAbove else shapeOpenAbove
+}
 
 sealed interface BlinkEvent {
     /** An intentional blink. [startMs] is when the eyes shut. */
@@ -95,12 +109,13 @@ class BlinkDetector(
     private var smoothLeft: Float? = null
     private var smoothRight: Float? = null
 
-    // Eyes the eye-open values read as shut while the lid gap stayed above its line: when that
-    // began, the narrowest gap seen and the gaze, for one log line when it ends. Glasses keep the
-    // gap wider when closed (0.09 to 0.14 in the 01:44 run, against a line of 0.10 set without
-    // them), and looking down does too, so the line lets the next logs tell the two apart.
+    // Eyes the eye-open values read as shut while the lid gaps stayed above their lines: when that
+    // began, the narrowest gap of each eye and the gaze, for one log line when it ends. Glasses
+    // keep the gap wider when closed (0.10 to 0.15 at 17:14), and looking down does too, so the
+    // line lets the logs tell the two apart.
     private var halfShutSinceMs: Long? = null
-    private var halfShutGap: Float? = null
+    private var halfShutLeftGap: Float? = null
+    private var halfShutRightGap: Float? = null
     private var halfShutGaze: Float? = null
 
     /** When the eyes shut, while they are still shut; null while they are open. */
@@ -210,12 +225,13 @@ class BlinkDetector(
     private fun halfShut(sample: EyeSample) {
         if (halfShutSinceMs == null) {
             halfShutSinceMs = sample.timeMs
-            halfShutGap = null
+            halfShutLeftGap = null
+            halfShutRightGap = null
             halfShutGaze = sample.gaze?.y
         }
         val dots = sample.dots ?: return
-        val gap = maxOf(dots.leftShape ?: return, dots.rightShape ?: return)
-        halfShutGap = minOf(halfShutGap ?: gap, gap)
+        dots.leftShape?.let { gap -> halfShutLeftGap = minOf(halfShutLeftGap ?: gap, gap) }
+        dots.rightShape?.let { gap -> halfShutRightGap = minOf(halfShutRightGap ?: gap, gap) }
     }
 
     private fun halfShutEnded(timeMs: Long) {
@@ -223,12 +239,13 @@ class BlinkDetector(
         halfShutSinceMs = null
         val duration = timeMs - since
         if (duration < settings.minBlinkMs) return
-        val gap = halfShutGap?.let { open(it) } ?: "not read"
+        fun gap(value: Float?) = value?.let { open(it) } ?: "not read"
+        fun line(rightEye: Boolean) = settings.gapShutLine(rightEye)?.let { open(it) } ?: "off"
         val gaze = halfShutGaze?.let { ", gaze up/down ${open(it)}" } ?: ""
         log.write(
             "blink",
-            "half shut $duration ms, not counted: eye-open read shut but the lid gap came down only to $gap " +
-                "(shut line ${settings.shapeClosedBelow?.let { open(it) }}$gaze)",
+            "half shut $duration ms, not counted: eye-open read shut but the lid gaps came down only to " +
+                "left ${gap(halfShutLeftGap)} / right ${gap(halfShutRightGap)} (shut lines ${line(false)} / ${line(true)}$gaze)",
         )
         missedInARow++
         if (missedInARow == MISSED_BEFORE_ASKING) {
@@ -252,27 +269,36 @@ class BlinkDetector(
      * the lid gap, so it does not count; a wink does.
      */
     fun eitherEyeShut(sample: EyeSample): Boolean {
-        val gapLine = settings.shapeClosedBelow
-        fun shut(open: Float?, gap: Float?) =
-            open != null && open < settings.closedBelow && (gapLine == null || gap == null || gap < gapLine)
-        return shut(sample.leftOpen, sample.dots?.leftShape) || shut(sample.rightOpen, sample.dots?.rightShape)
+        fun shut(open: Float?, gap: Float?, rightEye: Boolean): Boolean {
+            val gapLine = settings.gapShutLine(rightEye)
+            return open != null && open < settings.closedBelow && (gapLine == null || gap == null || gap < gapLine)
+        }
+        return shut(sample.leftOpen, sample.dots?.leftShape, false) || shut(sample.rightOpen, sample.dots?.rightShape, true)
     }
 
-    /** Both lid gaps below the shut line, or true when there is no gap check or no gap reading. */
-    private fun lidsShut(sample: EyeSample): Boolean {
-        val line = settings.shapeClosedBelow ?: return true
-        val dots = sample.dots ?: return true
-        val left = dots.leftShape ?: return true
-        val right = dots.rightShape ?: return true
-        return left < line && right < line
+    /**
+     * How far both lid gaps are past their lines, together: each eye's distance from [line] in
+     * units of its own shut-to-open span, added. Below 0 the eyes are on the whole below the
+     * lines. Taken together so that one eye kept wider by a glasses lens (left 0.12 to 0.14 while
+     * the right was at 0.06 to 0.08, 17:14) does not stop a close both eyes made. Null when the
+     * gap check is off or a gap is not read.
+     */
+    private fun pastLines(sample: EyeSample, line: (rightEye: Boolean) -> Float?): Float? {
+        val dots = sample.dots ?: return null
+        fun eye(gap: Float?, rightEye: Boolean): Float? {
+            val at = line(rightEye) ?: return null
+            val shut = settings.gapShutLine(rightEye) ?: return null
+            val span = settings.gapOpenLine(rightEye)?.let { it - shut } ?: 0f
+            return ((gap ?: return null) - at) / maxOf(span, MIN_GAP_SPAN)
+        }
+        return (eye(dots.leftShape, false) ?: return null) + (eye(dots.rightShape, true) ?: return null)
     }
 
-    /** Either lid gap above the open line. */
-    private fun lidsOpen(sample: EyeSample): Boolean {
-        val line = settings.shapeOpenAbove ?: return false
-        val dots = sample.dots ?: return false
-        return maxOf(dots.leftShape ?: 0f, dots.rightShape ?: 0f) > line
-    }
+    /** Both lid gaps, together, below their shut lines; true when there is no gap check or reading. */
+    private fun lidsShut(sample: EyeSample): Boolean = pastLines(sample) { settings.gapShutLine(it) }?.let { it < 0f } ?: true
+
+    /** Both lid gaps, together, above their open lines. */
+    private fun lidsOpen(sample: EyeSample): Boolean = pastLines(sample) { settings.gapOpenLine(it) }?.let { it > 0f } ?: false
 
     private fun facingCamera(sample: EyeSample) =
         abs(sample.yawDeg) <= settings.maxHeadTurnDeg && abs(sample.pitchDeg) <= settings.maxHeadTiltDeg
@@ -288,6 +314,9 @@ class BlinkDetector(
     companion object {
         /** Missed closes in a row before the main page asks for a new calibration. */
         const val MISSED_BEFORE_ASKING = 2
+
+        /** Smallest shut-to-open span used to scale a gap, so lines set almost together still compare. */
+        private const val MIN_GAP_SPAN = 0.01f
 
         /** Shorter closes are noise or the start of a normal blink. */
         private const val DOUBLE_MIN_MS = 60L

@@ -28,6 +28,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.outspoken.blink.BlinkDetector
+import com.outspoken.blink.BlinkSettings
 import com.outspoken.conversation.AppLanguage
 import com.outspoken.conversation.ConversationController
 import com.outspoken.conversation.spokenLanguage
@@ -335,12 +336,15 @@ class MainActivity : ComponentActivity() {
                         onPreviewGone = camera::hidePreview,
                         onRetry = ::startCalibration,
                         onSkip = {
-                            val b = tuning.blink
-                            AppLog.write(
-                                "calibration",
-                                "skipped; the last lines stay: shut ${fmt(b.closedBelow)}, open ${fmt(b.openAbove)}, " +
-                                    "lid gap shut ${b.shapeClosedBelow?.let { fmt(it) } ?: "off"}, open ${b.shapeOpenAbove?.let { fmt(it) } ?: "off"}",
-                            )
+                            // The same button leaves after "Done"; only a calibration not finished is skipped.
+                            if (calibrationOutcome == null || calibrationFailed) {
+                                val b = tuning.blink
+                                AppLog.write(
+                                    "calibration",
+                                    "skipped; the last lines stay: shut ${fmt(b.closedBelow)}, open ${fmt(b.openAbove)}, " +
+                                        "lid gap left ${gapLines(b, rightEye = false)}, right ${gapLines(b, rightEye = true)}",
+                                )
+                            }
                             show(Screen.Conversation)
                         },
                     )
@@ -522,8 +526,8 @@ class MainActivity : ComponentActivity() {
                     "ok: rest gaze ${fmt(m.restGaze)}, look up reach ${fmt(m.upReach)}, look down reach ${fmt(m.downReach)}, open ${fmt(m.restOpen)}, " +
                         "closed ${fmt(m.closedOpen)} -> look ${fmt(result.tuning.gaze.lookStrength)}, " +
                         "look down ${result.tuning.gaze.downStrength?.let { fmt(it) } ?: "off"}, iris rest ${m.restIris?.let { fmt(it) }} down reach ${m.irisDownReach?.let { fmt(it) }} -> iris look down ${result.tuning.gaze.irisDownStrength?.let { String.format(Locale.US, "%.3f", it) } ?: "off"}, shut line ${fmt(result.tuning.blink.closedBelow)}, open line ${fmt(result.tuning.blink.openAbove)}, " +
-                        "lid gap open ${m.restGap?.let { fmt(it) }} closed ${m.closedGap?.let { fmt(it) }} -> gap shut line " +
-                        "${result.tuning.blink.shapeClosedBelow?.let { fmt(it) }}, gap open line ${result.tuning.blink.shapeOpenAbove?.let { fmt(it) }}",
+                        "lid gap left ${describeGaps(m.leftGaps)}, right ${describeGaps(m.rightGaps)} -> gap lines left " +
+                        "${gapLines(result.tuning.blink, rightEye = false)}, right ${gapLines(result.tuning.blink, rightEye = true)}",
                 )
                 calibrationOutcome = "Done. ${eyeHint(tuning)}"
                 say("Done")
@@ -540,6 +544,15 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    /** One eye's lid gap shut / open lines for the log, or "off". */
+    private fun gapLines(blink: BlinkSettings, rightEye: Boolean): String {
+        val shut = blink.gapShutLine(rightEye) ?: return "off"
+        return "${fmt(shut)} / ${blink.gapOpenLine(rightEye)?.let { fmt(it) } ?: "off"}"
+    }
+
+    private fun describeGaps(gaps: Calibration.EyeGaps?) =
+        gaps?.let { "open ${fmt(it.rest)} closed ${fmt(it.closed)} down ${it.down?.let { d -> fmt(d) } ?: "not seen"}" } ?: "not read"
 
     private fun handHint(tuning: Tuning) =
         if (tuning.handGestures) "  Hand: 1 to 4 fingers (thumb folded) light a card, a fist says it, an open hand: please wait." else ""
