@@ -81,6 +81,14 @@ class BlinkDetector(
     private var smoothLeft: Float? = null
     private var smoothRight: Float? = null
 
+    // Eyes the eye-open values read as shut while the lid gap stayed above its line: when that
+    // began, the narrowest gap seen and the gaze, for one log line when it ends. Glasses keep the
+    // gap wider when closed (0.09 to 0.14 in the 01:44 run, against a line of 0.10 set without
+    // them), and looking down does too, so the line lets the next logs tell the two apart.
+    private var halfShutSinceMs: Long? = null
+    private var halfShutGap: Float? = null
+    private var halfShutGaze: Float? = null
+
     /** When the eyes shut, while they are still shut; null while they are open. */
     val shutSinceMs: Long? get() = closedSinceMs
 
@@ -103,6 +111,7 @@ class BlinkDetector(
             if (!tracking || sample.timeMs - missingSince < settings.faceLostAfterMs) return null
             if (closedSinceMs != null) log.write("blink", "closure cancelled, face lost")
             closedSinceMs = null
+            halfShutSinceMs = null
             chosen = false
             smoothLeft = null
             smoothRight = null
@@ -120,8 +129,14 @@ class BlinkDetector(
         val closedSince = closedSinceMs
         val avgOpen = (left + right) / 2f
         if (closedSince == null) {
-            val bothShut = ((left < settings.closedBelow && right < settings.closedBelow) ||
-                (avgOpen < settings.closedBelow && minOf(left, right) < settings.closedBelow + 0.08f)) && lidsShut(sample)
+            val openSaysShut = (left < settings.closedBelow && right < settings.closedBelow) ||
+                (avgOpen < settings.closedBelow && minOf(left, right) < settings.closedBelow + 0.08f)
+            val bothShut = openSaysShut && lidsShut(sample)
+            when {
+                bothShut -> halfShutSinceMs = null
+                openSaysShut && settings.shapeClosedBelow != null -> halfShut(sample)
+                else -> halfShutEnded(sample.timeMs)
+            }
             if (bothShut) {
                 closedSinceMs = sample.timeMs
                 lastShutSeenMs = sample.timeMs
@@ -174,6 +189,31 @@ class BlinkDetector(
             }
         }
         return if (wasTracking) null else BlinkEvent.FaceFound
+    }
+
+    private fun halfShut(sample: EyeSample) {
+        if (halfShutSinceMs == null) {
+            halfShutSinceMs = sample.timeMs
+            halfShutGap = null
+            halfShutGaze = sample.gaze?.y
+        }
+        val dots = sample.dots ?: return
+        val gap = maxOf(dots.leftShape ?: return, dots.rightShape ?: return)
+        halfShutGap = minOf(halfShutGap ?: gap, gap)
+    }
+
+    private fun halfShutEnded(timeMs: Long) {
+        val since = halfShutSinceMs ?: return
+        halfShutSinceMs = null
+        val duration = timeMs - since
+        if (duration < settings.minBlinkMs) return
+        val gap = halfShutGap?.let { open(it) } ?: "not read"
+        val gaze = halfShutGaze?.let { ", gaze up/down ${open(it)}" } ?: ""
+        log.write(
+            "blink",
+            "half shut $duration ms, not counted: eye-open read shut but the lid gap came down only to $gap " +
+                "(shut line ${settings.shapeClosedBelow?.let { open(it) }}$gaze)",
+        )
     }
 
     private fun smooth(previous: Float?, value: Float) =

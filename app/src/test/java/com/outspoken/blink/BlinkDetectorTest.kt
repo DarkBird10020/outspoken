@@ -171,6 +171,29 @@ class BlinkDetectorTest {
     }
 
     @Test
+    fun `a close the lid gap blocks is logged with its length and narrowest gap`() {
+        val lines = mutableListOf<String>()
+        val logged = BlinkDetector(gapSettings) { _, message -> lines += message }
+        fun feed(ms: Long, sample: () -> EyeSample) {
+            val end = time + ms
+            while (time < end) {
+                logged.onSample(sample())
+                time += 33
+            }
+        }
+        feed(500) { withGap(0.9f, 0.30f) }
+        // Glasses: the eyes close but the lid gap stays above the line.
+        feed(600) { withGap(0.40f, 0.15f) }
+        feed(300) { withGap(0.9f, 0.30f) }
+        val line = lines.single { it.startsWith("half shut") }
+        assertTrue(line, line.contains("came down only to 0.15 (shut line 0.13"))
+        // A quick dip is a normal blink and is not logged.
+        feed(150) { withGap(0.40f, 0.15f) }
+        feed(300) { withGap(0.9f, 0.30f) }
+        assertEquals(1, lines.count { it.startsWith("half shut") })
+    }
+
+    @Test
     fun `a real close passes both checks`() {
         detector.settings = gapSettings
         hold(500) { withGap(0.9f, 0.30f) }
