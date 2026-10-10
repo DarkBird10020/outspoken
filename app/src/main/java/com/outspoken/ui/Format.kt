@@ -23,9 +23,10 @@ fun describeStats(ui: StatsUi): String =
         "${formatTenths(ui.phoneTempCelsius, " °C")}, blink accuracy ${formatWhole(ui.blinkAccuracyPercent, "%")}, " +
         "session ${formatClock(ui.sessionMillis)}, ${ui.sentencesSpoken} sentences spoken"
 
-/** The model's live numbers in one line for the main page: "Reply 0.9 s · 61 tok/s · 8 replies written". */
-fun liveStatsLine(replyTimeSeconds: Float?, tokensPerSecond: Float?, repliesWritten: Int): String =
-    "Reply ${formatSeconds(replyTimeSeconds)} · ${formatWhole(tokensPerSecond)} tok/s · $repliesWritten replies written"
+/** The live numbers in one line for the main page: "Reply 0.9 s · 61 tok/s · 8 replies written · 35.1 °C". */
+fun liveStatsLine(replyTimeSeconds: Float?, tokensPerSecond: Float?, repliesWritten: Int, phoneTempCelsius: Float?): String =
+    "Reply ${formatSeconds(replyTimeSeconds)} · ${formatWhole(tokensPerSecond)} tok/s · $repliesWritten replies written · " +
+        formatTenths(phoneTempCelsius, " °C")
 
 /** Session length as minutes and seconds, "MM:SS". */
 fun formatClock(millis: Long): String {
