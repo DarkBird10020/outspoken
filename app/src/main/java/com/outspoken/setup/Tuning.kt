@@ -58,6 +58,10 @@ data class Tuning(
      * On by default, as the owner asked for it and did not find the switch in the 16:37 run.
      */
     val autoLanguage: Boolean = true,
+    /** SOS contact the help alarm texts and then calls (owner request); empty for none. */
+    val sosNumber: String = "",
+    val sosText: Boolean = true,
+    val sosCall: Boolean = true,
 ) {
     /** The gaze settings the stepper uses: the look down lines only when looking down is on. */
     val activeGaze: GazeSettings
@@ -104,6 +108,9 @@ class TuningStore(context: Context) {
             handGestures = prefs.getBoolean("handGestures", default.handGestures),
             language = AppLanguage.fromName(prefs.getString("language", default.language.name)),
             autoLanguage = prefs.getBoolean("autoLanguage", default.autoLanguage),
+            sosNumber = prefs.getString("sosNumber", default.sosNumber).orEmpty(),
+            sosText = prefs.getBoolean("sosText", default.sosText),
+            sosCall = prefs.getBoolean("sosCall", default.sosCall),
             // Saved as the signs switched off, so a sign added later starts on.
             handSigns = HandSign.entries.toSet() -
                 prefs.getStringSet("handSignsOff", emptySet()).orEmpty().mapNotNull(HandSign::fromKey).toSet(),
@@ -148,6 +155,9 @@ class TuningStore(context: Context) {
             .putBoolean("handGestures", tuning.handGestures)
             .putString("language", tuning.language.name)
             .putBoolean("autoLanguage", tuning.autoLanguage)
+            .putString("sosNumber", tuning.sosNumber)
+            .putBoolean("sosText", tuning.sosText)
+            .putBoolean("sosCall", tuning.sosCall)
             .putStringSet("handSignsOff", (HandSign.entries - tuning.handSigns).map { it.key }.toSet())
             .putFloat("lookStrength", tuning.gaze.lookStrength)
             .putFloat("downStrength", tuning.gaze.downStrength ?: NOT_SET)

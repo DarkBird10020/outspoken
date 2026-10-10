@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.outspoken.R
 import com.outspoken.conversation.AppLanguage
@@ -57,6 +58,10 @@ fun SettingsScreen(
     /** The card language's name when the phone has no offline voice for it. */
     missingVoice: String?,
     onInstallVoice: () -> Unit,
+    /** What the help alarm will do with the SOS contact, or why it cannot. */
+    sosLine: String,
+    onSaveSos: (typed: String) -> Unit,
+    onTestSos: () -> Unit,
     handReading: HandReading,
     onTuningChange: (Tuning) -> Unit,
     onTuningReset: () -> Unit,
@@ -77,6 +82,7 @@ fun SettingsScreen(
         AskCard(listenLine, onAsk)
         Segmented("Look up to move", "Blink only", tuning.moveByEyes) { onTuningChange(tuning.copy(moveByEyes = it)) }
         LanguageCard(tuning, missingVoice, onInstallVoice, onTuningChange)
+        SosCard(tuning, sosLine, onSaveSos, onTestSos, onTuningChange)
         TuningCard(tuning, onTuningChange)
         HandCard(tuning, handReading, onTuningChange)
         PillButton("Model and logs", onModels, Modifier.fillMaxWidth())
@@ -184,6 +190,43 @@ private fun TuningCard(tuning: Tuning, onChange: (Tuning) -> Unit) {
  * Hand signs (not in the design, listed as a design gap): on or off, what the camera reads now,
  * and each sign on or off for this person.
  */
+/** Not in the design (a design gap): who the help alarm texts and calls. */
+@Composable
+private fun SosCard(tuning: Tuning, sosLine: String, onSave: (String) -> Unit, onTest: () -> Unit, onChange: (Tuning) -> Unit) {
+    var typed by remember(tuning.sosNumber) { mutableStateOf(tuning.sosNumber) }
+    GlassCard(gap = 12) {
+        Text("SOS contact", style = type(15, 500))
+        Text(sosLine, style = type(13, color = InkSoft))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .weight(1f)
+                    .height(52.dp)
+                    .surface(FieldSurface, RoundedCornerShape(26.dp))
+                    .padding(horizontal = 18.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                if (typed.isEmpty()) Text("Phone number", style = type(16, color = InkFaint))
+                BasicTextField(
+                    value = typed,
+                    onValueChange = { typed = it },
+                    singleLine = true,
+                    textStyle = type(16),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { onSave(typed) }),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { contentDescription = "SOS phone number" },
+                )
+            }
+            PillButton("Save", { onSave(typed) }, Modifier.width(72.dp), style = Surfaces.StartButton, height = 52, size = 16, weight = 600)
+        }
+        ToggleRow("Text them when help is called", tuning.sosText) { onChange(tuning.copy(sosText = it)) }
+        ToggleRow("Then call them", tuning.sosCall) { onChange(tuning.copy(sosCall = it)) }
+        if (tuning.sosNumber.isNotEmpty()) PillButton("Test: text and call now", onTest, Modifier.fillMaxWidth())
+    }
+}
+
 /** Not in the design (a design gap): the language of the cards, the voice and listening. */
 @Composable
 private fun LanguageCard(tuning: Tuning, missingVoice: String?, onInstallVoice: () -> Unit, onChange: (Tuning) -> Unit) {

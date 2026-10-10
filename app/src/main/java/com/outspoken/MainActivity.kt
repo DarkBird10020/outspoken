@@ -40,6 +40,11 @@ import com.outspoken.hand.HandReader
 import com.outspoken.hand.HandReading
 import com.outspoken.help.HelpAlarm
 import com.outspoken.help.HelpStep
+import com.outspoken.help.SosCaller
+import com.outspoken.help.isEmergencyNumber
+import com.outspoken.help.maskedNumber
+import com.outspoken.help.sosMessage
+import com.outspoken.help.sosNumber
 import com.outspoken.listen.HeardFilter
 import com.outspoken.listen.Listener
 import com.outspoken.listen.SpeechWish
@@ -142,6 +147,12 @@ class MainActivity : ComponentActivity() {
     private var micGranted = false
     private var visible = false
 
+    private val sosPermissions =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+            AppLog.write("help", "SOS permissions: " + result.entries.joinToString { "${it.key.substringAfterLast('.')} ${if (it.value) "granted" else "denied"}" })
+            sosAllowed = sos.has(Manifest.permission.SEND_SMS) && sos.has(Manifest.permission.CALL_PHONE)
+        }
+
     private val micPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             micGranted = granted
@@ -232,6 +243,8 @@ class MainActivity : ComponentActivity() {
         }
         speaker.language = cardLanguage.voice
         alarm = HelpAlarm(this)
+        sos = SosCaller(this) { sosStatus = it }
+        sosAllowed = sos.has(Manifest.permission.SEND_SMS) && sos.has(Manifest.permission.CALL_PHONE)
         // Tells the person, eyes still shut, that the help hold is done.
         cue = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, CUE_VOLUME) }.getOrNull()
         listener = Listener(
@@ -333,6 +346,7 @@ class MainActivity : ComponentActivity() {
                         lastSaid = controller.history.lastOrNull() ?: "",
                         onSoundOff = alarm::stop,
                         onDismiss = ::stopHelp,
+                        sosLine = sosStatus,
                     )
                 }
             } else if (cameraGranted && screen == Screen.Calibrate) {
@@ -394,6 +408,12 @@ class MainActivity : ComponentActivity() {
                 OutspokenTheme {
                     SettingsScreen(
                         tuning = tuning,
+                        sosLine = sosLine(),
+                        onSaveSos = ::saveSos,
+                        onTestSos = {
+                            AppLog.write("help", "SOS test from Settings")
+                            triggerSos()
+                        },
                         listenLine = listenLine,
                         missingVoice = if (voiceMissing) cardLanguage.label else null,
                         onInstallVoice = ::installVoice,
@@ -594,6 +614,7 @@ class MainActivity : ComponentActivity() {
         visible = true
         watchDownloads()
         watchTemperature()
+        if (::sos.isInitialized) sosAllowed = sos.has(Manifest.permission.SEND_SMS) && sos.has(Manifest.permission.CALL_PHONE)
         if (::speaker.isInitialized) speaker.checkVoice()
         updateListening()
     }
@@ -613,6 +634,7 @@ class MainActivity : ComponentActivity() {
         listener.release()
         alarm.stop()
         cue?.release()
+        sos.release()
         // Closed on the camera thread, after any frame already being analysed, so no frame reaches
         // a closed face tracker.
         analyzerExecutor.execute {
@@ -737,14 +759,63 @@ class MainActivity : ComponentActivity() {
             HelpStep.Alarm -> {
                 alarm.start()
                 show(Screen.Help)
+                triggerSos()
             }
         }
     }
 
     private fun stopHelp() {
         alarm.stop()
+        sosStatus = null
         AppLog.write("help", "someone came")
         show(Screen.Conversation)
+    }
+
+    private lateinit var sos: SosCaller
+
+    /** Who the help alarm reached, for the help screen; null when no SOS contact was tried. */
+    private var sosStatus by mutableStateOf<String?>(null)
+    private var sosAllowed by mutableStateOf(false)
+
+    /** Why the typed SOS number was not saved, until the next save. */
+    private var sosNote by mutableStateOf<String?>(null)
+
+    /** Owner request: the help alarm texts and then calls the SOS contact, if one is saved. */
+    private fun triggerSos() {
+        val number = tuning.sosNumber
+        if (number.isEmpty() || (!tuning.sosText && !tuning.sosCall)) return
+        val time = LocalTime.now().let { String.format(Locale.US, "%02d:%02d", it.hour, it.minute) }
+        sos.alert(number, sosMessage(time, controller.history.lastOrNull()), tuning.sosText, tuning.sosCall)
+    }
+
+    /** What the help alarm will do with the SOS contact, for Settings. */
+    private fun sosLine(): String {
+        sosNote?.let { return it }
+        val number = tuning.sosNumber.ifEmpty { return "No contact yet: the help alarm sounds on this phone only." }
+        val who = maskedNumber(number)
+        return when {
+            !tuning.sosText && !tuning.sosCall -> "Saved ($who), but texting and calling are both off."
+            !sosAllowed -> "Allow calls and texts so the help alarm can reach $who: tap Save."
+            tuning.sosCall && isEmergencyNumber(number) -> "$number cannot be called by an app, only texted. A person's number works best."
+            else -> "The help alarm " + listOfNotNull("texts".takeIf { tuning.sosText }, "calls".takeIf { tuning.sosCall }).joinToString(" and then ") + " $who."
+        }
+    }
+
+    private fun saveSos(typed: String) {
+        val number = if (typed.isBlank()) "" else sosNumber(typed) ?: run {
+            sosNote = "\"$typed\" is not a phone number."
+            return
+        }
+        sosNote = null
+        val next = tuning.copy(sosNumber = number)
+        applyTuning(next)
+        tuningStore.save(next)
+        if (number.isEmpty()) {
+            AppLog.write("help", "SOS contact removed")
+            return
+        }
+        AppLog.write("help", "SOS contact saved: ${maskedNumber(number)}")
+        sosPermissions.launch(arrayOf(Manifest.permission.SEND_SMS, Manifest.permission.CALL_PHONE))
     }
 
     /** Everything the phone says goes through here, so the microphone does not take it for a question. */

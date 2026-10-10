@@ -33,7 +33,13 @@ import com.outspoken.ui.theme.surface
 import com.outspoken.ui.theme.type
 
 @Composable
-fun HelpAlertScreen(lastSaid: String, onSoundOff: () -> Unit, onDismiss: () -> Unit) {
+fun HelpAlertScreen(
+    lastSaid: String,
+    onSoundOff: () -> Unit,
+    onDismiss: () -> Unit,
+    /** Who the alarm texted and called ("Texting and calling …3210"), when an SOS contact is set. */
+    sosLine: String? = null,
+) {
     DesignScreen(Modifier.surface(Surfaces.HelpBackground, RectangleShape), gap = 18.dp) {
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             DotPill("Alarm is sounding", Ink, Surfaces.HelpGlass)
@@ -66,6 +72,8 @@ fun HelpAlertScreen(lastSaid: String, onSoundOff: () -> Unit, onDismiss: () -> U
                 style = type(19, lineHeight = 1.35f, align = TextAlign.Center),
                 modifier = Modifier.widthIn(max = 280.dp),
             )
+            // Not in the design (a design gap): the SOS contact being reached.
+            sosLine?.let { Text(it, style = type(19, 600, align = TextAlign.Center)) }
         }
         Row(
             Modifier

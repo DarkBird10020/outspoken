@@ -49,6 +49,7 @@ Everything runs on the phone. The app has no internet permission, and CI fails a
 | **Hand signs (optional)** | For someone who can still lift a hand into the camera's view: one to four fingers (thumb folded) light the first to fourth card and a fist says it, so any card can be chosen by hand; 👍 "Yes", 👎 "No", 🤟 "I love you", ✋ the whole hand open "Please wait". Held a moment (the fist a second); each sign can be switched off for a person. Off by default. |
 | **Hindi (optional)** | Settings, English / हिन्दी: the reply cards are written in Hindi by the same on-device model (nothing is translated), with a Hindi phrase bank, topic buttons and fixed cards, a Hindi voice, and the visitor heard in Hindi. "Follow the visitor" switches the cards to the language the visitor speaks. Android's own speech service downloads the Hindi speech pack; Settings opens the voice download when the Hindi voice is missing. |
 | **Help alarm** | Eyes shut for 2 seconds, then a blink, sounds a loud alarm and shows a full-screen alert. |
+| **SOS contact (optional)** | Settings, "SOS contact": the help alarm also texts one saved number and then calls it, over the phone network (no internet). The log keeps only the number's last four digits. |
 | **Calibration and practice** | Every start measures this person's eyes in about 30 seconds. A practice round teaches the blink and measures accuracy. |
 | **Listening** | On-device speech recognition hears the visitor, in one session that runs until the mic is switched off, with the words shown as they are said. Typed questions and one-tap topics cover noisy rooms. |
 | **Transcript and stats** | A large-type transcript for a laptop (Office Kit), and a stats screen with reply time, model speed, blink accuracy and session length. |
@@ -169,7 +170,7 @@ Each laptop signs debug builds with its own key, so an APK built on one laptop c
 ## Privacy and safety
 
 - **No internet.** The manifest removes the INTERNET permission, and CI fails any APK that has it. Model downloads go through the phone's own browser.
-- **Nothing leaves the phone.** The conversation is kept in memory only. Run logs stay in `Android/data/com.outspoken/files/logs/` until the owner shares them with "Share logs".
+- **Nothing leaves the phone.** The conversation is kept in memory only. Run logs stay in `Android/data/com.outspoken/files/logs/` until the owner shares them with "Share logs". The one exception is chosen in Settings: with an SOS contact saved, the help alarm texts that number (the time and the last thing said) and calls it, over the phone network.
 - **Not a medical device.** Outspoken is a communication aid. It needs the person to control their blinking and to see the screen, and its replies are suggestions: the person always chooses what is said.
 
 ## Project structure
@@ -180,7 +181,7 @@ app/src/main/java/com/outspoken/
 ├── blink/            blink and wink detection (pure Kotlin)
 ├── conversation/     board, phrase bank, Say anything, conversation controller
 ├── eye/              camera, MediaPipe face landmarks, eye values
-├── help/             help alarm trigger and sound
+├── help/             help alarm trigger, sound and SOS text and call
 ├── listen/           on-device speech recognition, echo filter, quick topics
 ├── log/              run logs and log export
 ├── practice/         practice round
