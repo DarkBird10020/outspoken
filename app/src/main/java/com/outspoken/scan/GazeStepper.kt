@@ -58,6 +58,9 @@ class GazeStepper(
     private var pausedUntilMs = Long.MIN_VALUE
     private var lastSampleMs = Long.MAX_VALUE
     private var awaySinceMs: Long? = null
+
+    /** After a pause in readings: no step until the eyes are back at rest (or a new rest is taken). */
+    private var waitingForRest = false
     private var formerRestY: Float? = null
     private var formerRestIris: Float? = null
     private var formerUntilMs = 0L
@@ -87,6 +90,7 @@ class GazeStepper(
         // Settle only when there was a rest before, i.e. the face is coming back.
         if (restY != null) settleUntilMs = SETTLE_PENDING
         awaySinceMs = null
+        waitingForRest = false
         formerRestY = null
         restY = null
         restIris = null
@@ -102,6 +106,7 @@ class GazeStepper(
         restY = y
         if (iris != null) restIris = iris
         awaySinceMs = null
+        waitingForRest = false
         formerRestY = null
         looking = null
         stepped = false
@@ -129,9 +134,12 @@ class GazeStepper(
     fun onSample(gaze: Dot?, eyesOpen: Boolean, timeMs: Long, irisY: Float? = null): GazeStep? {
         val irisLine = settings.irisDownStrength
         // No readings for a while (the phone was speaking, or another screen was open): the old
-        // look is stale and the eyes may rest elsewhere now. On the phone a "look up" fired 0.4 s
-        // after every spoken phrase, and a look held over the Practice screen fired on return
-        // (02:39:30, "held 10474 ms"). Settle and learn the rest again, as after the face returns.
+        // look is stale. On the phone a "look up" fired 0.4 s after every spoken phrase, and a look
+        // held over the Practice screen fired on return (02:39:30, "held 10474 ms"). Nothing steps
+        // until the eyes are back at rest. The rest itself is kept: learning it again in the second
+        // after speech took a look up as the rest (17:35:01, gaze -0.17 and iris -0.13 against a
+        // calibrated 0.55 and -0.03), and every return to the screen then stepped down by itself,
+        // seven times in 18 s. If the person really moved, the rest still follows after 2.5 s away.
         val gap = timeMs - lastSampleMs
         lastSampleMs = timeMs
         if (gap > STALE_AFTER_MS && restY != null) {
@@ -140,7 +148,8 @@ class GazeStepper(
             smoothX = null
             smoothY = null
             smoothIris = null
-            settleUntilMs = SETTLE_PENDING
+            awaySinceMs = null
+            waitingForRest = true
         }
         if (timeMs < pausedUntilMs) return null
         if (gaze == null || !eyesOpen) {
@@ -229,6 +238,10 @@ class GazeStepper(
             }
         }
 
+        if (waitingForRest) {
+            if (!nearRest) return null
+            waitingForRest = false
+        }
         if (direction == null) {
             if (nearRest) {
                 restY = centre + dy * REST_FOLLOW
@@ -307,7 +320,7 @@ class GazeStepper(
         const val IRIS_REST_BAND = 0.75f
         const val IRIS_REST_FOLLOW = 0.03f
 
-        /** No readings for longer than this and the look and rest are learned again. */
+        /** No readings for longer than this and the look is forgotten until the eyes are back at rest. */
         const val STALE_AFTER_MS = 400L
 
         /** A look held this long becomes the new resting point. */

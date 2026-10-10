@@ -236,10 +236,44 @@ class GazeStepperTest {
     fun `a look left over from before a pause in readings does not step`() {
         look(500)
         look(200, y = -0.7f)
-        // No readings for 2 s, as while the phone speaks; the eyes now rest higher.
+        // No readings for 2 s, as while the phone speaks; the eyes come back still looking up.
         time += 2_000
         assertEquals(emptyList<GazeStep>(), look(2_000, y = -0.7f))
-        assertEquals(listOf(GazeStep.Next), look(600, y = -0.2f))
+        // Back where they rested before the pause: that is rest, not a look down.
+        assertEquals(emptyList<GazeStep>(), look(600, y = 0f))
+        assertEquals(listOf(GazeStep.Previous), look(600, y = -0.7f))
+    }
+
+    @Test
+    fun `after a pause eyes that stay somewhere new become the rest without a step`() {
+        look(500)
+        time += 2_000
+        assertEquals(emptyList<GazeStep>(), look(3_500, y = -0.7f))
+        assertEquals(listOf(GazeStep.Previous), look(600, y = -1.4f))
+    }
+
+    @Test
+    fun `a look up just after the phone speaks is not taken as the rest`() {
+        // Phone 17:35:00 to 17:35:21: after a card was spoken the person looked up (gaze -0.17,
+        // iris -0.13), that was learned as the rest, and each return to the screen (gaze 0.6 to
+        // 0.76, iris -0.02 to 0.00) stepped down by itself: seven steps in 18 s.
+        val phone = GazeStepper(GazeSettings(lookStrength = 0.30f, downStrength = 0.07f, lookHoldMs = 350, irisDownStrength = 0.012f))
+        phone.restAt(0.55f, -0.03f)
+        val steps = mutableListOf<GazeStep>()
+        fun hold(ms: Long, y: Float, iris: Float) {
+            val end = time + ms
+            while (time < end) {
+                phone.onSample(Dot(0f, y), true, time, iris)?.let(steps::add)
+                time += 40
+            }
+        }
+        hold(1_000, 0.55f, -0.03f)
+        time += 1_400
+        repeat(3) {
+            hold(1_000, -0.17f, -0.13f)
+            hold(1_000, 0.6f, -0.025f)
+        }
+        assertFalse(steps.contains(GazeStep.Next))
     }
 
     @Test
