@@ -1,0 +1,32 @@
+name: Feature request
+description: An idea that would help the person speaking or the people with them.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: who
+    attributes:
+      label: Who it helps
+      description: The person speaking, a visitor, a nurse, someone setting up the phone.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What is hard or impossible today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: How it could work. Remember the person may only be able to use their eyes.
+    validations:
+      required: true
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Fits the project
+      options:
+        - label: It works without the internet, an account or a cloud service.
+          required: true

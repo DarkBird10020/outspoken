@@ -69,10 +69,14 @@ fun ConversationScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            val pill = Modifier
+                .weight(1f, fill = false)
+                .padding(end = 10.dp)
             if (ui.faceFound) {
-                DotPill("Eyes found", EyesFoundDot)
+                DotPill("Eyes found", EyesFoundDot, modifier = pill)
             } else {
-                DotPill("Looking for you", InkFaint)
+                // "Looking for you" does not fit beside four round buttons, even shrunk (phone, 08:22).
+                DotPill("Looking…", InkFaint, modifier = pill)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 CircleIconButton(R.drawable.ic_star, "Practice round", onPractice)

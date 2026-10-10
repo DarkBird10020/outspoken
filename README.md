@@ -1,62 +1,240 @@
-# Outspoken
+<p align="center">
+  <img src="docs/images/banner.png" alt="Outspoken: talk out loud by blinking at a phone" width="100%">
+</p>
 
-Outspoken lets people who cannot move or speak talk out loud by blinking at a phone, with no internet.
+<p align="center">
+  <a href="https://github.com/DarkBird10020/outspoken/actions/workflows/ci.yml"><img src="https://github.com/DarkBird10020/outspoken/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License: Apache 2.0"></a>
+  <img src="https://img.shields.io/badge/platform-Android%2012%2B-3DDC84?logo=android&amp;logoColor=white" alt="Android 12+">
+  <img src="https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?logo=kotlin&amp;logoColor=white" alt="Kotlin and Jetpack Compose">
+  <img src="https://img.shields.io/badge/model-Gemma%204%20on%20device-4285F4" alt="Gemma 4 on device">
+  <img src="https://img.shields.io/badge/internet-not%20used-2E8B4E" alt="No internet">
+</p>
 
-The listener asks a question, an on-device Gemma model suggests four replies, and the speaker blinks to pick one. The phone speaks it. Everything runs on the phone and the app has no internet permission.
+<p align="center">
+  <b>Outspoken lets people who cannot move or speak talk out loud by blinking at a phone, with no internet.</b>
+</p>
+
+<p align="center">
+  <a href="#why-outspoken">Why</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#screenshots">Screenshots</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#getting-started">Getting started</a> ·
+  <a href="#contributing">Contributing</a>
+</p>
+
+---
+
+## Why Outspoken
+
+Some people are awake and aware but cannot speak or use their hands: a patient on a ventilator, a person with ALS, someone paralysed after a stroke. They can think clearly, but they cannot say "I am in pain" or "I need water". Dedicated eye-tracking devices cost a great deal, and existing phone apps either offer a fixed list of phrases or make the person spell every letter, which is slow and tiring.
+
+Outspoken runs on an ordinary Android phone standing at the bedside:
+
+1. **It listens.** The visitor asks a question out loud, and the phone hears it with on-device speech recognition.
+2. **It suggests.** Gemma 4, running on the phone, writes four short replies that answer that question.
+3. **The person chooses with their eyes.** They move the highlight with their eyes and close them for about half a second on the reply they want. The phone says it out loud.
+
+Everything runs on the phone. The app has no internet permission, and CI fails any build that asks for it.
+
+## Features
+
+| | |
+|---|---|
+| **Replies that fit the question** | Gemma 4 E2B writes four first-person replies to what the visitor just said, in about a second. A built-in phrase bank shows at once and takes over if the model fails. |
+| **Choose by blinking** | Our own blink detector, calibrated to each person, tells a deliberate close (about 0.4 s) from a normal blink. |
+| **Two ways to move** | *Look up to move*: look above the phone for the next card. *Blink only*: the highlight moves on a timer, and a blink chooses. |
+| **Say anything** | Build any sentence a few words at a time: the model suggests the next four words and a finished sentence that one blink says. |
+| **Help alarm** | Eyes shut for 2 seconds, then a blink, sounds a loud alarm and shows a full-screen alert. |
+| **Calibration and practice** | Every start measures this person's eyes in about 30 seconds. A practice round teaches the blink and measures accuracy. |
+| **Listening** | On-device speech recognition hears the visitor. Typed questions and one-tap topics cover noisy rooms. |
+| **Transcript and stats** | A large-type transcript for a laptop (Office Kit), and a stats screen with reply time, model speed, blink accuracy and session length. |
+| **Frequent phrases** | Sentences the person says often move to the front during a session. |
+| **Private by design** | No account, no cloud, no internet permission. Run logs stay in the app's own folder on the phone. |
+
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="33%"><img src="docs/images/conversation.png" alt="Conversation screen with four reply cards" width="240"><br><b>Conversation</b><br><sub>Four replies, the lit card and the fixed cards</sub></td>
+    <td align="center" width="33%"><img src="docs/images/say-anything.png" alt="Say anything screen building a sentence" width="240"><br><b>Say anything</b><br><sub>Next words and a finished sentence from the model</sub></td>
+    <td align="center" width="33%"><img src="docs/images/eye-check.png" alt="Eye check screen with the eye graph" width="240"><br><b>Eye check</b><br><sub>Live eye graph, gaze and the last blink</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/calibration.png" alt="Calibration screen" width="240"><br><b>Calibration</b><br><sub>Five spoken steps, about 30 seconds</sub></td>
+    <td align="center"><img src="docs/images/practice-round.png" alt="Practice round screen" width="240"><br><b>Practice round</b><br><sub>Catch three stars by blinking</sub></td>
+    <td align="center"><img src="docs/images/session-stats.png" alt="Session stats screen" width="240"><br><b>Session stats</b><br><sub>Reply time, model speed, phone temperature</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/settings.png" alt="Settings screen" width="240"><br><b>Settings</b><br><sub>Typed questions, mode and tuning</sub></td>
+    <td align="center"><img src="docs/images/model.png" alt="Model screen" width="240"><br><b>Model</b><br><sub>Download and switch Gemma, share logs</sub></td>
+    <td align="center"><img src="docs/images/transcript.png" alt="Transcript screen" width="240"><br><b>Transcript</b><br><sub>Large type for a laptop through Office Kit</sub></td>
+  </tr>
+</table>
+
+<sub>Screenshots from the app running on an iQOO 15. The live camera is blurred.</sub>
+
+## How it works
+
+```mermaid
+flowchart LR
+    V(["Visitor asks a question"]) --> L["Listener<br/>on-device speech recognition"]
+    L --> M["Suggestion engine<br/>Gemma 4 E2B via LiteRT-LM"]
+    M --> C["Four reply cards<br/>phrase bank as fallback"]
+    Cam(["Front camera"]) --> E["Eye reader<br/>MediaPipe Face Landmarker"]
+    E --> B["Blink detector and gaze stepper<br/>calibrated to this person"]
+    B --> C
+    C --> S["Speaker<br/>offline text-to-speech"]
+    S --> H[("Conversation<br/>in memory only")]
+    H --> M
+```
+
+| Module | Job | Built with | Code |
+|---|---|---|---|
+| Eye reader | Camera frames in, eye-open values, gaze and iris points out | CameraX, MediaPipe Face Landmarker | `eye/` |
+| Blink detector | Eye values in, deliberate blinks and long holds out | Our own state machine, pure Kotlin | `blink/` |
+| Gaze stepper and scanner | Moves the highlight by eye or on a timer | Pure Kotlin | `scan/` |
+| Suggestion engine | Conversation in, four replies (or next words) out | Gemma 4 through LiteRT-LM, behind an interface | `suggest/` |
+| Listener | Microphone in, question text out | Android on-device `SpeechRecognizer` | `listen/` |
+| Speaker | Text in, speech out | Android `TextToSpeech`, offline voice | `speech/` |
+| Conversation | Cards, choices, "Say anything", help alarm | Pure Kotlin | `conversation/`, `help/` |
+| Calibration | Measures the eyes, sets the lines | Pure Kotlin | `setup/` |
+
+All the decision logic (blinks, looks, cards, reply parsing, calibration) has no Android imports, so it is covered by JVM unit tests.
 
 ## Measured on the phone
 
-iQOO (vivo I2501, Android 16), from the app's own run logs of 2026-10-10:
-- Gemma 4 E2B through LiteRT-LM on the GPU with multi-token prediction (MTP): four replies in 0.6 to 1.4 s, 37 to 93 tokens per second. Without MTP: 1.6 to 1.9 s, 26 to 29 tokens per second.
-- Speech recognition and speech on the phone, offline.
-- Eye tracking at about 25 frames per second.
-- One run (05:45 to 05:52, build 61abde1): 42 model replies, median 0.9 s (0.67 to 1.8 s), median 60 tokens per second; 35 cards chosen by closing the eyes for 0.45 to 1.4 s; the 10 shorter blinks (up to 0.37 s) were ignored.
-- Another run (07:31 to 07:37, build 2600581): 40 replies, median 0.83 s (0.66 to 1.13 s), median 65 tokens per second (prompt read in about 0.15 s, replies of about 45 tokens); 39 cards chosen by closes of 0.41 to 1.0 s; 40 shorter blinks (up to 0.32 s) ignored; the help alarm sounded on the second close; the app was not left and the model file was not picked again during the run; the phone stayed at 32 to 36 °C with no heat warning. "Are you in pain?" got "Yes, it hurts a lot.", "No, I am okay now.", "A little bit, please.", "Just tired, not bad.".
+From the app's own run logs on an iQOO 15 (vivo I2501, Android 16), 10 October 2026:
 
-## Status
+| | |
+|---|---|
+| Four replies from Gemma 4 E2B, GPU with multi-token prediction | **0.6 to 1.4 s**, typically 0.8 to 0.9 s |
+| Model speed | 37 to 93 tokens per second, typically about 60 |
+| Next words in "Say anything" | 0.6 to 1.0 s |
+| Eye tracking | about 25 frames per second |
+| Deliberate closes chosen in one 6-minute run | 39, from closes of 0.41 to 1.0 s; all 40 shorter blinks ignored |
+| Phone temperature during a run | 32 to 36 °C, no heat warning |
 
-Working on M1 to M4 together. Look up above the phone for the next card and close your eyes for about half a second to say the lit card, or switch to blink only mode, where the highlight moves on a timer. The phone listens to the visitor's question, and Gemma on the phone writes four replies that fit; the built-in phrase bank shows while it thinks and whenever it fails. A practice round, a help alarm, a stats screen, a live transcript and "Say anything" (build any sentence a few words at a time) are built.
+The plan's target is replies on screen within 2 seconds. Day-by-day test results are in [PROGRESS.md](PROGRESS.md).
 
-## Setup
+## Getting started
 
-Every push builds a debug APK on GitHub Actions. Download `outspoken-debug-apk` from the latest green run and install it, or build it yourself with JDK 17+ and the Android SDK (API 36).
+### What you need
 
-1. Build and install:
-   ```
-   ./gradlew installDebug
-   ```
-2. Get a Gemma model: on the Model screen (eye button at the top right, then the sliders button, then "Model and logs"), tap Download next to Gemma 4 E2B (faster, the default) or E4B (more accurate, slower). The phone's browser downloads it and the app loads it by itself; the app never goes online. A `.litertlm` file already on the phone can be picked with "Choose model file". The model is not in this repo; it comes under the Gemma terms of use.
-3. Make sure the phone's text-to-speech engine has an offline English voice installed. The app shows "Offline voice: ready" when it does.
+- An Android phone with Android 12 or newer and a 64-bit Arm chip. Outspoken is tested on an iQOO 15.
+- About 3 GB of free space for the model.
+- An offline English voice for the phone's text-to-speech engine.
+- A stand or holder that keeps the phone at arm's length, front camera facing the person.
 
-Stand the phone on a table or holder at arm's length, front camera facing the speaker.
+### Install
 
-To run exactly the same app on two phones, install the CI APK (`outspoken-debug-apk`) on both: it is signed with one shared key. To build on a laptop with that same key, save the team's shared debug keystore (ask the owner; it is never in the repo) as `~/.android/outspoken-debug.keystore`. Then every APK installs over the last one and the phone keeps its settings and models. Models stay in Downloads, so even an uninstall does not delete them. The Model screen shows the build (the commit), so the two can be compared.
+1. Download `outspoken-debug-apk` from the latest green [CI run](https://github.com/DarkBird10020/outspoken/actions/workflows/ci.yml) and install it.
+2. Open the app and allow the camera and microphone.
+3. Get a model: tap the eye button (top right), then the sliders button, then **Model and logs**, and tap **Download** next to Gemma 4 E2B (2.6 GB, the default) or E4B (3.7 GB, slower but more accurate). The phone's browser downloads it from Hugging Face and the app loads it by itself; the app never goes online. A `.litertlm` file already on the phone can be picked with **Choose a model file**.
+4. Stand the phone at arm's length and follow the spoken calibration.
 
-## Using it
+The model files are not in this repository. Gemma is provided under the [Gemma terms of use](https://ai.google.dev/gemma/terms).
 
-1. At every start the phone talks the speaker through calibration (about 30 s): look at the screen, look up, look down, close the eyes. It sets the look and blink lines from this person's eyes.
-2. On the main page, the visitor asks a question out loud. It shows on the "Heard" card and four replies appear.
-3. The speaker moves the highlight and closes both eyes for about half a second to say the lit card.
-4. Holding the eyes shut for 2 s (a beep), then opening them and closing them again within 5 s, as a blink or a longer close, sounds the help alarm.
-5. To say something the cards do not offer, choose "Say anything": pick words one at a time (the model suggests the next four, and a finished sentence that one blink says), then Speak.
+### Build from source
 
-Two ways to move the highlight, switched in Settings:
-- **Eyes** (default): look up, above the phone, for the next card; it wraps round. Looking down and winks can be switched on too.
-- **Blink only**: the highlight moves on a timer (scan speed slider); blink when the right card lights.
+You need JDK 17 or newer and the Android SDK (API 36).
 
-Buttons on the main page, top right:
-- **Star**: practice round. Catch three stars by blinking; it sets the blink length and adds to the blink accuracy on the stats screen.
-- **Eye**: eye check page. The live camera, a graph of both eyes against the shut and open lines, where the eyes look, the camera speed and the last blink decision. Its sliders button opens **Settings**: the typed question and topic buttons, "Look up to move" or "Blink only", the tuning sliders, Reset and "Calibrate, 30 s". From Settings, **Model and logs**: download or switch the Gemma model, "Choose a model file", reply speed, the build, "Share logs" and "Save logs".
-- **Transcript**: the conversation in large type, for a laptop through Office Kit.
-- **Stats**: reply time, model speed, blink accuracy, session length, sentences spoken, all live. Reply time counts up while the model writes.
+```bash
+git clone https://github.com/DarkBird10020/outspoken.git
+cd outspoken
+./gradlew installDebug
+```
 
-Run logs stay on the phone in `Android/data/com.outspoken/files/logs/`. Tap "Share logs" on the Model screen (eye button, then the sliders button, then "Model and logs") to send them to another app, or "Save logs" to keep a copy; on a laptop, `tools/phone-logs.ps1` copies them over USB or wireless debugging. Logs are never committed: they hold what people said.
+Each laptop signs debug builds with its own key, so an APK built on one laptop cannot install over another's. To build with the team's shared key (the one CI uses), save it as `~/.android/outspoken-debug.keystore`; it is shared privately and never committed. The Model screen shows the build, so two phones can be compared.
 
-## Checks
+## Using Outspoken
 
-`./gradlew testDebugUnitTest` runs the unit tests. CI also runs Android lint, builds the APK and fails if the APK asks for the INTERNET permission.
+1. **Calibrate.** At every start the phone talks the person through it: look at the screen, look up, look down, close the eyes.
+2. **Listen.** The visitor asks a question out loud. It shows on the "Heard" card and four replies appear.
+3. **Choose.** Move the highlight to a reply and close both eyes for about half a second. The phone says it.
+4. **Say anything.** Choose "Say anything" to build a sentence the cards do not offer, then Speak.
+5. **Call for help.** Hold the eyes shut until the beep (2 seconds), open them, then blink or close them again. The alarm sounds.
 
-## Open-source libraries
+| Button | Opens |
+|---|---|
+| Star | Practice round |
+| Eye | Eye check, then **Settings** (sliders button), then **Model and logs** |
+| Speech bubble | Live transcript |
+| Bars | Session stats, all live: reply time counts up while the model writes |
+
+## Privacy and safety
+
+- **No internet.** The manifest removes the INTERNET permission, and CI fails any APK that has it. Model downloads go through the phone's own browser.
+- **Nothing leaves the phone.** The conversation is kept in memory only. Run logs stay in `Android/data/com.outspoken/files/logs/` until the owner shares them with "Share logs".
+- **Not a medical device.** Outspoken is a communication aid. It needs the person to control their blinking and to see the screen, and its replies are suggestions: the person always chooses what is said.
+
+## Project structure
+
+```text
+app/src/main/java/com/outspoken/
+├── MainActivity.kt   one activity, screen routing, Android services
+├── blink/            blink and wink detection (pure Kotlin)
+├── conversation/     board, phrase bank, Say anything, conversation controller
+├── eye/              camera, MediaPipe face landmarks, eye values
+├── help/             help alarm trigger and sound
+├── listen/           on-device speech recognition, echo filter, quick topics
+├── log/              run logs and log export
+├── practice/         practice round
+├── scan/             gaze stepper and timed scanner
+├── setup/            calibration, tuning, model catalog and checks
+├── speech/           offline text-to-speech
+├── stats/            session numbers
+├── suggest/          suggestion engine, prompts, reply parser, LiteRT-LM model
+└── ui/               Jetpack Compose screens and the design theme
+app/src/test/         JVM unit tests
+docs/images/          README images
+tools/                laptop helper to copy run logs from the phone
+PRD.md                product brief
+PROGRESS.md           what is built, how to test it, phone test history
+```
+
+## Development
+
+```bash
+./gradlew testDebugUnitTest   # unit tests
+./gradlew lintDebug           # Android lint
+./gradlew assembleDebug       # debug APK
+```
+
+Every push and pull request runs three checks in [CI](.github/workflows/ci.yml), all required before a merge to `main`:
+
+| Check | What it catches |
+|---|---|
+| Unit tests | Broken logic, and any phone log committed by mistake |
+| Android lint | Common Android mistakes |
+| Build APK | Code that does not compile, and an APK that asks for INTERNET. Uploads `outspoken-debug-apk` |
+
+Run logs are read with `adb logcat -s Outspoken`, shared from the Model screen, or copied with `tools/phone-logs.ps1`.
+
+## Roadmap
+
+| Milestone | Status |
+|---|---|
+| M0. Skeleton: camera and live eye values | Built |
+| M1. Blink to speech with fixed phrases | Built, pass test ("I need water" ten times in a row) to run |
+| M2. Model replies with phrase bank fallback | Built |
+| M3. Listening, calibration, practice round | Built, pass test to run |
+| M4. Help alarm, stats, laptop transcript | Built, pass test to run |
+| M5. Freeze and ship | Next |
+| Later | Hindi and Kannada speech, looking left or right as extra inputs |
+
+## Contributing
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, and follow the [Code of Conduct](CODE_OF_CONDUCT.md). To report a security or privacy problem, see [SECURITY.md](SECURITY.md).
+
+## Team
+
+Built by [DarkBird10020](https://github.com/DarkBird10020) and [Atul-Chahar](https://github.com/Atul-Chahar), with screen design by our teammate.
+
+## Acknowledgements
+
+Outspoken is built on these open-source projects:
 
 - [Kotlin](https://kotlinlang.org) and [kotlinx.coroutines](https://github.com/Kotlin/kotlinx.coroutines), Apache 2.0
 - [Android Gradle Plugin](https://developer.android.com/build), Apache 2.0
@@ -66,7 +244,12 @@ Run logs stay on the phone in `Android/data/com.outspoken/files/logs/`. Tap "Sha
 - [JUnit 4](https://junit.org/junit4/) (tests only), EPL 1.0
 - [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM), runs the Gemma model on the phone, Apache 2.0. Brings in [Gson](https://github.com/google/gson), Apache 2.0
 - [MediaPipe Tasks Vision](https://github.com/google-ai-edge/mediapipe), Apache 2.0, with the [Face Landmarker model](https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker) (`app/src/main/assets/face_landmarker.task`), Apache 2.0
+- [Gemma 4](https://ai.google.dev/gemma) models from [litert-community](https://huggingface.co/litert-community), downloaded on the phone, under the Gemma terms of use
 
-## Fonts
+Fonts:
 
-- [Urbanist](https://github.com/coreyhu/Urbanist), SIL Open Font License 1.1. License text in `licenses/Urbanist-OFL.txt`.
+- [Urbanist](https://github.com/coreyhu/Urbanist), SIL Open Font License 1.1. License text in [`licenses/Urbanist-OFL.txt`](licenses/Urbanist-OFL.txt).
+
+## License
+
+Outspoken is licensed under the [Apache License 2.0](LICENSE). Third-party libraries, models and fonts keep their own licenses, listed above.
