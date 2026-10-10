@@ -55,7 +55,10 @@ class PatientProfileTest {
     @Test
     fun `the prompt names the person, their people, likes and health`() {
         val text = profilePrompt(PatientProfile.SAMPLE)!!
-        assertTrue(text.contains("Ramesh Iyer (called Ramu), 62 years old, male, lives in Bengaluru, used to work as school teacher, speaks English, Hindi."))
+        assertTrue(text.contains("- Full name: Ramesh Iyer."))
+        assertTrue(text.contains("- Family and friends call them Ramu."))
+        assertTrue(text.contains("- Asked their name, one reply gives the full name: \"My name is Ramesh Iyer\"."))
+        assertTrue(text.contains("- 62 years old, male, lives in Bengaluru, used to work as school teacher, speaks English, Hindi."))
         assertTrue(text.contains("People close to them: wife Meera, son Arjun, friend Kabir, day nurse Sister Anita."))
         assertTrue(text.contains("Likes: Chai, no sugar; Cricket; Old film songs."))
         assertTrue(text.contains("Health: ALS; Type 2 diabetes."))

@@ -65,9 +65,9 @@ data class PatientProfile(
 fun profilePrompt(profile: PatientProfile?): String? {
     if (profile == null || profile.isEmpty) return null
     val p = profile
-    val who = buildList {
-        if (p.fullName.isNotBlank()) add(p.fullName.trim() + (if (p.calledName.isNotBlank()) " (called ${p.calledName.trim()})" else ""))
-        else if (p.calledName.isNotBlank()) add("called ${p.calledName.trim()}")
+    val name = p.fullName.trim()
+    val called = p.calledName.trim()
+    val facts = buildList {
         if (p.age.isNotBlank()) add("${p.age.trim()} years old")
         if (p.gender.isNotBlank()) add(p.gender.trim().lowercase())
         if (p.livesIn.isNotBlank()) add("lives in ${p.livesIn.trim()}")
@@ -76,7 +76,12 @@ fun profilePrompt(profile: PatientProfile?): String? {
     }
     return buildString {
         appendLine("About the Person (use these names and facts when they fit; never invent others):")
-        if (who.isNotEmpty()) appendLine("- ${who.joinToString(", ")}.")
+        // Name and nickname on one line ("Ramesh Iyer (called Ramu)") gave "My name is Ramu" to
+        // "What is your name", and never the full name (phone 19:18).
+        if (name.isNotEmpty()) appendLine("- Full name: $name.")
+        if (called.isNotEmpty() && !called.equals(name, ignoreCase = true)) appendLine("- Family and friends call them $called.")
+        if (name.isNotEmpty()) appendLine("- Asked their name, one reply gives the full name: \"My name is $name\".")
+        if (facts.isNotEmpty()) appendLine("- ${facts.joinToString(", ").replaceFirstChar { it.uppercase() }}.")
         if (p.people.isNotEmpty()) appendLine("- People close to them: ${p.people.joinToString(", ") { "${it.relation.trim().lowercase()} ${it.name.trim()}".trim() }}.")
         if (p.likes.isNotEmpty()) appendLine("- Likes: ${p.likes.joinToString("; ") { it.trim() }}.")
         if (p.dislikes.isNotEmpty()) appendLine("- Dislikes: ${p.dislikes.joinToString("; ") { it.trim() }}.")

@@ -1,6 +1,8 @@
 package com.outspoken
 
 import android.Manifest
+import com.outspoken.listen.romanise
+import com.outspoken.listen.mostlyDevanagari
 import com.outspoken.ui.ProfileScreen
 import com.outspoken.ui.ProfileEditScreen
 import com.outspoken.profile.ProfileStore
@@ -258,11 +260,12 @@ class MainActivity : ComponentActivity() {
         cue = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, CUE_VOLUME) }.getOrNull()
         listener = Listener(
             this,
-            onHeard = { text ->
+            onHeard = { heard, spoken ->
+                val text = readable(heard, spoken)
                 val question = heardFilter.accept(text, now())
                 if (question == null) AppLog.write("listen", "ignored \"$text\" (the phone's own voice or too short)")
                 question?.let {
-                    if (tuning.autoLanguage) followVisitor(it)
+                    if (tuning.autoLanguage) followVisitor(it, spoken)
                     controller.onHeard(it, now())
                 }
             },
@@ -856,9 +859,28 @@ class MainActivity : ComponentActivity() {
         controller.language = language
     }
 
-    /** Owner request: the cards follow the language the visitor speaks, told apart by its letters. */
-    private fun followVisitor(text: String) {
-        val spoken = spokenLanguage(text) ?: return
+    /**
+     * English written in Hindi letters, which the recogniser does while listening in Hindi, in
+     * Latin letters instead, so the model and the person can read it ("vhaat's yor nem").
+     */
+    private fun readable(text: String, spoken: String?): String {
+        if (spoken != "en" || !mostlyDevanagari(text)) return text
+        val latin = romanise(text)
+        AppLog.write("listen", "spoken in English, written in Hindi letters: read as \"$latin\"")
+        return latin
+    }
+
+    /**
+     * Owner request: the cards follow the language the visitor speaks: the recogniser's guesses
+     * when they are clear, else the letters. Letters alone kept English in Hindi (phone 19:18):
+     * listening in Hindi, the recogniser wrote English questions in Hindi letters.
+     */
+    private fun followVisitor(text: String, heardIn: String?) {
+        val spoken = when (heardIn) {
+            "en" -> AppLanguage.English
+            "hi" -> AppLanguage.Hindi
+            else -> spokenLanguage(text)
+        } ?: return
         if (spoken == cardLanguage) return
         AppLog.write("listen", "the visitor spoke ${spoken.name}, cards follow")
         useCardLanguage(spoken)
