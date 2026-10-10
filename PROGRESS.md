@@ -484,7 +484,7 @@ To tune on the phone (PRD: pick the largest model that meets 2 s): try Gemma3-1B
 ## M3. Listening and calibration
 
 PRD pass test: a stranger asks an unscripted question aloud and gets a sensible blinked answer in under 20 seconds, in airplane mode.
-Status: in progress. Calibration is in its own section above; listening is built; the practice round is still to come.
+Status: built, pass test not run yet. Calibration, listening and the practice round are all built (sections above).
 
 - [ ] **Listening** (F7). The microphone listens all the time on the conversation page, on the phone itself: Android's on-device recogniser when there is one, otherwise the normal recogniser told to stay offline. Each finished sentence shows on the designed "Heard" card and goes to Gemma with the conversation, so the four replies answer it. Code: `listen/Listener.kt`, `conversation/ConversationController.kt`.
 - [ ] **Does not hear itself.** Listening pauses while the phone speaks (replies and calibration prompts), drops anything heard in the 1.5 s after, and drops text that matches what the phone just said. Code: `listen/HeardFilter.kt`.
@@ -508,7 +508,7 @@ Extras beyond the PRD:
 ## M4. Alarm, stats, laptop view (started)
 
 PRD pass test: the help alarm, the stats screen and the laptop view all shown in one run.
-Status: in progress. The help alarm and the stats screen are built; the laptop view is next.
+Status: built, pass test not run yet. The help alarm, the stats screen and the transcript for the laptop are all built.
 
 - [ ] **Help alarm** (F8). Eyes held shut for 2 s: a beep says the hold is done. Open the eyes and close them again within 5 s, as a blink or a longer close: the phone's alarm sound plays on the alarm channel, looping, at full volume, and the designed help screen fills the display with the last thing said. "I am here" (or back) stops it and returns to the cards; the speaker button silences it. The confirm blink never picks a card, and the hold itself never counts as a blink. Works even while the phone is speaking. Code: `help/HelpTrigger.kt`, `help/HelpAlarm.kt`, `conversation/ConversationController.kt`, `ui/HelpAlertScreen.kt`.
 - Why two steps: a person resting with their eyes closed should not set it off alone.
@@ -574,11 +574,8 @@ Run on every push and pull request (`.github/workflows/ci.yml`). The `main` rule
 
 ## Next
 
-1. Owner runs "I need water" ten times in a row in both modes on the iQOO and sends the counts and logs. Copy the Gemma `.litertlm` file to the phone first ("Choose model file"); the last run had no model.
-2. Fix what the logs show, then mark M1 and the practice round.
-3. Sentence builder (plan, starts after step 1):
-   - A "Write my own" card opens a builder: the sentence so far where "Heard" sits, four next-word cards (one to three words each), then Speak, More words, Delete last word and Exit, all reachable by eyes.
-   - A built-in list of common next words shows at once; Gemma's four suggestions replace it when ready, and the list stays if the model fails.
-   - Speed: ask for about 32 tokens instead of 96, keep one model session open for the whole sentence, and work out the next words for the lit card while the person is still choosing.
-   - Each word step logs the model reply time.
-   - Open question for the owner: add "Starts with..." letter groups, or words only first.
+1. Owner runs the M1 pass test on the iQOO: "I need water" ten times in a row, in "Look up to move" and in "Blink only". Send the counts and the logs ("Share logs" on the Model screen). Then M0 and M1 can be marked.
+2. The M2 to M4 pass tests: a stranger's question in airplane mode, then help alarm, stats and transcript in one run.
+3. Owner sends the shared debug keystore to each laptop (`~/.android/outspoken-debug.keystore`) so every APK installs over the last one.
+4. "Say anything" sentence builder, from the teammate's design.
+5. M5: freeze, video, README, APK, submission, pitch rehearsals.
