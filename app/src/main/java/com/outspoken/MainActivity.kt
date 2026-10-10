@@ -217,7 +217,9 @@ class MainActivity : ComponentActivity() {
                 question?.let { controller.onHeard(it, now()) }
             },
             onStatus = { listenLine = it },
+            onHearing = { hearingText = it.ifBlank { null } },
         )
+        listener.languages = speechLanguages()
         camera = FrontCamera(this, this)
         cameraGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
@@ -431,6 +433,9 @@ class MainActivity : ComponentActivity() {
                 } else OutspokenTheme {
                     ConversationScreen(
                         ui = conversation,
+                        hearing = hearingText,
+                        micOn = micOn,
+                        onMic = ::switchMic,
                         onPractice = {
                             practiceController.reset()
                             show(Screen.Practice)
@@ -696,12 +701,36 @@ class MainActivity : ComponentActivity() {
 
     /** Listens on the conversation and mirrored transcript pages while the app is on screen. */
     private fun updateListening() {
-        if (micGranted && visible && screen in LISTENING_SCREENS) listener.start() else listener.stop()
+        if (listeningNow()) listener.start() else listener.stop()
+    }
+
+    private fun listeningNow() = micGranted && visible && micOn && screen in LISTENING_SCREENS
+
+    /** Words being heard now, shown live in the "Heard" card. */
+    private var hearingText by mutableStateOf<String?>(null)
+
+    /** Owner request: listening goes on until the person at the bedside switches it off. */
+    private var micOn by mutableStateOf(true)
+
+    private fun switchMic() {
+        micOn = !micOn
+        AppLog.write("listen", "microphone switched ${if (micOn) "on" else "off"} by hand")
+        updateListening()
+    }
+
+    /**
+     * English as spoken in India first: "Are you in pain" was heard as "Aryan paint" with the
+     * US English pack (09:15:08). Then the phone's own English, then US English. The listener
+     * takes the first whose pack is on the phone.
+     */
+    private fun speechLanguages(): List<String> {
+        val phone = Locale.getDefault().takeIf { it.language == "en" }?.toLanguageTag()
+        return listOfNotNull("en-IN", phone, Locale.US.toLanguageTag()).distinct()
     }
 
     private fun transcriptUi() = TranscriptUi(
         turns = controller.allTurns,
-        isListening = micGranted && visible && screen in LISTENING_SCREENS,
+        isListening = listeningNow(),
         totalSentences = controller.history.size,
     )
 

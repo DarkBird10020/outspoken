@@ -70,6 +70,12 @@ fun ConversationScreen(
     eyeView: (@Composable (Modifier) -> Unit)? = null,
     onAsk: ((String) -> Unit)? = null,
     liveStats: (@Composable () -> Unit)? = null,
+    /** Words being heard now, before the sentence ends; shown in place of the last question. */
+    hearing: String? = null,
+    /** Whether the microphone is on, for the chip that switches it; null hides the chip. */
+    micOn: Boolean? = null,
+    onMic: () -> Unit = {},
+    topics: List<Pair<String, String>> = QuickTopics.all,
 ) {
     DesignScreen(Modifier.dottedCanvas(), gap = 14.dp) {
         Row(
@@ -105,7 +111,8 @@ fun ConversationScreen(
         // Not in the design yet (listed as a design gap): the model's numbers, live, so they can be
         // watched changing while the person talks (owner request).
         liveStats?.invoke()
-        ui.heard?.let { HeardCard(it) }
+        val live = hearing?.takeIf { it.isNotBlank() }
+        if (live != null) HeardCard(live, "Hearing…") else ui.heard?.let { HeardCard(it, "Heard") }
         Column(
             Modifier
                 .weight(1f)
@@ -136,21 +143,28 @@ fun ConversationScreen(
         }
         // Not in the design yet (listed as a design gap): one-tap questions for the visitor when
         // the room is too loud for the microphone (PRD F7 fallback).
-        onAsk?.let { QuickTopicRow(it) }
+        val micChip: (@Composable () -> Unit)? = micOn?.let { on -> @Composable { MicChip(on, onMic) } }
+        onAsk?.let { ask -> QuickTopicRow(ask, topics, leading = micChip) }
         FooterNote("Runs on this phone. No internet.")
     }
 }
 
-/** One-tap questions for the visitor, a row that scrolls sideways. */
+/** One-tap questions for the visitor, a row that scrolls sideways, after an optional [leading] chip. */
 @Composable
-fun QuickTopicRow(onAsk: (String) -> Unit) {
+fun QuickTopicRow(
+    onAsk: (String) -> Unit,
+    topics: List<Pair<String, String>> = QuickTopics.all,
+    leading: (@Composable () -> Unit)? = null,
+) {
     Row(
         Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        QuickTopics.all.forEach { (label, question) ->
+        leading?.invoke()
+        topics.forEach { (label, question) ->
             Text(
                 label,
                 style = type(15, 500),
@@ -183,8 +197,28 @@ fun LiveStatsLine(refreshMs: Long, read: () -> List<String>) {
     }
 }
 
+/**
+ * The microphone switch for the person at the bedside (owner request: listening should go on until
+ * they stop it). Not in the design, listed as a design gap: green while listening, glass when off.
+ */
 @Composable
-private fun HeardCard(question: String) {
+private fun MicChip(on: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .surface(if (on) Surfaces.OfflinePill else Surfaces.Glass, RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(role = Role.Button, onClickLabel = if (on) "Stop listening" else "Start listening", onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(painterResource(R.drawable.ic_mic), contentDescription = null, tint = InkSoft, modifier = Modifier.size(16.dp))
+        Text(if (on) "Listening" else "Mic off", style = type(15, 500))
+    }
+}
+
+@Composable
+private fun HeardCard(question: String, label: String) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -194,7 +228,7 @@ private fun HeardCard(question: String) {
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(painterResource(R.drawable.ic_mic), contentDescription = null, tint = InkSoft, modifier = Modifier.size(16.dp))
-            Text("Heard", style = type(14, color = InkSoft))
+            Text(label, style = type(14, color = InkSoft))
         }
         Text(question, style = type(26, 500, lineHeight = 1.15f))
     }
