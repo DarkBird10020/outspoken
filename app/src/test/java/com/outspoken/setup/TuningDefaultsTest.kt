@@ -56,4 +56,10 @@ class TuningDefaultsTest {
         assertTrue(Tuning().blink.minBlinkMs >= MIN_PICK_HOLD_MS)
         assertTrue(MIN_PICK_HOLD_MS > 242)
     }
+
+    @Test
+    fun `hand signs are off until switched on, with every sign ready`() {
+        assertEquals(false, Tuning().handGestures)
+        assertEquals(com.outspoken.hand.HandSign.entries.toSet(), Tuning().handSigns)
+    }
 }
