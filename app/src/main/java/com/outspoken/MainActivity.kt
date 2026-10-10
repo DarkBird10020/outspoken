@@ -50,6 +50,7 @@ import com.outspoken.ui.ModelRow
 import com.outspoken.speech.Speaker
 import com.outspoken.practice.PracticeController
 import com.outspoken.stats.PitStats
+import com.outspoken.stats.ThermalSensor
 import com.outspoken.stats.ThermalZones
 import com.outspoken.suggest.ModelImporter
 import com.outspoken.suggest.ModelState
@@ -270,7 +271,7 @@ class MainActivity : ComponentActivity() {
             if (screen == Screen.Stats) {
                 BackHandler { show(Screen.Conversation) }
                 var nowMs by remember { mutableStateOf(now()) }
-                var phoneTemp by remember { mutableStateOf(phoneTemperature()) }
+                var phoneTemp by remember { mutableStateOf<Float?>(null) }
                 LaunchedEffect(Unit) {
                     while (true) {
                         nowMs = now()
@@ -279,7 +280,7 @@ class MainActivity : ComponentActivity() {
                 }
                 LaunchedEffect(Unit) {
                     while (true) {
-                        phoneTemp = phoneTemperature()
+                        phoneTemp = withContext(Dispatchers.IO) { phoneTemperature() }
                         delay(TEMPERATURE_REFRESH_MS)
                     }
                 }
@@ -582,7 +583,7 @@ class MainActivity : ComponentActivity() {
     // and were fast again after a long pause, which looks like heat. These lines show whether.
     private val power by lazy { getSystemService(PowerManager::class.java) }
     private val thermalWatch = PowerManager.OnThermalStatusChangedListener {
-        AppLog.write("app", "thermal ${thermalLabel(it)}, phone ${phoneTemperature() ?: "-"} °C")
+        AppLog.write("app", "thermal ${thermalLabel(it)}, ${temperatures()}")
     }
 
     /** Android's thermal status in a word; from "light" up the phone is slowing its chips. */
@@ -597,8 +598,22 @@ class MainActivity : ComponentActivity() {
         else -> "unknown"
     }
 
+    /**
+     * The phone's shell (body) temperature, or the battery's where there is no shell sensor. The
+     * battery's changed only about once a minute and in 0.1 °C steps: 34.3 to 34.2 °C through the
+     * 08:48 run, so the stats showed "34 °C" throughout, while the shell sensor read 34.4, 35.1 and
+     * 36.3 °C at 08:48:10, 08:48:22 and 08:49:12.
+     */
+    private fun phoneTemperature(): Float? = shellSensor.celsius() ?: batteryTemperature()
+
+    private val shellSensor = ThermalSensor("tz_shell")
+
+    /** Both readings for the log: "battery 34.2 °C, shell 36.3 °C". */
+    private fun temperatures() =
+        "battery ${batteryTemperature() ?: "-"} °C, shell ${shellSensor.celsius()?.let { String.format(Locale.US, "%.1f", it) } ?: "-"} °C"
+
     /** Battery temperature, the phone's own reading, in °C; null when the phone does not give it. */
-    private fun phoneTemperature(): Float? {
+    private fun batteryTemperature(): Float? {
         val battery = ContextCompat.registerReceiver(
             this,
             null,
@@ -653,15 +668,17 @@ class MainActivity : ComponentActivity() {
         AppLog.write("ui", "screen $next")
         screen = next
         updateListening()
-        if (next == Screen.Stats) logThermalSensors()
     }
 
     /**
-     * Which of the phone's thermal sensors the app can read, at start and each time the stats open,
-     * so the logs show whether any of them moves faster than the battery's (about once a minute).
+     * Which of the phone's thermal sensors the app can read, once at start, and the shell sensor the
+     * stats screen shows (looking it up here keeps that off the main thread).
      */
     private fun logThermalSensors() {
-        lifecycleScope.launch(Dispatchers.IO) { AppLog.write("app", ThermalZones.describe()) }
+        lifecycleScope.launch(Dispatchers.IO) {
+            AppLog.write("app", ThermalZones.describe())
+            AppLog.write("app", shellSensor.celsius()?.let { "phone temperature from the shell sensor tz_shell" } ?: "no shell sensor, phone temperature from the battery")
+        }
     }
 
     /** Next words for "Say anything"; each step's reply time goes in the log. */
@@ -695,7 +712,7 @@ class MainActivity : ComponentActivity() {
                 "replies in ${suggestions.elapsedMs} ms, ${suggestions.tokensPerSecond ?: "-"} tok/s, " +
                     (if (suggestions.fromModel) "from the model" else "phrase bank fallback") +
                     (if (suggestions.fromModel && toppedUp > 0) " ($toppedUp topped up from the phrase bank)" else "") +
-                    ", phone ${phoneTemperature() ?: "-"} °C, thermal ${thermalLabel(power.currentThermalStatus)}" +
+                    ", ${temperatures()}, thermal ${thermalLabel(power.currentThermalStatus)}" +
                     (suggestions.timing?.let { ", $it" } ?: ""),
             )
             controller.onReplies(requestId, suggestions.replies, suggestions.fromModel, now())
