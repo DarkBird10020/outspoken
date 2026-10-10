@@ -116,6 +116,31 @@ class SayAnythingTest {
     }
 
     @Test
+    fun `by eyes a look already on Speak stays there when the model's words come`() {
+        controller.moveByEyes = true
+        fun frames(ms: Long, open: Float = 0.95f, gazeY: Float = 0f) {
+            val end = time + ms
+            while (time < end) {
+                controller.onSample(EyeSample(time, true, open, open, gaze = Dot(0f, gazeY)))
+                time += 33
+            }
+        }
+        frames(500)
+        open()
+        tap(0)
+        // A look up from the first word wraps round to the last card, Speak.
+        frames(500, gazeY = -0.7f)
+        frames(1_300)
+        assertEquals(SentenceBuilder.SPEAK, ui.highlighted)
+        controller.onWords(wordRequests.last().first, listOf("am", "need", "want", "feel"), "I am tired", time)
+        assertEquals(SentenceBuilder.SPEAK, ui.highlighted)
+        assertEquals(listOf("am", "need", "want", "feel"), builder!!.words)
+        frames(500, open = 0.05f)
+        frames(200)
+        assertEquals(listOf("I"), said)
+    }
+
+    @Test
     fun `by eyes a look up moves through the builder's cards and a blink picks the lit word`() {
         controller.moveByEyes = true
         controller.upMovesNext = true

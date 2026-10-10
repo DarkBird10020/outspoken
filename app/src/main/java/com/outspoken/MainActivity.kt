@@ -707,7 +707,8 @@ class MainActivity : ComponentActivity() {
                 "model",
                 "words in ${words.elapsedMs} ms, ${words.tokensPerSecond ?: "-"} tok/s, " +
                     (if (words.fromModel) "from the model" else "built-in words only") +
-                    " for \"$sentence\"" + (words.timing?.let { ", $it" } ?: ""),
+                    " for \"$sentence\"" + (words.timing?.let { ", $it" } ?: "") +
+                    ", sentences that fit: ${words.sentences}",
             )
             controller.onWords(requestId, words.words, words.completion, now())
         }
