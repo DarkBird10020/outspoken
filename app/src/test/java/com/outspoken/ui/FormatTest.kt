@@ -26,6 +26,13 @@ class FormatTest {
     }
 
     @Test
+    fun `tenths keep one decimal and take a unit`() {
+        assertEquals("36.3 °C", formatTenths(36.319f, " °C"))
+        assertEquals("34.0 °C", formatTenths(34f, " °C"))
+        assertEquals("-", formatTenths(null, " °C"))
+    }
+
+    @Test
     fun `live line for the main page`() {
         assertEquals("Reply 0.9 s · 61 tok/s · 8 replies written", liveStatsLine(0.86f, 61.1f, 8))
         assertEquals("Reply - · - tok/s · 0 replies written", liveStatsLine(null, null, 0))
