@@ -7,11 +7,8 @@ fun buildPrompt(request: SuggestionRequest): String = buildString {
     // Without the setting the model wrote small talk, and lines for the visitor to say ("Good
     // night, sleep well", "I want a glass of wine"; 03:20 to 03:22 phone runs).
     appendLine("You suggest replies for a person in bed who cannot move or speak, cared for by family or a nurse (the Visitor). They pick one by blinking, and the phone says it aloud.")
-    appendLine("Write 4 different replies they may want to say next. If the last line is a question, answer it.")
+    appendLine("Write 4 different replies they may want to say next.")
     appendLine("Each reply: first person, plain everyday words, at most 8 words, said by the Person, never by the Visitor.")
-    // "and a question back" gave questions the visitor would ask ("Thirsty? Do you want water?",
-    // "Do you want quiet now?"; 04:53 to 05:08 phone runs), and one was picked and said.
-    appendLine("Mix the kinds: yes or no, and a need or feeling such as pain, thirst or rest.")
     appendLine("Answer with only a JSON list of 4 strings.")
     appendLine()
     // One worked example: small models copy the shape of an example far more reliably than they
@@ -27,10 +24,38 @@ fun buildPrompt(request: SuggestionRequest): String = buildString {
         appendLine("Conversation so far:")
         turns.forEach { appendLine("${if (it.fromListener) "Visitor" else "Person"}: ${it.text}") }
     }
+    val last = turns.lastOrNull()
+    if (last != null && last.fromListener) {
+        // With the mix of needs below always in, "Are you in pain" got rest and water cards and
+        // no answer about pain (05:27:38 phone run). What the visitor just said comes first.
+        append("The Visitor just said: \"${last.text}\". All 4 replies must reply to that directly.")
+        if (isYesNoQuestion(last.text)) append(" Give a yes, a no, and two more specific answers.")
+        appendLine()
+    } else {
+        // "and a question back" gave questions the visitor would ask ("Thirsty? Do you want
+        // water?", "Do you want quiet now?"; 04:53 to 05:08 phone runs), and one was picked.
+        appendLine("Mix the kinds: yes or no, and a need or feeling such as pain, thirst or rest.")
+    }
     append("Answer:")
 }
 
 const val EXAMPLE_ANSWER = """["Yes, please", "A little, thank you", "No, I am fine", "Can I have juice instead"]"""
+
+/**
+ * Whether [text] asks for a yes or a no, from its first word. Heard speech comes without a
+ * question mark ("Are you in pain"), often after a greeting, and casually ("Hey you need anything").
+ */
+fun isYesNoQuestion(text: String): Boolean {
+    val words = text.lowercase().split(NOT_LETTERS).filter { it.isNotEmpty() }
+    return words.firstOrNull { it !in LEAD_INS } in YES_NO_STARTS
+}
+
+private val NOT_LETTERS = Regex("[^a-z']+")
+private val LEAD_INS = setOf("hey", "hi", "hello", "so", "and", "okay", "ok", "well", "you")
+private val YES_NO_STARTS = setOf(
+    "are", "is", "am", "was", "were", "do", "does", "did", "can", "could", "will", "would",
+    "should", "shall", "may", "have", "has", "had", "want", "need",
+)
 
 fun partOfDay(hour: Int): String = when (hour) {
     in 5..11 -> "morning"
