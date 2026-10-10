@@ -94,6 +94,8 @@ class TuningStore(context: Context) {
                 maxBlinkMs = prefs.getLong("maxBlinkMs", blink.maxBlinkMs),
                 shapeClosedBelow = prefs.getFloat("shapeClosedBelow", NOT_SET).takeIf { it != NOT_SET },
                 shapeOpenAbove = prefs.getFloat("shapeOpenAbove", NOT_SET).takeIf { it != NOT_SET },
+                rightShapeClosedBelow = prefs.getFloat("rightShapeClosedBelow", NOT_SET).takeIf { it != NOT_SET },
+                rightShapeOpenAbove = prefs.getFloat("rightShapeOpenAbove", NOT_SET).takeIf { it != NOT_SET },
             ),
             scanMs = prefs.getLong("scanMs", default.scanMs),
             moveByEyes = prefs.getBoolean("moveByEyes", default.moveByEyes),
@@ -137,6 +139,8 @@ class TuningStore(context: Context) {
             .putLong("maxBlinkMs", tuning.blink.maxBlinkMs)
             .putFloat("shapeClosedBelow", tuning.blink.shapeClosedBelow ?: NOT_SET)
             .putFloat("shapeOpenAbove", tuning.blink.shapeOpenAbove ?: NOT_SET)
+            .putFloat("rightShapeClosedBelow", tuning.blink.rightShapeClosedBelow ?: NOT_SET)
+            .putFloat("rightShapeOpenAbove", tuning.blink.rightShapeOpenAbove ?: NOT_SET)
             .putLong("scanMs", tuning.scanMs)
             .putBoolean("moveByEyes", tuning.moveByEyes)
             .putBoolean("lookDown", tuning.lookDown)

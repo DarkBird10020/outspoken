@@ -186,11 +186,73 @@ class BlinkDetectorTest {
         feed(600) { withGap(0.40f, 0.15f) }
         feed(300) { withGap(0.9f, 0.30f) }
         val line = lines.single { it.startsWith("half shut") }
-        assertTrue(line, line.contains("came down only to 0.15 (shut line 0.13"))
+        assertTrue(line, line.contains("came down only to left 0.15 / right 0.15 (shut lines 0.13 / 0.13"))
         // A quick dip is a normal blink and is not logged.
         feed(150) { withGap(0.40f, 0.15f) }
         feed(300) { withGap(0.9f, 0.30f) }
         assertEquals(1, lines.count { it.startsWith("half shut") })
+    }
+
+    @Test
+    fun `missed closes in a row are counted until a close counts`() {
+        // 17:14:27 to 17:14:57 on the phone with glasses: seven closes in a row, none counted.
+        detector.settings = gapSettings
+        hold(500) { withGap(0.9f, 0.30f) }
+        repeat(2) {
+            hold(900) { withGap(0.40f, 0.15f) }
+            hold(300) { withGap(0.9f, 0.30f) }
+        }
+        assertEquals(2, detector.missedInARow)
+        hold(500) { withGap(0.45f, 0.06f) }
+        hold(300) { withGap(0.9f, 0.30f) }
+        assertEquals(0, detector.missedInARow)
+    }
+
+    @Test
+    fun `new lines clear the missed closes`() {
+        detector.settings = gapSettings
+        hold(500) { withGap(0.9f, 0.30f) }
+        hold(900) { withGap(0.40f, 0.15f) }
+        hold(300) { withGap(0.9f, 0.30f) }
+        assertEquals(1, detector.missedInARow)
+        detector.settings = gapSettings.copy(shapeClosedBelow = 0.16f)
+        assertEquals(0, detector.missedInARow)
+    }
+
+    // Lines a calibration with glasses gives (17:18 readings): each eye its own.
+    private val glassesSettings = BlinkSettings(
+        closedBelow = 0.61f,
+        openAbove = 0.77f,
+        minBlinkMs = 400,
+        maxBlinkMs = 1_500,
+        shapeClosedBelow = 0.145f,
+        shapeOpenAbove = 0.1775f,
+        rightShapeClosedBelow = 0.11f,
+        rightShapeOpenAbove = 0.135f,
+    )
+
+    private fun eyesWithGaps(left: Float, right: Float, leftGap: Float, rightGap: Float) =
+        EyeSample(time, true, left, right, dots = FaceDots(emptyList(), emptyList(), 0.75f, leftGap, rightGap))
+
+    @Test
+    fun `with glasses a close counts though one lens keeps that eye's gap wider`() {
+        // 17:14 and 17:19 on the phone: closes of left 0.12 to 0.14 / right 0.06 to 0.10 were
+        // all missed under one 0.10 line for both eyes.
+        detector.settings = glassesSettings
+        hold(500) { eyesWithGaps(0.95f, 0.95f, 0.31f, 0.27f) }
+        val events = hold(900) { eyesWithGaps(0.50f, 0.35f, 0.13f, 0.09f) } + hold(300) { eyesWithGaps(0.95f, 0.95f, 0.31f, 0.27f) }
+        assertTrue(events.single() is BlinkEvent.Blink)
+        assertTrue(detector.eitherEyeShut(eyesWithGaps(0.50f, 0.35f, 0.13f, 0.09f)))
+    }
+
+    @Test
+    fun `with glasses looking down is neither a close nor an eye shut`() {
+        // Calibration's look down at 17:18:18: left 0.74 open with a gap of 0.21, right 0.57 with 0.16.
+        detector.settings = glassesSettings
+        hold(500) { eyesWithGaps(0.95f, 0.95f, 0.31f, 0.27f) }
+        val events = hold(1_500) { eyesWithGaps(0.74f, 0.57f, 0.21f, 0.16f) }
+        assertEquals(emptyList<BlinkEvent>(), events)
+        assertFalse(detector.eitherEyeShut(eyesWithGaps(0.74f, 0.57f, 0.21f, 0.16f)))
     }
 
     @Test

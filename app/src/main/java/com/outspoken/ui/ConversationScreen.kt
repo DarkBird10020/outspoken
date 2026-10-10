@@ -68,6 +68,8 @@ fun ConversationScreen(
     onTranscript: () -> Unit = {},
     onEyeCheck: () -> Unit = {},
     eyeHint: String? = null,
+    /** Set when the hint asks for something, such as a new calibration; tapping the hint does it. */
+    onEyeHint: (() -> Unit)? = null,
     eyeView: (@Composable (Modifier) -> Unit)? = null,
     onAsk: ((String) -> Unit)? = null,
     liveStats: (@Composable () -> Unit)? = null,
@@ -110,7 +112,9 @@ fun ConversationScreen(
                 .height(150.dp)
                 .clip(RoundedCornerShape(24.dp))
         )
-        eyeHint?.let { Text(it, style = type(15, color = InkSoft)) }
+        eyeHint?.let {
+            Text(it, style = type(15, color = InkSoft), modifier = onEyeHint?.let { tap -> Modifier.clickable(onClick = tap) } ?: Modifier)
+        }
         // Not in the design yet (listed as a design gap): the model's numbers, live, so they can be
         // watched changing while the person talks (owner request).
         liveStats?.invoke()

@@ -28,6 +28,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.outspoken.blink.BlinkDetector
+import com.outspoken.blink.BlinkSettings
 import com.outspoken.conversation.AppLanguage
 import com.outspoken.conversation.ConversationController
 import com.outspoken.conversation.spokenLanguage
@@ -198,7 +199,11 @@ class MainActivity : ComponentActivity() {
                 Screen.Calibrate -> onCalibrationSample(sample)
                 // While the alarm screen or mirrored transcript is up, eyes pick nothing.
                 Screen.Help, Screen.Transcript -> Unit
-                else -> controller.onSample(sample)
+                else -> {
+                    controller.onSample(sample)
+                    val missed = blinkDetector.missedInARow >= BlinkDetector.MISSED_BEFORE_ASKING
+                    if (missed != closesMissed) closesMissed = missed
+                }
             }
         }
         eyeReader.dotsOn = true
@@ -331,12 +336,15 @@ class MainActivity : ComponentActivity() {
                         onPreviewGone = camera::hidePreview,
                         onRetry = ::startCalibration,
                         onSkip = {
-                            val b = tuning.blink
-                            AppLog.write(
-                                "calibration",
-                                "skipped; the last lines stay: shut ${fmt(b.closedBelow)}, open ${fmt(b.openAbove)}, " +
-                                    "lid gap shut ${b.shapeClosedBelow?.let { fmt(it) } ?: "off"}, open ${b.shapeOpenAbove?.let { fmt(it) } ?: "off"}",
-                            )
+                            // The same button leaves after "Done"; only a calibration not finished is skipped.
+                            if (calibrationOutcome == null || calibrationFailed) {
+                                val b = tuning.blink
+                                AppLog.write(
+                                    "calibration",
+                                    "skipped; the last lines stay: shut ${fmt(b.closedBelow)}, open ${fmt(b.openAbove)}, " +
+                                        "lid gap left ${gapLines(b, rightEye = false)}, right ${gapLines(b, rightEye = true)}",
+                                )
+                            }
                             show(Screen.Conversation)
                         },
                     )
@@ -465,7 +473,8 @@ class MainActivity : ComponentActivity() {
                         onEyeCheck = { show(Screen.EyeCheck) },
                         onTranscript = { show(Screen.Transcript) },
                         onSelect = { controller.onTap(it, now()) },
-                        eyeHint = eyeHint(tuning) + handHint(tuning),
+                        eyeHint = if (closesMissed) CLOSES_MISSED_HINT else eyeHint(tuning) + handHint(tuning),
+                        onEyeHint = if (closesMissed) ::startCalibration else null,
                         onAsk = { question ->
                             AppLog.write("listen", "quick topic \"$question\"")
                             controller.onHeard(question, now())
@@ -517,8 +526,8 @@ class MainActivity : ComponentActivity() {
                     "ok: rest gaze ${fmt(m.restGaze)}, look up reach ${fmt(m.upReach)}, look down reach ${fmt(m.downReach)}, open ${fmt(m.restOpen)}, " +
                         "closed ${fmt(m.closedOpen)} -> look ${fmt(result.tuning.gaze.lookStrength)}, " +
                         "look down ${result.tuning.gaze.downStrength?.let { fmt(it) } ?: "off"}, iris rest ${m.restIris?.let { fmt(it) }} down reach ${m.irisDownReach?.let { fmt(it) }} -> iris look down ${result.tuning.gaze.irisDownStrength?.let { String.format(Locale.US, "%.3f", it) } ?: "off"}, shut line ${fmt(result.tuning.blink.closedBelow)}, open line ${fmt(result.tuning.blink.openAbove)}, " +
-                        "lid gap open ${m.restGap?.let { fmt(it) }} closed ${m.closedGap?.let { fmt(it) }} -> gap shut line " +
-                        "${result.tuning.blink.shapeClosedBelow?.let { fmt(it) }}, gap open line ${result.tuning.blink.shapeOpenAbove?.let { fmt(it) }}",
+                        "lid gap left ${describeGaps(m.leftGaps)}, right ${describeGaps(m.rightGaps)} -> gap lines left " +
+                        "${gapLines(result.tuning.blink, rightEye = false)}, right ${gapLines(result.tuning.blink, rightEye = true)}",
                 )
                 calibrationOutcome = "Done. ${eyeHint(tuning)}"
                 say("Done")
@@ -535,6 +544,15 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    /** One eye's lid gap shut / open lines for the log, or "off". */
+    private fun gapLines(blink: BlinkSettings, rightEye: Boolean): String {
+        val shut = blink.gapShutLine(rightEye) ?: return "off"
+        return "${fmt(shut)} / ${blink.gapOpenLine(rightEye)?.let { fmt(it) } ?: "off"}"
+    }
+
+    private fun describeGaps(gaps: Calibration.EyeGaps?) =
+        gaps?.let { "open ${fmt(it.rest)} closed ${fmt(it.closed)} down ${it.down?.let { d -> fmt(d) } ?: "not seen"}" } ?: "not read"
 
     private fun handHint(tuning: Tuning) =
         if (tuning.handGestures) "  Hand: 1 to 4 fingers (thumb folded) light a card, a fist says it, an open hand: please wait." else ""
@@ -764,6 +782,9 @@ class MainActivity : ComponentActivity() {
 
     /** The language of the cards, the topics and the voice right now; in auto mode the visitor's. */
     private var cardLanguage by mutableStateOf(AppLanguage.English)
+
+    /** Closes are being missed under the current lines (glasses put on after calibrating, for one). */
+    private var closesMissed by mutableStateOf(false)
 
     /** Whether the phone lacks an offline voice for [cardLanguage]. */
     private var voiceMissing by mutableStateOf(false)
@@ -1023,6 +1044,7 @@ class MainActivity : ComponentActivity() {
         val LISTENING_SCREENS = setOf(Screen.Conversation, Screen.Transcript, Screen.Stats)
         const val DOWNLOAD_CHECK_MS = 3_000L
         const val TTS_SETTINGS = "com.android.settings.TTS_SETTINGS"
+        const val CLOSES_MISSED_HINT = "Closes are not being read. Wearing glasses? Tap here to calibrate with them on."
         const val CUE_MS = 200
         const val CUE_VOLUME = 80
         const val TICK_MS = 50L
