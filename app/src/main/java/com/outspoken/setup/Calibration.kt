@@ -9,20 +9,21 @@ import com.outspoken.eye.EyeSample
  */
 class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long = 700) {
 
-    enum class Step(val prompt: String) {
-        Rest("Look at the screen"),
-        Up1("Look up, above the phone"),
-        Rest2("Look at the screen"),
-        Up2("Look up, above the phone"),
-        Rest3("Look at the screen"),
-        Down1("Look down, below the phone"),
-        Rest4("Look at the screen"),
-        Down2("Look down, below the phone"),
-        Rest5("Look at the screen"),
-        Close1("Close your eyes"),
-        Open1("Open your eyes"),
-        Close2("Close your eyes"),
-        Done("Done"),
+    /** [stage] is the step as shown on screen, 1 to [STAGES]: eyes at rest, look up, look down, closed eyes, done. */
+    enum class Step(val prompt: String, val stage: Int) {
+        Rest("Look at the screen", 1),
+        Up1("Look up, above the phone", 2),
+        Rest2("Look at the screen", 2),
+        Up2("Look up, above the phone", 2),
+        Rest3("Look at the screen", 3),
+        Down1("Look down, below the phone", 3),
+        Rest4("Look at the screen", 3),
+        Down2("Look down, below the phone", 3),
+        Rest5("Look at the screen", 4),
+        Close1("Close your eyes", 4),
+        Open1("Open your eyes", 4),
+        Close2("Close your eyes", 4),
+        Done("Done", 5),
     }
 
     /** What was measured, all from samples after the first [settleMs] of each step. */
@@ -59,7 +60,10 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
     }
 
     /** Share of the whole run done, 0 to 1. */
-    fun progress(nowMs: Long): Float = ((nowMs - startMs).toFloat() / (stepMs * (Step.entries.size - 1))).coerceIn(0f, 1f)
+    /** How long the whole calibration takes, from the first step to Done. */
+    val totalMs: Long get() = stepMs * (Step.entries.size - 1)
+
+    fun progress(nowMs: Long): Float = ((nowMs - startMs).toFloat() / totalMs).coerceIn(0f, 1f)
 
     /** Feeds a frame. Returns the new step when it changes, so its prompt can be spoken. */
     fun onSample(sample: EyeSample): Step? {
@@ -159,6 +163,9 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
         values.sorted().let { if (it.isEmpty()) null else it[it.size / 2] }
 
     companion object {
+        /** Steps shown on screen ("Step 2 of 5"). */
+        const val STAGES = 5
+
         const val MIN_FRAMES = 5
         const val MIN_UP_REACH = 0.1f
 

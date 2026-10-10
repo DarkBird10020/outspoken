@@ -15,9 +15,9 @@ object PhraseBank {
 }
 
 /**
- * What the reply cards show. Card ids 0 to 3 are replies; [MORE_OPTIONS] and [YES_NO] are the
- * two fixed cards. Model suggestions, when there are any, are the first page and the phrase bank
- * follows.
+ * What the reply cards show. Card ids 0 to 3 are replies; [MORE_OPTIONS], [YES_NO] and
+ * [SAY_ANYTHING] are the fixed cards. Model suggestions, when there are any, are the first page
+ * and the phrase bank follows.
  */
 class Board(private val defaultPhrases: List<String> = PhraseBank.phrases) {
 
@@ -47,7 +47,7 @@ class Board(private val defaultPhrases: List<String> = PhraseBank.phrases) {
 
     /** Cards in scan order. */
     val cards: List<Int>
-        get() = replies.indices.toList() + listOf(MORE_OPTIONS, YES_NO)
+        get() = replies.indices.toList() + listOf(MORE_OPTIONS, YES_NO, SAY_ANYTHING)
 
     /** Returns the sentence to say, or null when the card only changed what is shown. */
     fun choose(card: Int): String? = when (card) {
@@ -60,6 +60,8 @@ class Board(private val defaultPhrases: List<String> = PhraseBank.phrases) {
             showingYesNo = true
             null
         }
+        // Opens the sentence builder; the controller handles it.
+        SAY_ANYTHING -> null
         else -> replies.getOrNull(card)
     }
 
@@ -74,5 +76,6 @@ class Board(private val defaultPhrases: List<String> = PhraseBank.phrases) {
         const val REPLY_COUNT = 4
         const val MORE_OPTIONS = 4
         const val YES_NO = 5
+        const val SAY_ANYTHING = 6
     }
 }

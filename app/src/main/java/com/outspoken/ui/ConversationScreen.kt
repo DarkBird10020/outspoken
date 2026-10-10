@@ -47,6 +47,8 @@ data class ConversationUi(
     val heard: String?,
     val replies: List<String>,
     val highlighted: Int,
+    /** Set while "Say anything" is open; its screen shows instead of the reply cards. */
+    val builder: BuilderUi? = null,
 )
 
 @Composable
@@ -104,12 +106,17 @@ fun ConversationScreen(
                 )
             }
         }
+        // "Say anything" is not in the main page design (listed as a design gap). It shares the
+        // row, at 16 sp, so the reply cards keep their height.
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            FixedCard("More options", ui.highlighted == Board.MORE_OPTIONS, Modifier.weight(1f)) {
+            FixedCard("More options", ui.highlighted == Board.MORE_OPTIONS, Modifier.weight(1f), size = 16) {
                 onSelect(Board.MORE_OPTIONS)
             }
-            FixedCard("Yes / No", ui.highlighted == Board.YES_NO, Modifier.weight(1f)) {
+            FixedCard("Yes / No", ui.highlighted == Board.YES_NO, Modifier.weight(1f), size = 16) {
                 onSelect(Board.YES_NO)
+            }
+            FixedCard("Say anything", ui.highlighted == Board.SAY_ANYTHING, Modifier.weight(1f), size = 16) {
+                onSelect(Board.SAY_ANYTHING)
             }
         }
         // Not in the design yet (listed as a design gap): one-tap questions for the visitor when
@@ -189,7 +196,7 @@ private fun ReplyCard(text: String, highlighted: Boolean, onClick: () -> Unit, m
 }
 
 @Composable
-private fun FixedCard(text: String, highlighted: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun FixedCard(text: String, highlighted: Boolean, modifier: Modifier, size: Int = 18, onClick: () -> Unit) {
     Box(
         modifier
             .height(60.dp)
@@ -198,7 +205,7 @@ private fun FixedCard(text: String, highlighted: Boolean, modifier: Modifier, on
             .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, style = type(18, 500))
+        Text(text, style = type(size, 500), maxLines = 1)
     }
 }
 
