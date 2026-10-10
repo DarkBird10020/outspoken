@@ -53,8 +53,8 @@ class FormatTest {
 
     @Test
     fun `live line for the main page`() {
-        assertEquals("Reply 0.9 s · 61 tok/s · 8 replies written · 35.1 °C", liveStatsLine(0.86f, 61.1f, 8, 35.1f))
-        assertEquals("Reply - · - tok/s · 0 replies written · -", liveStatsLine(null, null, 0, null))
+        assertEquals(listOf("Reply 0.9 s", "61 tok/s", "8 replies written"), liveStatsLine(0.86f, 61.1f, 8))
+        assertEquals(listOf("Reply -", "- tok/s", "0 replies written"), liveStatsLine(null, null, 0))
     }
 
     @Test

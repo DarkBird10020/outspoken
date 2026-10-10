@@ -442,7 +442,7 @@ class MainActivity : ComponentActivity() {
                         },
                         liveStats = {
                             LiveStatsLine(STATS_REFRESH_MS) {
-                                liveStatsLine(pitStats.replyTimeSeconds(now()), pitStats.tokensPerSecond, pitStats.repliesWritten, phoneTempNow)
+                                liveStatsLine(pitStats.replyTimeSeconds(now()), pitStats.tokensPerSecond, pitStats.repliesWritten)
                             }
                         },
                     )
@@ -601,7 +601,7 @@ class MainActivity : ComponentActivity() {
      */
     private fun phoneTemperature(): Float? = shellSensor.celsius() ?: batteryTemperature()
 
-    /** The latest [phoneTemperature], for the stats screen and the line on the main page. Main thread only. */
+    /** The latest [phoneTemperature], for the stats screen and its log lines. Main thread only. */
     private var phoneTempNow: Float? = null
     private var temperatureWatch: Job? = null
 
