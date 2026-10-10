@@ -33,6 +33,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.outspoken.R
+import com.outspoken.conversation.AppLanguage
 import com.outspoken.conversation.Board
 import com.outspoken.listen.QuickTopics
 import com.outspoken.ui.theme.EyesFoundDot
@@ -76,6 +77,8 @@ fun ConversationScreen(
     micOn: Boolean? = null,
     onMic: () -> Unit = {},
     topics: List<Pair<String, String>> = QuickTopics.all,
+    /** Labels of the three fixed cards: more options, yes / no, say anything. */
+    fixedCards: List<String> = AppLanguage.English.fixedCards,
 ) {
     DesignScreen(Modifier.dottedCanvas(), gap = 14.dp) {
         Row(
@@ -131,13 +134,13 @@ fun ConversationScreen(
         // "Say anything" is not in the main page design (listed as a design gap). It shares the
         // row, at 16 sp, so the reply cards keep their height.
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            FixedCard("More options", ui.highlighted == Board.MORE_OPTIONS, Modifier.weight(1f), size = 16) {
+            FixedCard(fixedCards[0], ui.highlighted == Board.MORE_OPTIONS, Modifier.weight(1f), size = 16) {
                 onSelect(Board.MORE_OPTIONS)
             }
-            FixedCard("Yes / No", ui.highlighted == Board.YES_NO, Modifier.weight(1f), size = 16) {
+            FixedCard(fixedCards[1], ui.highlighted == Board.YES_NO, Modifier.weight(1f), size = 16) {
                 onSelect(Board.YES_NO)
             }
-            FixedCard("Say anything", ui.highlighted == Board.SAY_ANYTHING, Modifier.weight(1f), size = 16) {
+            FixedCard(fixedCards[2], ui.highlighted == Board.SAY_ANYTHING, Modifier.weight(1f), size = 16) {
                 onSelect(Board.SAY_ANYTHING)
             }
         }

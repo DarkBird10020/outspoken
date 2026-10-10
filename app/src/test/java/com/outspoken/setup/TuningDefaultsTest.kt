@@ -62,4 +62,9 @@ class TuningDefaultsTest {
         assertEquals(false, Tuning().handGestures)
         assertEquals(com.outspoken.hand.HandSign.entries.toSet(), Tuning().handSigns)
     }
+
+    @Test
+    fun `cards start in English`() {
+        assertEquals(com.outspoken.conversation.AppLanguage.English, Tuning().language)
+    }
 }

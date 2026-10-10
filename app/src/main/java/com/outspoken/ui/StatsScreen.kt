@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.outspoken.R
+import com.outspoken.listen.QuickTopics
 import com.outspoken.ui.theme.Ink
 import com.outspoken.ui.theme.InkOnModel
 import com.outspoken.ui.theme.InkSoft
@@ -44,7 +45,12 @@ data class StatsUi(
 )
 
 @Composable
-fun StatsScreen(ui: StatsUi, onBack: () -> Unit, onAsk: ((String) -> Unit)? = null) {
+fun StatsScreen(
+    ui: StatsUi,
+    onBack: () -> Unit,
+    onAsk: ((String) -> Unit)? = null,
+    topics: List<Pair<String, String>> = QuickTopics.all,
+) {
     DesignScreen(Modifier.dottedCanvas(), gap = 16.dp) {
         Row(
             Modifier.fillMaxWidth(),
@@ -107,7 +113,7 @@ fun StatsScreen(ui: StatsUi, onBack: () -> Unit, onAsk: ((String) -> Unit)? = nu
         }
         // Not in the design yet (listed as a design gap): the quick topics, so a question can be
         // asked here and the numbers above watched as the model answers it (owner request).
-        onAsk?.let { QuickTopicRow(it) }
+        onAsk?.let { QuickTopicRow(it, topics) }
         Spacer(Modifier.weight(1f))
         FooterNote("Nothing leaves this phone.")
     }

@@ -1,7 +1,9 @@
 package com.outspoken.suggest
 
+import com.outspoken.conversation.AppLanguage
+
 /** The sentence so far for "Say anything", with the conversation it belongs to. */
-data class WordRequest(val turns: List<Turn>, val sentence: String)
+data class WordRequest(val turns: List<Turn>, val sentence: String, val language: AppLanguage = AppLanguage.English)
 
 /** The model's next words and its guess at the finished sentence, and how long that took. */
 data class WordSuggestions(
@@ -38,12 +40,18 @@ fun buildWordPrompt(request: WordRequest): String = buildString {
     appendLine("Write 4 different sentences the Person may want to say, the most likely first.")
     appendLine("Each sentence: starts with exactly the words so far, then adds at most $MAX_ADDED_WORDS more words. First person, plain everyday words, said by the Person, never by the Visitor.")
     appendLine("Make the 4 sentences go on differently right after the words so far.")
+    if (request.language == AppLanguage.Hindi) appendLine(HINDI_LINE)
     appendLine("Answer with only a JSON list of 4 strings.")
     appendLine()
     // One worked example: small models copy the shape of an example far more reliably than they
     // follow a description of it.
-    appendLine("Example. Words so far: \"I want\"")
-    appendLine("Answer: $WORD_EXAMPLE_ANSWER")
+    if (request.language == AppLanguage.Hindi) {
+        appendLine("Example. Words so far: \"मुझे\"")
+        appendLine("Answer: $WORD_EXAMPLE_ANSWER_HINDI")
+    } else {
+        appendLine("Example. Words so far: \"I want\"")
+        appendLine("Answer: $WORD_EXAMPLE_ANSWER")
+    }
     appendLine()
     val turns = request.turns.takeLast(PROMPT_TURNS)
     if (turns.isNotEmpty()) {
@@ -59,6 +67,8 @@ fun buildWordPrompt(request: WordRequest): String = buildString {
 }
 
 const val WORD_EXAMPLE_ANSWER = """["I want some water, please", "I want to sleep now", "I want my family here", "I am cold"]"""
+
+const val WORD_EXAMPLE_ANSWER_HINDI = """["मुझे पानी चाहिए", "मुझे दर्द हो रहा है", "मुझे आराम करना है", "मुझे घर जाना है"]"""
 
 /**
  * What a word answer gave: the finished sentence, up to four next words, and the model's sentences
@@ -113,8 +123,9 @@ private fun nextWords(rest: List<String>): String {
     return picked.joinToString(" ")
 }
 
-private val PHRASE_END = charArrayOf(',', '.', '!', '?', ';', ':')
+// The danda (।) ends a Hindi sentence.
+private val PHRASE_END = charArrayOf(',', '.', '!', '?', ';', ':', '।')
 
 private fun tokens(text: String) = text.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
 
-private fun normal(text: String) = text.lowercase().replace(Regex("[^a-z0-9' ]"), " ").trim().replace(Regex(" +"), " ")
+private fun normal(text: String) = text.lowercase().replace(Regex("[^\\p{L}\\p{M}\\p{N}' ]"), " ").trim().replace(Regex(" +"), " ")

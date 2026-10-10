@@ -1,17 +1,9 @@
 package com.outspoken.conversation
 
-/** The built-in phrase bank (PRD F5). Shown at once and used whenever there is nothing better. */
+/** The built-in English phrase bank (PRD F5). Shown at once and used whenever there is nothing better. */
 object PhraseBank {
-    val phrases = listOf(
-        "I need water",
-        "I am in pain",
-        "Please call the nurse",
-        "I need the toilet",
-        "I am too hot",
-        "I am too cold",
-        "Thank you",
-    )
-    val yesNo = listOf("Yes", "No")
+    val phrases = AppLanguage.English.phrases
+    val yesNo = AppLanguage.English.yesNo
 }
 
 /**
@@ -19,9 +11,17 @@ object PhraseBank {
  * [SAY_ANYTHING] are the fixed cards. Model suggestions, when there are any, are the first page
  * and the phrase bank follows.
  */
-class Board(private val defaultPhrases: List<String> = PhraseBank.phrases) {
+class Board(private var defaultPhrases: List<String> = PhraseBank.phrases) {
 
+    private var yesNo: List<String> = PhraseBank.yesNo
     private var frequentPhrases: List<String> = emptyList()
+
+    /** The phrase bank and yes / no of another language; the cards go back to its first page. */
+    fun useLanguage(language: AppLanguage) {
+        defaultPhrases = language.phrases
+        yesNo = language.yesNo
+        showSuggestions(null)
+    }
 
     private val effectivePhrases: List<String>
         get() {
@@ -43,7 +43,7 @@ class Board(private val defaultPhrases: List<String> = PhraseBank.phrases) {
     }
 
     val replies: List<String>
-        get() = if (showingYesNo) PhraseBank.yesNo else pages[page]
+        get() = if (showingYesNo) yesNo else pages[page]
 
     /** Cards in scan order. */
     val cards: List<Int>

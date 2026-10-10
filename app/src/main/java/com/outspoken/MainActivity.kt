@@ -27,6 +27,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.outspoken.blink.BlinkDetector
+import com.outspoken.conversation.AppLanguage
 import com.outspoken.conversation.ConversationController
 import com.outspoken.eye.EyeReader
 import com.outspoken.eye.EyeSample
@@ -206,6 +207,7 @@ class MainActivity : ComponentActivity() {
             listener.resume()
             controller.onSpeechDone(now())
         }
+        speaker.language = tuning.language.voice
         alarm = HelpAlarm(this)
         // Tells the person, eyes still shut, that the help hold is done.
         cue = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, CUE_VOLUME) }.getOrNull()
@@ -219,7 +221,7 @@ class MainActivity : ComponentActivity() {
             onStatus = { listenLine = it },
             onHearing = { hearingText = it.ifBlank { null } },
         )
-        listener.languages = speechLanguages()
+        listener.languages = speechLanguages(tuning.language)
         camera = FrontCamera(this, this)
         cameraGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
@@ -295,6 +297,7 @@ class MainActivity : ComponentActivity() {
                             AppLog.write("listen", "quick topic \"$question\" on the stats screen")
                             controller.onHeard(question, now())
                         },
+                        topics = tuning.language.topics,
                     )
                 }
             } else if (screen == Screen.Help) {
@@ -436,6 +439,8 @@ class MainActivity : ComponentActivity() {
                         hearing = hearingText,
                         micOn = micOn,
                         onMic = ::switchMic,
+                        topics = tuning.language.topics,
+                        fixedCards = tuning.language.fixedCards,
                         onPractice = {
                             practiceController.reset()
                             show(Screen.Practice)
@@ -570,6 +575,10 @@ class MainActivity : ComponentActivity() {
     private fun now() = SystemClock.elapsedRealtime()
 
     private fun applyTuning(next: Tuning) {
+        // Set again on every change; each only acts when the language really changed.
+        if (::speaker.isInitialized) speaker.language = next.language.voice
+        if (::listener.isInitialized) listener.languages = speechLanguages(next.language)
+        controller.language = next.language
         if (::handReader.isInitialized && handReader.enabled != next.handGestures) {
             handReader.enabled = next.handGestures
             AppLog.write("hand", "hand signs ${if (next.handGestures) "on" else "off"}")
@@ -719,11 +728,13 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * English as spoken in India first: "Are you in pain" was heard as "Aryan paint" with the
-     * US English pack (09:15:08). Then the phone's own English, then US English. The listener
-     * takes the first whose pack is on the phone.
+     * The language's own speech tags (Hindi: hi-IN). For English, English as spoken in India
+     * first: "Are you in pain" was heard as "Aryan paint" with the US English pack (09:15:08).
+     * Then the phone's own English, then US English. The listener takes the first whose pack is
+     * on the phone.
      */
-    private fun speechLanguages(): List<String> {
+    private fun speechLanguages(language: AppLanguage): List<String> {
+        language.speechTags?.let { return it }
         val phone = Locale.getDefault().takeIf { it.language == "en" }?.toLanguageTag()
         return listOfNotNull("en-IN", phone, Locale.US.toLanguageTag()).distinct()
     }
@@ -762,7 +773,7 @@ class MainActivity : ComponentActivity() {
         val engine = suggestionEngine ?: return false
         wordJob?.cancel()
         wordJob = lifecycleScope.launch {
-            val words = engine.nextWords(WordRequest(turns, sentence))
+            val words = engine.nextWords(WordRequest(turns, sentence, tuning.language))
             AppLog.write(
                 "model",
                 "words in ${words.elapsedMs} ms, ${words.tokensPerSecond ?: "-"} tok/s, " +
@@ -781,7 +792,7 @@ class MainActivity : ComponentActivity() {
         replyJob?.cancel()
         pitStats.onAsked(now())
         replyJob = lifecycleScope.launch {
-            val suggestions = engine.suggest(SuggestionRequest(turns, LocalTime.now().hour))
+            val suggestions = engine.suggest(SuggestionRequest(turns, LocalTime.now().hour, tuning.language))
             lastReply = suggestions.elapsedMs / 1000f to suggestions.tokensPerSecond
             pitStats.onReplies(suggestions.elapsedMs, suggestions.fromModel, suggestions.tokensPerSecond, suggestions.modelReplies)
             val toppedUp = suggestions.replies.size - suggestions.modelReplies

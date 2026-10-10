@@ -46,4 +46,12 @@ class HeardFilterTest {
     fun `quick topics are all questions`() {
         assertTrue(QuickTopics.all.all { (label, question) -> label.isNotBlank() && question.endsWith("?") })
     }
+
+    @Test
+    fun `the phone's own Hindi voice is not taken for a question`() {
+        filter.onSpeechStart("मुझे पानी चाहिए")
+        filter.onSpeechDone(1_000)
+        assertNull(filter.accept("मुझे पानी चाहिए।", 5_000))
+        assertEquals("क्या आपको दर्द हो रहा है?", filter.accept("क्या आपको दर्द हो रहा है?", 5_000))
+    }
 }

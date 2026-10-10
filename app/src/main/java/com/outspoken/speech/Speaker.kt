@@ -5,7 +5,7 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import androidx.core.content.ContextCompat
 import com.outspoken.log.AppLog
-import com.outspoken.setup.offlineEnglishVoices
+import com.outspoken.setup.offlineVoices
 
 /** Says sentences out loud with an offline voice. [onDone] runs on the main thread. */
 class Speaker(context: Context, private val onDone: () -> Unit) {
@@ -14,13 +14,20 @@ class Speaker(context: Context, private val onDone: () -> Unit) {
     private lateinit var tts: TextToSpeech
     private var ready = false
 
+    /** ISO 639 code of the language to speak; an Indian voice is preferred, then any offline one. */
+    var language = "en"
+        set(value) {
+            if (value == field) return
+            field = value
+            if (ready) pickVoice()
+        }
+
     init {
         tts = TextToSpeech(context.applicationContext) { status ->
             ready = status == TextToSpeech.SUCCESS
             if (ready) {
-                val voices = offlineEnglishVoices(tts)
-                (voices.firstOrNull { it.locale.country == "IN" } ?: voices.firstOrNull())?.let { tts.voice = it }
-                AppLog.write("speech", "ready, engine ${tts.defaultEngine}, voice ${tts.voice?.name}, ${voices.size} offline English voices")
+                AppLog.write("speech", "ready, engine ${tts.defaultEngine}")
+                pickVoice()
             } else {
                 AppLog.write("speech", "engine failed to start, status $status")
             }
@@ -54,6 +61,17 @@ class Speaker(context: Context, private val onDone: () -> Unit) {
             AppLog.write("speech", "speak call failed for \"$text\"")
             finished()
         }
+    }
+
+    private fun pickVoice() {
+        val voices = offlineVoices(tts, language)
+        val voice = voices.firstOrNull { it.locale.country == "IN" } ?: voices.firstOrNull()
+        if (voice == null) {
+            AppLog.write("speech", "no offline \"$language\" voice on this phone; install it in the phone's text-to-speech settings")
+            return
+        }
+        tts.voice = voice
+        AppLog.write("speech", "voice ${voice.name}, ${voices.size} offline \"$language\" voices")
     }
 
     fun shutdown() {

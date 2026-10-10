@@ -1,5 +1,7 @@
 package com.outspoken.suggest
 
+import com.outspoken.conversation.AppLanguage
+
 /** Turns older than this are left out to keep the prompt, and so the reply time, short. */
 const val PROMPT_TURNS = 6
 
@@ -9,12 +11,18 @@ fun buildPrompt(request: SuggestionRequest): String = buildString {
     appendLine("You suggest replies for a person in bed who cannot move or speak, cared for by family or a nurse (the Visitor). They pick one by blinking, and the phone says it aloud.")
     appendLine("Write 4 different replies they may want to say next.")
     appendLine("Each reply: first person, plain everyday words, at most 8 words, said by the Person, never by the Visitor.")
+    if (request.language == AppLanguage.Hindi) appendLine(HINDI_LINE)
     appendLine("Answer with only a JSON list of 4 strings.")
     appendLine()
     // One worked example: small models copy the shape of an example far more reliably than they
     // follow a description of it.
-    appendLine("Example. Question: Do you want some water?")
-    appendLine("Answer: ${EXAMPLE_ANSWER}")
+    if (request.language == AppLanguage.Hindi) {
+        appendLine("Example. Question: क्या आपको पानी चाहिए?")
+        appendLine("Answer: $EXAMPLE_ANSWER_HINDI")
+    } else {
+        appendLine("Example. Question: Do you want some water?")
+        appendLine("Answer: ${EXAMPLE_ANSWER}")
+    }
     appendLine()
     appendLine("It is ${partOfDay(request.hourOfDay)}.")
     val turns = request.turns.takeLast(PROMPT_TURNS)
@@ -41,6 +49,11 @@ fun buildPrompt(request: SuggestionRequest): String = buildString {
 
 const val EXAMPLE_ANSWER = """["Yes, please", "A little, thank you", "No, I am fine", "Can I have juice instead"]"""
 
+const val EXAMPLE_ANSWER_HINDI = """["हाँ, कृपया", "थोड़ा सा, धन्यवाद", "नहीं, मैं ठीक हूँ", "क्या मुझे जूस मिल सकता है"]"""
+
+/** Asked of the model for Hindi cards: the instructions stay in English, the words it writes do not. */
+const val HINDI_LINE = "Write in Hindi, in Devanagari script, the everyday Hindi a family in India speaks."
+
 /**
  * Whether [text] asks for a yes or a no, from its first word. Heard speech comes without a
  * question mark ("Are you in pain"), often after a greeting, and casually ("Hey you need anything").
@@ -50,11 +63,13 @@ fun isYesNoQuestion(text: String): Boolean {
     return words.firstOrNull { it !in LEAD_INS } in YES_NO_STARTS
 }
 
-private val NOT_LETTERS = Regex("[^a-z']+")
+private val NOT_LETTERS = Regex("[^\\p{L}\\p{M}']+")
 private val LEAD_INS = setOf("hey", "hi", "hello", "so", "and", "okay", "ok", "well", "you")
 private val YES_NO_STARTS = setOf(
     "are", "is", "am", "was", "were", "do", "does", "did", "can", "could", "will", "would",
     "should", "shall", "may", "have", "has", "had", "want", "need",
+    // Hindi asks yes or no with "kya" at the start.
+    "क्या",
 )
 
 fun partOfDay(hour: Int): String = when (hour) {
