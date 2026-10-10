@@ -24,6 +24,16 @@ class ConversationHandTest {
     }
 
     @Test
+    fun `with Hindi cards a phrase sign says it in Hindi`() {
+        // 16:41:50 to 16:42:10 on the phone the signs said "Yes", "No", "Please wait" and "I love
+        // you" in English while the cards were in Hindi.
+        controller.language = AppLanguage.Hindi
+        controller.onTick(time)
+        controller.onHandSign(HandAction.Say("Please wait"), time)
+        assertEquals(listOf("कृपया रुकिए"), said)
+    }
+
+    @Test
     fun `signs are ignored while the phone speaks`() {
         controller.onTick(time)
         controller.onHandSign(HandAction.Say("Yes"), time)

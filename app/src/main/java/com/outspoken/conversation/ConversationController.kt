@@ -205,7 +205,7 @@ class ConversationController(
         when {
             speaking || waiting -> log.write("hand", "sign ignored while ${if (speaking) "speaking" else "waiting for new replies"}")
             action is HandAction.Say && builder != null -> log.write("hand", "\"${action.text}\" ignored while Say anything is open")
-            action is HandAction.Say -> say(action.text, nowMs)
+            action is HandAction.Say -> say(language.signPhrases[action.text] ?: action.text, nowMs)
             action is HandAction.Light -> lightCard(action.index, nowMs)
             else -> {
                 val card = if (moveByEyes) cards.getOrNull(cursor) else scanner.cardAt(nowMs)
