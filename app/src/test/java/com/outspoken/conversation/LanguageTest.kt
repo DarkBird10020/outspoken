@@ -32,6 +32,15 @@ class LanguageTest {
     }
 
     @Test
+    fun `the visitor's language is told by the letters the recogniser wrote`() {
+        assertEquals(AppLanguage.Hindi, spokenLanguage("क्या आपको दर्द हो रहा है?"))
+        assertEquals(AppLanguage.English, spokenLanguage("Are you in pain?"))
+        // Mostly Hindi with one English word, as people talk.
+        assertEquals(AppLanguage.Hindi, spokenLanguage("क्या आपको pain है"))
+        assertEquals(null, spokenLanguage("? 123"))
+    }
+
+    @Test
     fun `Say anything starts from Hindi first words`() {
         val builder = SentenceBuilder(CommonWords.forLanguage(AppLanguage.Hindi))
         assertEquals(AppLanguage.Hindi.firstWords.take(4), builder.shown)

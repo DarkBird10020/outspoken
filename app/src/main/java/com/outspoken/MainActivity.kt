@@ -8,6 +8,7 @@ import android.media.AudioManager
 import android.media.ToneGenerator
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.speech.tts.TextToSpeech
 import android.os.BatteryManager
 import android.os.Bundle
 import android.os.PowerManager
@@ -29,6 +30,7 @@ import androidx.lifecycle.lifecycleScope
 import com.outspoken.blink.BlinkDetector
 import com.outspoken.conversation.AppLanguage
 import com.outspoken.conversation.ConversationController
+import com.outspoken.conversation.spokenLanguage
 import com.outspoken.eye.EyeReader
 import com.outspoken.eye.EyeSample
 import com.outspoken.eye.FrontCamera
@@ -39,6 +41,7 @@ import com.outspoken.help.HelpAlarm
 import com.outspoken.help.HelpStep
 import com.outspoken.listen.HeardFilter
 import com.outspoken.listen.Listener
+import com.outspoken.listen.SpeechWish
 import com.outspoken.log.AppLog
 import com.outspoken.log.exportLogs
 import com.outspoken.scan.GazeStepper
@@ -202,12 +205,12 @@ class MainActivity : ComponentActivity() {
         handReader = HandReader(this, ::onHandReading)
         handReader.enabled = tuning.handGestures
         eyeReader.alsoFrame = handReader::onFrame
-        speaker = Speaker(this) {
+        speaker = Speaker(this, onVoice = { voiceMissing = !it }) {
             heardFilter.onSpeechDone(now())
             listener.resume()
             controller.onSpeechDone(now())
         }
-        speaker.language = tuning.language.voice
+        speaker.language = cardLanguage.voice
         alarm = HelpAlarm(this)
         // Tells the person, eyes still shut, that the help hold is done.
         cue = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, CUE_VOLUME) }.getOrNull()
@@ -216,12 +219,15 @@ class MainActivity : ComponentActivity() {
             onHeard = { text ->
                 val question = heardFilter.accept(text, now())
                 if (question == null) AppLog.write("listen", "ignored \"$text\" (the phone's own voice or too short)")
-                question?.let { controller.onHeard(it, now()) }
+                question?.let {
+                    if (tuning.autoLanguage) followVisitor(it)
+                    controller.onHeard(it, now())
+                }
             },
             onStatus = { listenLine = it },
             onHearing = { hearingText = it.ifBlank { null } },
         )
-        listener.languages = speechLanguages(tuning.language)
+        listener.wish = speechWish(tuning)
         camera = FrontCamera(this, this)
         cameraGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
@@ -297,7 +303,7 @@ class MainActivity : ComponentActivity() {
                             AppLog.write("listen", "quick topic \"$question\" on the stats screen")
                             controller.onHeard(question, now())
                         },
-                        topics = tuning.language.topics,
+                        topics = cardLanguage.topics,
                     )
                 }
             } else if (screen == Screen.Help) {
@@ -358,6 +364,8 @@ class MainActivity : ComponentActivity() {
                     SettingsScreen(
                         tuning = tuning,
                         listenLine = listenLine,
+                        missingVoice = if (voiceMissing) cardLanguage.label else null,
+                        onInstallVoice = ::installVoice,
                         handReading = handReading,
                         onTuningChange = {
                             applyTuning(it)
@@ -439,8 +447,8 @@ class MainActivity : ComponentActivity() {
                         hearing = hearingText,
                         micOn = micOn,
                         onMic = ::switchMic,
-                        topics = tuning.language.topics,
-                        fixedCards = tuning.language.fixedCards,
+                        topics = cardLanguage.topics,
+                        fixedCards = cardLanguage.fixedCards,
                         onPractice = {
                             practiceController.reset()
                             show(Screen.Practice)
@@ -545,6 +553,7 @@ class MainActivity : ComponentActivity() {
         visible = true
         watchDownloads()
         watchTemperature()
+        if (::speaker.isInitialized) speaker.checkVoice()
         updateListening()
     }
 
@@ -560,7 +569,7 @@ class MainActivity : ComponentActivity() {
         AppLog.write("app", "closed")
         power.removeThermalStatusListener(thermalWatch)
         speaker.shutdown()
-        listener.stop()
+        listener.release()
         alarm.stop()
         cue?.release()
         // Closed on the camera thread, after any frame already being analysed, so no frame reaches
@@ -575,15 +584,15 @@ class MainActivity : ComponentActivity() {
     private fun now() = SystemClock.elapsedRealtime()
 
     private fun applyTuning(next: Tuning) {
-        // Set again on every change; each only acts when the language really changed.
-        if (::speaker.isInitialized) speaker.language = next.language.voice
-        if (::listener.isInitialized) listener.languages = speechLanguages(next.language)
-        controller.language = next.language
+        val before = tuning
+        tuning = next
+        if (::listener.isInitialized) listener.wish = speechWish(next)
+        // Only a change of the choice itself moves the cards; in auto mode they follow the visitor.
+        if (next.language != before.language || next.autoLanguage != before.autoLanguage) useCardLanguage(next.language)
         if (::handReader.isInitialized && handReader.enabled != next.handGestures) {
             handReader.enabled = next.handGestures
             AppLog.write("hand", "hand signs ${if (next.handGestures) "on" else "off"}")
         }
-        tuning = next
         blinkDetector.settings = next.blink
         scanner.intervalMs = next.scanMs
         gazeStepper.settings = next.activeGaze
@@ -739,6 +748,44 @@ class MainActivity : ComponentActivity() {
         return listOfNotNull("en-IN", phone, Locale.US.toLanguageTag()).distinct()
     }
 
+    /** The chosen language; with auto on, the other one too, so the recogniser can follow the visitor. */
+    private fun speechWish(t: Tuning): SpeechWish {
+        val others = if (t.autoLanguage) AppLanguage.entries.filter { it != t.language }.map { speechLanguages(it) } else emptyList()
+        return SpeechWish(speechLanguages(t.language), others)
+    }
+
+    /** The language of the cards, the topics and the voice right now; in auto mode the visitor's. */
+    private var cardLanguage by mutableStateOf(AppLanguage.English)
+
+    /** Whether the phone lacks an offline voice for [cardLanguage]. */
+    private var voiceMissing by mutableStateOf(false)
+
+    private fun useCardLanguage(language: AppLanguage) {
+        cardLanguage = language
+        if (::speaker.isInitialized) speaker.language = language.voice
+        controller.language = language
+    }
+
+    /** Owner request: the cards follow the language the visitor speaks, told apart by its letters. */
+    private fun followVisitor(text: String) {
+        val spoken = spokenLanguage(text) ?: return
+        if (spoken == cardLanguage) return
+        AppLog.write("listen", "the visitor spoke ${spoken.name}, cards follow")
+        useCardLanguage(spoken)
+    }
+
+    /** Opens the voice engine's own download screen; the engine fetches the voice, not this app. */
+    private fun installVoice() {
+        val engine = speaker.engine
+        val install = Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA).apply { engine?.let { setPackage(it) } }
+        val opened = runCatching { startActivity(install) }.isSuccess ||
+            runCatching { startActivity(Intent(TTS_SETTINGS)) }.isSuccess
+        AppLog.write(
+            "speech",
+            if (opened) "opened the voice download screen for ${cardLanguage.label} (engine $engine)" else "no screen to download voices on this phone",
+        )
+    }
+
     private fun transcriptUi() = TranscriptUi(
         turns = controller.allTurns,
         isListening = listeningNow(),
@@ -773,7 +820,7 @@ class MainActivity : ComponentActivity() {
         val engine = suggestionEngine ?: return false
         wordJob?.cancel()
         wordJob = lifecycleScope.launch {
-            val words = engine.nextWords(WordRequest(turns, sentence, tuning.language))
+            val words = engine.nextWords(WordRequest(turns, sentence, controller.language))
             AppLog.write(
                 "model",
                 "words in ${words.elapsedMs} ms, ${words.tokensPerSecond ?: "-"} tok/s, " +
@@ -792,7 +839,7 @@ class MainActivity : ComponentActivity() {
         replyJob?.cancel()
         pitStats.onAsked(now())
         replyJob = lifecycleScope.launch {
-            val suggestions = engine.suggest(SuggestionRequest(turns, LocalTime.now().hour, tuning.language))
+            val suggestions = engine.suggest(SuggestionRequest(turns, LocalTime.now().hour, controller.language))
             lastReply = suggestions.elapsedMs / 1000f to suggestions.tokensPerSecond
             pitStats.onReplies(suggestions.elapsedMs, suggestions.fromModel, suggestions.tokensPerSecond, suggestions.modelReplies)
             val toppedUp = suggestions.replies.size - suggestions.modelReplies
@@ -967,6 +1014,7 @@ class MainActivity : ComponentActivity() {
         // brings replies, and the reply numbers change in front of the judges.
         val LISTENING_SCREENS = setOf(Screen.Conversation, Screen.Transcript, Screen.Stats)
         const val DOWNLOAD_CHECK_MS = 3_000L
+        const val TTS_SETTINGS = "com.android.settings.TTS_SETTINGS"
         const val CUE_MS = 200
         const val CUE_VOLUME = 80
         const val TICK_MS = 50L

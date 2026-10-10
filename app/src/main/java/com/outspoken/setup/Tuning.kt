@@ -52,6 +52,11 @@ data class Tuning(
     val handSigns: Set<HandSign> = HandSign.entries.toSet(),
     /** Cards, phrase bank, topic buttons, voice and listening in English or Hindi (owner request). */
     val language: AppLanguage = AppLanguage.English,
+    /**
+     * The cards follow the language the visitor speaks, English or Hindi, and the recogniser may
+     * switch between them (owner request: detect the language). [language] is where it starts.
+     */
+    val autoLanguage: Boolean = false,
 ) {
     /** The gaze settings the stepper uses: the look down lines only when looking down is on. */
     val activeGaze: GazeSettings
@@ -95,6 +100,7 @@ class TuningStore(context: Context) {
             winks = prefs.getBoolean("winks", default.winks),
             handGestures = prefs.getBoolean("handGestures", default.handGestures),
             language = AppLanguage.fromName(prefs.getString("language", default.language.name)),
+            autoLanguage = prefs.getBoolean("autoLanguage", default.autoLanguage),
             // Saved as the signs switched off, so a sign added later starts on.
             handSigns = HandSign.entries.toSet() -
                 prefs.getStringSet("handSignsOff", emptySet()).orEmpty().mapNotNull(HandSign::fromKey).toSet(),
@@ -136,6 +142,7 @@ class TuningStore(context: Context) {
             .putBoolean("winks", tuning.winks)
             .putBoolean("handGestures", tuning.handGestures)
             .putString("language", tuning.language.name)
+            .putBoolean("autoLanguage", tuning.autoLanguage)
             .putStringSet("handSignsOff", (HandSign.entries - tuning.handSigns).map { it.key }.toSet())
             .putFloat("lookStrength", tuning.gaze.lookStrength)
             .putFloat("downStrength", tuning.gaze.downStrength ?: NOT_SET)

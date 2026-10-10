@@ -74,3 +74,23 @@ enum class AppLanguage(
         fun fromName(name: String?): AppLanguage = entries.firstOrNull { it.name == name } ?: English
     }
 }
+
+/**
+ * Hindi when most letters in [text] are Devanagari, English when most are Latin, null when it has
+ * neither. The recogniser writes Hindi in Devanagari, so the letters tell what the visitor spoke.
+ */
+fun spokenLanguage(text: String): AppLanguage? {
+    var devanagari = 0
+    var latin = 0
+    for (c in text) {
+        when {
+            c in '\u0900'..'\u097F' -> devanagari++
+            c in 'a'..'z' || c in 'A'..'Z' -> latin++
+        }
+    }
+    return when {
+        devanagari == 0 && latin == 0 -> null
+        devanagari >= latin -> AppLanguage.Hindi
+        else -> AppLanguage.English
+    }
+}
