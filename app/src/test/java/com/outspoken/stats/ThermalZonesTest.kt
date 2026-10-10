@@ -1,6 +1,7 @@
 package com.outspoken.stats
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -35,6 +36,25 @@ class ThermalZonesTest {
         val root = folder.newFolder("thermal")
         zone(root, "thermal_zone0", type = null, temp = "30000")
         assertEquals("thermal sensors: 1 of 1 readable (raw values): thermal_zone0 30000", ThermalZones.describe(root))
+    }
+
+    @Test
+    fun `a sensor is found by its type and read in degrees`() {
+        val root = folder.newFolder("thermal")
+        zone(root, "thermal_zone0", "battery", "34200")
+        zone(root, "thermal_zone94", "tz_shell", "36319")
+        assertEquals(36.319f, ThermalSensor("tz_shell", root).celsius()!!, 0.001f)
+    }
+
+    @Test
+    fun `a missing, unreadable or unused sensor gives nothing`() {
+        val root = folder.newFolder("thermal")
+        zone(root, "thermal_zone0", "sdr0", "-273000")
+        zone(root, "thermal_zone1", "gpu", temp = null)
+        assertNull(ThermalSensor("tz_shell", root).celsius())
+        assertNull(ThermalSensor("sdr0", root).celsius())
+        assertNull(ThermalSensor("gpu", root).celsius())
+        assertNull(ThermalSensor("tz_shell", File(root, "missing")).celsius())
     }
 
     @Test
