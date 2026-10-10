@@ -1,11 +1,18 @@
 package com.outspoken.suggest
 
 import com.outspoken.conversation.AppLanguage
+import com.outspoken.profile.PatientProfile
 
 /** One line of the conversation. */
 data class Turn(val fromListener: Boolean, val text: String)
 
-data class SuggestionRequest(val turns: List<Turn>, val hourOfDay: Int, val language: AppLanguage = AppLanguage.English)
+/** [profile] is what the person told the app about themselves, null when there is none. */
+data class SuggestionRequest(
+    val turns: List<Turn>,
+    val hourOfDay: Int,
+    val language: AppLanguage = AppLanguage.English,
+    val profile: PatientProfile? = null,
+)
 
 /**
  * Four replies, and where they came from. [elapsedMs] runs from request to replies ready.
@@ -27,6 +34,9 @@ interface SuggestionEngine {
 
     /** Next words for "Say anything". An engine without it gives none, and the built-in words show. */
     suspend fun nextWords(request: WordRequest): WordSuggestions = WordSuggestions(null, emptyList(), fromModel = false, elapsedMs = 0)
+
+    /** A heard sentence written in the wrong script, in the script of [spokenIn]; null when it cannot. */
+    suspend fun rewriteInScript(text: String, spokenIn: AppLanguage): String? = null
 }
 
 data class Generation(val text: String, val tokensPerSecond: Float? = null, val timing: String? = null)
