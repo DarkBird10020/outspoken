@@ -10,6 +10,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import android.os.BatteryManager
 import android.os.Bundle
+import android.os.PowerManager
 import android.os.SystemClock
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -216,6 +217,7 @@ class MainActivity : ComponentActivity() {
         }
         if (cameraGranted) askForMicrophone()
 
+        power.addThermalStatusListener(mainExecutor, thermalWatch)
         checkOfflineVoice(this) {
             AppLog.write("app", "offline voice ${if (it) "ready" else "missing"}")
             offlineVoice = it
@@ -474,6 +476,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         AppLog.write("app", "closed")
+        power.removeThermalStatusListener(thermalWatch)
         speaker.shutdown()
         listener.stop()
         alarm.stop()
@@ -507,6 +510,25 @@ class MainActivity : ComponentActivity() {
         sessionMillis = pitStats.sessionMillis(nowMs),
         sentencesSpoken = controller.history.size,
     )
+
+    // Replies slowed from about 65 to 45 tok/s a few minutes into the 05:45 and 06:03 phone runs
+    // and were fast again after a long pause, which looks like heat. These lines show whether.
+    private val power by lazy { getSystemService(PowerManager::class.java) }
+    private val thermalWatch = PowerManager.OnThermalStatusChangedListener {
+        AppLog.write("app", "thermal ${thermalLabel(it)}, phone ${phoneTemperature() ?: "-"} °C")
+    }
+
+    /** Android's thermal status in a word; from "light" up the phone is slowing its chips. */
+    private fun thermalLabel(status: Int) = when (status) {
+        PowerManager.THERMAL_STATUS_NONE -> "none"
+        PowerManager.THERMAL_STATUS_LIGHT -> "light"
+        PowerManager.THERMAL_STATUS_MODERATE -> "moderate"
+        PowerManager.THERMAL_STATUS_SEVERE -> "severe"
+        PowerManager.THERMAL_STATUS_CRITICAL -> "critical"
+        PowerManager.THERMAL_STATUS_EMERGENCY -> "emergency"
+        PowerManager.THERMAL_STATUS_SHUTDOWN -> "shutdown"
+        else -> "unknown"
+    }
 
     /** Battery temperature, the phone's own reading, in °C; null when the phone does not give it. */
     private fun phoneTemperature(): Float? {
@@ -576,7 +598,8 @@ class MainActivity : ComponentActivity() {
             AppLog.write(
                 "model",
                 "replies in ${suggestions.elapsedMs} ms, ${suggestions.tokensPerSecond ?: "-"} tok/s, " +
-                    if (suggestions.fromModel) "from the model" else "phrase bank fallback",
+                    (if (suggestions.fromModel) "from the model" else "phrase bank fallback") +
+                    ", phone ${phoneTemperature() ?: "-"} °C, thermal ${thermalLabel(power.currentThermalStatus)}",
             )
             controller.onReplies(requestId, suggestions.replies, suggestions.fromModel, now())
         }
