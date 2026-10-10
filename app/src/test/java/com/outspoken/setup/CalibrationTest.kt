@@ -144,6 +144,27 @@ class CalibrationTest {
     }
 
     @Test
+    fun `open frames before the person closes do not set the lid gap line`() {
+        calibration.start(time)
+        listOf(0.5f, 0f, 0.5f, 0f, 0.5f, 0.9f, 0.5f, 0.9f, 0.5f).forEachIndexed { i, gaze ->
+            step(if (i == 5 || i == 7) 0.7f else 0.9f, gaze, gap = 0.30f)
+        }
+        // "Close your eyes" takes about 1.3 s to say, so each close step starts with open eyes.
+        repeat(2) {
+            repeat(50) { frame ->
+                val shut = frame >= 35
+                val gap = if (shut) 0.10f else 0.30f
+                calibration.onSample(EyeSample(time, true, if (shut) 0.4f else 0.9f, if (shut) 0.4f else 0.9f, gaze = Dot(0f, 0.6f), dots = FaceDots(emptyList(), emptyList(), 0.75f, gap, gap)))
+                time += 50
+            }
+            step(0.9f, 0.5f, gap = 0.30f)
+        }
+        val result = calibration.result(Tuning()) as Calibration.Result.Ok
+        assertEquals(0.10f, result.measured.closedGap!!, 0.001f)
+        assertEquals(0.12f, result.tuning.blink.shapeClosedBelow!!, 0.001f)
+    }
+
+    @Test
     fun `no lid gap reading leaves the gap check off`() {
         run()
         val blink = (calibration.result(Tuning()) as Calibration.Result.Ok).tuning.blink
