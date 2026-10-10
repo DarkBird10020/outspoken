@@ -442,7 +442,7 @@ class MainActivity : ComponentActivity() {
                         },
                         liveStats = {
                             LiveStatsLine(STATS_REFRESH_MS) {
-                                liveStatsLine(pitStats.replyTimeSeconds(now()), pitStats.tokensPerSecond, pitStats.repliesWritten, phoneTempNow)
+                                liveStatsLine(pitStats.replyTimeSeconds(now()), pitStats.tokensPerSecond, pitStats.repliesWritten)
                             }
                         },
                     )
