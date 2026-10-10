@@ -27,6 +27,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.outspoken.R
+import com.outspoken.conversation.AppLanguage
 import com.outspoken.hand.HandReading
 import com.outspoken.hand.HandSign
 import com.outspoken.listen.QuickTopics
@@ -72,6 +73,10 @@ fun SettingsScreen(
         }
         AskCard(listenLine, onAsk)
         Segmented("Look up to move", "Blink only", tuning.moveByEyes) { onTuningChange(tuning.copy(moveByEyes = it)) }
+        // Not in the design (a design gap): the language of the cards, the voice and listening.
+        Segmented(AppLanguage.English.label, AppLanguage.Hindi.label, tuning.language == AppLanguage.English) { english ->
+            onTuningChange(tuning.copy(language = if (english) AppLanguage.English else AppLanguage.Hindi))
+        }
         TuningCard(tuning, onTuningChange)
         HandCard(tuning, handReading, onTuningChange)
         PillButton("Model and logs", onModels, Modifier.fillMaxWidth())

@@ -1,9 +1,11 @@
 package com.outspoken.suggest
 
+import com.outspoken.conversation.AppLanguage
+
 /** One line of the conversation. */
 data class Turn(val fromListener: Boolean, val text: String)
 
-data class SuggestionRequest(val turns: List<Turn>, val hourOfDay: Int)
+data class SuggestionRequest(val turns: List<Turn>, val hourOfDay: Int, val language: AppLanguage = AppLanguage.English)
 
 /**
  * Four replies, and where they came from. [elapsedMs] runs from request to replies ready.

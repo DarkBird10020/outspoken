@@ -64,6 +64,17 @@ class ConversationController(
     /** Left wink moves down, right wink up. Off unless turned on in the settings. */
     var winks = false
 
+    /** The language of the cards and the phrase bank (owner request); new replies are asked for in it. */
+    var language: AppLanguage = AppLanguage.English
+        set(value) {
+            if (value == field) return
+            field = value
+            board.useLanguage(value)
+            if (builder != null) closeBuilder(clockMs, "language changed")
+            log.write("scan", "cards in ${value.name}")
+            refreshReplies()
+        }
+
     // Eye mode: position in board.cards, and the one before the last move, so a blink that
     // began just before a move still picks the card that was lit when the eyes shut.
     private var cursor = 0
@@ -379,7 +390,7 @@ class ConversationController(
     }
 
     private fun openBuilder(nowMs: Long) {
-        builder = SentenceBuilder()
+        builder = SentenceBuilder(CommonWords.forLanguage(language))
         log.write("scan", "say anything opened")
         askWords()
         restartBuilderCards(nowMs)

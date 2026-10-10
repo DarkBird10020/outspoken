@@ -16,9 +16,12 @@ fun checkOfflineVoice(context: Context, onResult: (Boolean) -> Unit) {
 }
 
 /** English voices that are installed and work without a network. */
-fun offlineEnglishVoices(tts: TextToSpeech): List<Voice> =
+fun offlineEnglishVoices(tts: TextToSpeech): List<Voice> = offlineVoices(tts, "en")
+
+/** Voices for [language] (ISO 639, "en", "hi") that are installed and work without a network. */
+fun offlineVoices(tts: TextToSpeech, language: String): List<Voice> =
     tts.voices.orEmpty().filter { voice ->
-        voice.locale.language == "en" &&
+        voice.locale.language == language &&
             !voice.isNetworkConnectionRequired &&
             TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED !in voice.features
     }

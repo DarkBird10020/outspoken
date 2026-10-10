@@ -33,6 +33,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.outspoken.R
+import com.outspoken.conversation.AppLanguage
 import com.outspoken.conversation.Board
 import com.outspoken.listen.QuickTopics
 import com.outspoken.ui.theme.EyesFoundDot
@@ -70,6 +71,14 @@ fun ConversationScreen(
     eyeView: (@Composable (Modifier) -> Unit)? = null,
     onAsk: ((String) -> Unit)? = null,
     liveStats: (@Composable () -> Unit)? = null,
+    /** Words being heard now, before the sentence ends; shown in place of the last question. */
+    hearing: String? = null,
+    /** Whether the microphone is on, for the chip that switches it; null hides the chip. */
+    micOn: Boolean? = null,
+    onMic: () -> Unit = {},
+    topics: List<Pair<String, String>> = QuickTopics.all,
+    /** Labels of the three fixed cards: more options, yes / no, say anything. */
+    fixedCards: List<String> = AppLanguage.English.fixedCards,
 ) {
     DesignScreen(Modifier.dottedCanvas(), gap = 14.dp) {
         Row(
@@ -105,7 +114,8 @@ fun ConversationScreen(
         // Not in the design yet (listed as a design gap): the model's numbers, live, so they can be
         // watched changing while the person talks (owner request).
         liveStats?.invoke()
-        ui.heard?.let { HeardCard(it) }
+        val live = hearing?.takeIf { it.isNotBlank() }
+        if (live != null) HeardCard(live, "Hearing…") else ui.heard?.let { HeardCard(it, "Heard") }
         Column(
             Modifier
                 .weight(1f)
@@ -124,33 +134,40 @@ fun ConversationScreen(
         // "Say anything" is not in the main page design (listed as a design gap). It shares the
         // row, at 16 sp, so the reply cards keep their height.
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            FixedCard("More options", ui.highlighted == Board.MORE_OPTIONS, Modifier.weight(1f), size = 16) {
+            FixedCard(fixedCards[0], ui.highlighted == Board.MORE_OPTIONS, Modifier.weight(1f), size = 16) {
                 onSelect(Board.MORE_OPTIONS)
             }
-            FixedCard("Yes / No", ui.highlighted == Board.YES_NO, Modifier.weight(1f), size = 16) {
+            FixedCard(fixedCards[1], ui.highlighted == Board.YES_NO, Modifier.weight(1f), size = 16) {
                 onSelect(Board.YES_NO)
             }
-            FixedCard("Say anything", ui.highlighted == Board.SAY_ANYTHING, Modifier.weight(1f), size = 16) {
+            FixedCard(fixedCards[2], ui.highlighted == Board.SAY_ANYTHING, Modifier.weight(1f), size = 16) {
                 onSelect(Board.SAY_ANYTHING)
             }
         }
         // Not in the design yet (listed as a design gap): one-tap questions for the visitor when
         // the room is too loud for the microphone (PRD F7 fallback).
-        onAsk?.let { QuickTopicRow(it) }
+        val micChip: (@Composable () -> Unit)? = micOn?.let { on -> @Composable { MicChip(on, onMic) } }
+        onAsk?.let { ask -> QuickTopicRow(ask, topics, leading = micChip) }
         FooterNote("Runs on this phone. No internet.")
     }
 }
 
-/** One-tap questions for the visitor, a row that scrolls sideways. */
+/** One-tap questions for the visitor, a row that scrolls sideways, after an optional [leading] chip. */
 @Composable
-fun QuickTopicRow(onAsk: (String) -> Unit) {
+fun QuickTopicRow(
+    onAsk: (String) -> Unit,
+    topics: List<Pair<String, String>> = QuickTopics.all,
+    leading: (@Composable () -> Unit)? = null,
+) {
     Row(
         Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        QuickTopics.all.forEach { (label, question) ->
+        leading?.invoke()
+        topics.forEach { (label, question) ->
             Text(
                 label,
                 style = type(15, 500),
@@ -183,8 +200,28 @@ fun LiveStatsLine(refreshMs: Long, read: () -> List<String>) {
     }
 }
 
+/**
+ * The microphone switch for the person at the bedside (owner request: listening should go on until
+ * they stop it). Not in the design, listed as a design gap: green while listening, glass when off.
+ */
 @Composable
-private fun HeardCard(question: String) {
+private fun MicChip(on: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .surface(if (on) Surfaces.OfflinePill else Surfaces.Glass, RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(role = Role.Button, onClickLabel = if (on) "Stop listening" else "Start listening", onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(painterResource(R.drawable.ic_mic), contentDescription = null, tint = InkSoft, modifier = Modifier.size(16.dp))
+        Text(if (on) "Listening" else "Mic off", style = type(15, 500))
+    }
+}
+
+@Composable
+private fun HeardCard(question: String, label: String) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -194,7 +231,7 @@ private fun HeardCard(question: String) {
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(painterResource(R.drawable.ic_mic), contentDescription = null, tint = InkSoft, modifier = Modifier.size(16.dp))
-            Text("Heard", style = type(14, color = InkSoft))
+            Text(label, style = type(14, color = InkSoft))
         }
         Text(question, style = type(26, 500, lineHeight = 1.15f))
     }

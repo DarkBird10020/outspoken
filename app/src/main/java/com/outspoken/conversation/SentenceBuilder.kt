@@ -92,10 +92,7 @@ class SentenceBuilder(private val builtIn: (List<String>) -> List<String> = Comm
  */
 object CommonWords {
 
-    private val starters = listOf(
-        "I", "Please", "My", "Can you", "I need", "I want", "I feel", "Thank you",
-        "Yes", "No", "Where is", "When",
-    )
+    private val starters = AppLanguage.English.firstWords
 
     private val after = mapOf(
         "i" to listOf("want", "need", "am", "feel", "have", "can't", "like", "love"),
@@ -120,5 +117,15 @@ object CommonWords {
     fun next(words: List<String>): List<String> {
         val last = words.lastOrNull()?.trim()?.split(' ')?.lastOrNull()?.lowercase() ?: return starters
         return after[last].orEmpty() + anywhere
+    }
+
+    /** Built-in Hindi words: first words for an empty sentence, then a few that fit after most words. */
+    fun nextHindi(words: List<String>): List<String> = if (words.isEmpty()) AppLanguage.Hindi.firstWords else hindiAnywhere
+
+    private val hindiAnywhere = listOf("कृपया", "अभी", "थोड़ा", "पानी", "दर्द", "आराम", "चाहिए", "है", "नहीं", "और", "बहुत", "मदद")
+
+    fun forLanguage(language: AppLanguage): (List<String>) -> List<String> = when (language) {
+        AppLanguage.English -> ::next
+        AppLanguage.Hindi -> ::nextHindi
     }
 }

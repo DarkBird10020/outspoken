@@ -2,6 +2,7 @@ package com.outspoken.setup
 
 import android.content.Context
 import com.outspoken.blink.BlinkSettings
+import com.outspoken.conversation.AppLanguage
 import com.outspoken.hand.HandSign
 import com.outspoken.scan.GazeSettings
 
@@ -49,6 +50,8 @@ data class Tuning(
     val handGestures: Boolean = false,
     /** The signs this person uses; others are ignored (a hand resting curled can read as a fist). */
     val handSigns: Set<HandSign> = HandSign.entries.toSet(),
+    /** Cards, phrase bank, topic buttons, voice and listening in English or Hindi (owner request). */
+    val language: AppLanguage = AppLanguage.English,
 ) {
     /** The gaze settings the stepper uses: the look down lines only when looking down is on. */
     val activeGaze: GazeSettings
@@ -91,6 +94,7 @@ class TuningStore(context: Context) {
             lookDown = prefs.getBoolean("lookDown", default.lookDown),
             winks = prefs.getBoolean("winks", default.winks),
             handGestures = prefs.getBoolean("handGestures", default.handGestures),
+            language = AppLanguage.fromName(prefs.getString("language", default.language.name)),
             // Saved as the signs switched off, so a sign added later starts on.
             handSigns = HandSign.entries.toSet() -
                 prefs.getStringSet("handSignsOff", emptySet()).orEmpty().mapNotNull(HandSign::fromKey).toSet(),
@@ -131,6 +135,7 @@ class TuningStore(context: Context) {
             .putBoolean("lookDown", tuning.lookDown)
             .putBoolean("winks", tuning.winks)
             .putBoolean("handGestures", tuning.handGestures)
+            .putString("language", tuning.language.name)
             .putStringSet("handSignsOff", (HandSign.entries - tuning.handSigns).map { it.key }.toSet())
             .putFloat("lookStrength", tuning.gaze.lookStrength)
             .putFloat("downStrength", tuning.gaze.downStrength ?: NOT_SET)
