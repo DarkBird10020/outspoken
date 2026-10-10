@@ -198,7 +198,11 @@ class MainActivity : ComponentActivity() {
                 Screen.Calibrate -> onCalibrationSample(sample)
                 // While the alarm screen or mirrored transcript is up, eyes pick nothing.
                 Screen.Help, Screen.Transcript -> Unit
-                else -> controller.onSample(sample)
+                else -> {
+                    controller.onSample(sample)
+                    val missed = blinkDetector.missedInARow >= BlinkDetector.MISSED_BEFORE_ASKING
+                    if (missed != closesMissed) closesMissed = missed
+                }
             }
         }
         eyeReader.dotsOn = true
@@ -465,7 +469,8 @@ class MainActivity : ComponentActivity() {
                         onEyeCheck = { show(Screen.EyeCheck) },
                         onTranscript = { show(Screen.Transcript) },
                         onSelect = { controller.onTap(it, now()) },
-                        eyeHint = eyeHint(tuning) + handHint(tuning),
+                        eyeHint = if (closesMissed) CLOSES_MISSED_HINT else eyeHint(tuning) + handHint(tuning),
+                        onEyeHint = if (closesMissed) ::startCalibration else null,
                         onAsk = { question ->
                             AppLog.write("listen", "quick topic \"$question\"")
                             controller.onHeard(question, now())
@@ -765,6 +770,9 @@ class MainActivity : ComponentActivity() {
     /** The language of the cards, the topics and the voice right now; in auto mode the visitor's. */
     private var cardLanguage by mutableStateOf(AppLanguage.English)
 
+    /** Closes are being missed under the current lines (glasses put on after calibrating, for one). */
+    private var closesMissed by mutableStateOf(false)
+
     /** Whether the phone lacks an offline voice for [cardLanguage]. */
     private var voiceMissing by mutableStateOf(false)
 
@@ -1023,6 +1031,7 @@ class MainActivity : ComponentActivity() {
         val LISTENING_SCREENS = setOf(Screen.Conversation, Screen.Transcript, Screen.Stats)
         const val DOWNLOAD_CHECK_MS = 3_000L
         const val TTS_SETTINGS = "com.android.settings.TTS_SETTINGS"
+        const val CLOSES_MISSED_HINT = "Closes are not being read. Wearing glasses? Tap here to calibrate with them on."
         const val CUE_MS = 200
         const val CUE_VOLUME = 80
         const val TICK_MS = 50L

@@ -194,6 +194,32 @@ class BlinkDetectorTest {
     }
 
     @Test
+    fun `missed closes in a row are counted until a close counts`() {
+        // 17:14:27 to 17:14:57 on the phone with glasses: seven closes in a row, none counted.
+        detector.settings = gapSettings
+        hold(500) { withGap(0.9f, 0.30f) }
+        repeat(2) {
+            hold(900) { withGap(0.40f, 0.15f) }
+            hold(300) { withGap(0.9f, 0.30f) }
+        }
+        assertEquals(2, detector.missedInARow)
+        hold(500) { withGap(0.45f, 0.06f) }
+        hold(300) { withGap(0.9f, 0.30f) }
+        assertEquals(0, detector.missedInARow)
+    }
+
+    @Test
+    fun `new lines clear the missed closes`() {
+        detector.settings = gapSettings
+        hold(500) { withGap(0.9f, 0.30f) }
+        hold(900) { withGap(0.40f, 0.15f) }
+        hold(300) { withGap(0.9f, 0.30f) }
+        assertEquals(1, detector.missedInARow)
+        detector.settings = gapSettings.copy(shapeClosedBelow = 0.16f)
+        assertEquals(0, detector.missedInARow)
+    }
+
+    @Test
     fun `a real close passes both checks`() {
         detector.settings = gapSettings
         hold(500) { withGap(0.9f, 0.30f) }

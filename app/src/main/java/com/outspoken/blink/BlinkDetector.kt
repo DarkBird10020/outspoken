@@ -61,9 +61,23 @@ sealed interface BlinkEvent {
  * Normal fast blinks and long closures fall outside the blink window and are ignored.
  */
 class BlinkDetector(
-    var settings: BlinkSettings = BlinkSettings(),
+    settings: BlinkSettings = BlinkSettings(),
     private val log: EventLog = EventLog.None,
 ) {
+
+    var settings = settings
+        set(value) {
+            field = value
+            missedInARow = 0
+        }
+
+    /**
+     * Closes in a row that the lid gap kept from counting ([halfShutEnded]); a counted close or
+     * new lines reset it. On the phone with glasses, seven closes of 0.9 to 2 s in a row were
+     * missed this way (17:14:27 to 17:14:57) under lines set without glasses.
+     */
+    var missedInARow = 0
+        private set
 
     var tracking = false
         private set
@@ -159,6 +173,7 @@ class BlinkDetector(
                 return if (wasTracking) null else BlinkEvent.FaceFound
             }
             if (duration in settings.minBlinkMs..settings.maxBlinkMs) {
+                missedInARow = 0
                 log.write("blink", "blink $duration ms")
                 return BlinkEvent.Blink(closedSince, duration)
             }
@@ -183,6 +198,7 @@ class BlinkDetector(
             faceGoneSinceShutSeen = false
             if (settings.chooseWhileShut && !chosen && sample.timeMs - closedSince >= settings.minBlinkMs) {
                 chosen = true
+                missedInARow = 0
                 val duration = sample.timeMs - closedSince
                 log.write("blink", "blink $duration ms, chosen with the eyes still shut")
                 return BlinkEvent.Blink(closedSince, duration)
@@ -214,6 +230,10 @@ class BlinkDetector(
             "half shut $duration ms, not counted: eye-open read shut but the lid gap came down only to $gap " +
                 "(shut line ${settings.shapeClosedBelow?.let { open(it) }}$gaze)",
         )
+        missedInARow++
+        if (missedInARow == MISSED_BEFORE_ASKING) {
+            log.write("blink", "$missedInARow closes in a row not counted; asking for a calibration (with glasses on, if worn)")
+        }
     }
 
     private fun smooth(previous: Float?, value: Float) =
@@ -265,11 +285,14 @@ class BlinkDetector(
 
     private fun open(value: Float) = String.format(Locale.US, "%.2f", value)
 
-    private companion object {
+    companion object {
+        /** Missed closes in a row before the main page asks for a new calibration. */
+        const val MISSED_BEFORE_ASKING = 2
+
         /** Shorter closes are noise or the start of a normal blink. */
-        const val DOUBLE_MIN_MS = 60L
+        private const val DOUBLE_MIN_MS = 60L
 
         /** Most the gap between the two closes of a double blink may be. */
-        const val DOUBLE_GAP_MS = 800L
+        private const val DOUBLE_GAP_MS = 800L
     }
 }
