@@ -1,5 +1,7 @@
 package com.outspoken.conversation
 
+import com.outspoken.eye.Dot
+import com.outspoken.eye.EyeSample
 import com.outspoken.hand.HandAction
 import com.outspoken.scan.Scanner
 import org.junit.Assert.assertEquals
@@ -63,5 +65,31 @@ class ConversationHandTest {
         controller.onTick(time)
         controller.onHandSign(HandAction.Light(2), time + 100)
         assertEquals(0, controller.ui.value.highlighted)
+    }
+
+    @Test
+    fun `by eyes a hand in view stops looks moving the highlight off the card it lit`() {
+        // Phone, 15:55:08 to 15:55:10: a hand lit card 4, a look down moved to More options, and
+        // the fist chose More options.
+        controller.moveByEyes = true
+        controller.upMovesNext = true
+        fun frames(ms: Long, gazeY: Float = 0f, hand: Boolean = false) {
+            val end = time + ms
+            while (time < end) {
+                if (hand) controller.onHandInView(time)
+                controller.onSample(EyeSample(time, true, 0.95f, 0.95f, gaze = Dot(0f, gazeY)))
+                time += 33
+            }
+        }
+        frames(500)
+        controller.onHandSign(HandAction.Light(2), time)
+        frames(500, gazeY = -0.7f, hand = true)
+        frames(1_300, hand = true)
+        assertEquals(2, controller.ui.value.highlighted)
+        // Once the hand has gone, the same look moves the highlight again.
+        frames(1_100)
+        frames(500, gazeY = -0.7f)
+        frames(1_300)
+        assertEquals(3, controller.ui.value.highlighted)
     }
 }

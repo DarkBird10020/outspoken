@@ -209,6 +209,16 @@ class ConversationController(
         publish(nowMs)
     }
 
+    /**
+     * A hand is in the camera's view: looks pause until a moment after it goes, so the eyes do not
+     * move the highlight off a card the hand has lit. On the phone a hand lit card 4, a look down
+     * a second later moved to More options, and the fist then chose More options (15:55:08 to
+     * 15:55:10); people look at their hand, or down at the phone, while they sign. Blinks still choose.
+     */
+    fun onHandInView(timeMs: Long) {
+        gaze.pauseUntil(advance(timeMs) + HAND_LOOK_PAUSE_MS)
+    }
+
     /** Moves the eye-mode highlight to the card at [index]. In timed scanning the timer owns it. */
     private fun lightCard(index: Int, nowMs: Long) {
         val card = cards.getOrNull(index)
@@ -529,6 +539,9 @@ class ConversationController(
     private companion object {
         /** Builder buttons that mean the same before and after the model's words come. */
         val STEADY_CARDS = setOf(SentenceBuilder.MORE_WORDS, SentenceBuilder.DELETE, SentenceBuilder.SPEAK)
+
+        /** Looks are ignored this long after a hand was last seen. */
+        const val HAND_LOOK_PAUSE_MS = 1_000L
 
         /** Looks are ignored this long after one eye stops reading lower than the other. */
         const val AFTER_WINK_MS = 800L
