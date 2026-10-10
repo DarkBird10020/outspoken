@@ -16,6 +16,7 @@
 </p>
 
 <p align="center">
+  <a href="#launch-film">Film</a> ·
   <a href="#why-outspoken">Why</a> ·
   <a href="#features">Features</a> ·
   <a href="#screenshots">Screenshots</a> ·
@@ -25,6 +26,12 @@
 </p>
 
 ---
+
+## Launch film
+
+<a href="docs/video/outspoken-launch-16x9.mp4"><img src="docs/images/launch-film.jpg" alt="Launch film: a reply chosen by blinking, said out loud by the phone" width="100%"></a>
+
+One minute: the problem, a real conversation on an iQOO 15 chosen only with the eyes, the numbers measured on the phone, and where the project goes next. [Watch it (16:9)](docs/video/outspoken-launch-16x9.mp4) or the [vertical cut for phones (9:16)](docs/video/outspoken-launch-9x16.mp4).
 
 ## Why Outspoken
 
