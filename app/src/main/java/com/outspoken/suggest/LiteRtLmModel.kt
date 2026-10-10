@@ -1,6 +1,7 @@
 package com.outspoken.suggest
 
 import com.google.ai.edge.litertlm.Backend
+import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
@@ -12,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.util.concurrent.Executors
 
 /**
  * Gemma (or any `.litertlm` model) running on the phone through LiteRT-LM. Starts in the first
@@ -21,6 +23,9 @@ class LiteRtLmModel(private val modelPath: String, private val cacheDir: String)
 
     private val lock = Mutex()
     private var engine: Engine? = null
+
+    /** Writes replies off the caller's thread, so a newer request can stop a stale one. */
+    private val writer = Executors.newSingleThreadExecutor()
 
     var backendName: String = ""
         private set
@@ -38,25 +43,33 @@ class LiteRtLmModel(private val modelPath: String, private val cacheDir: String)
 
     override suspend fun generate(prompt: String): Generation = withContext(Dispatchers.Default) {
         lock.withLock {
-            write(checkNotNull(engine) { "Model is not loaded" }, prompt, MAX_OUTPUT_TOKENS)
+            val engine = checkNotNull(engine) { "Model is not loaded" }
+            engine.createConversation(ConversationConfig(samplerConfig = SAMPLER)).use { conversation ->
+                // A newer question cancels this request. The native call does not notice that, and
+                // on the phone a reply nobody would see held the next one up by about 1 s
+                // (05:19:25: 2215 ms, 05:47:10: 1814 ms, against a 0.9 s median), so it is stopped.
+                runStoppable(writer, stop = conversation::cancelProcess) {
+                    write(conversation, prompt, MAX_OUTPUT_TOKENS)
+                }
+            }
         }
     }
 
     @OptIn(ExperimentalApi::class)
-    private fun write(engine: Engine, prompt: String, maxTokens: Int): Generation =
-        engine.createConversation(ConversationConfig(samplerConfig = SAMPLER)).use { conversation ->
-            val text = conversation.sendMessage(prompt, maxOutputToken = maxTokens).toString()
-            val tokensPerSecond = runCatching {
-                conversation.getBenchmarkInfo().lastDecodeTokensPerSecond.toFloat()
-            }.getOrNull()
-            Generation(text, tokensPerSecond)
-        }
+    private fun write(conversation: Conversation, prompt: String, maxTokens: Int): Generation {
+        val text = conversation.sendMessage(prompt, maxOutputToken = maxTokens).toString()
+        val tokensPerSecond = runCatching {
+            conversation.getBenchmarkInfo().lastDecodeTokensPerSecond.toFloat()
+        }.getOrNull()
+        return Generation(text, tokensPerSecond)
+    }
 
     /** Frees the model, after any reply being written finishes. */
     suspend fun close() = withContext(Dispatchers.IO) {
         lock.withLock {
             engine?.close()
             engine = null
+            writer.shutdown()
         }
     }
 
@@ -69,7 +82,9 @@ class LiteRtLmModel(private val modelPath: String, private val cacheDir: String)
         try {
             engine.initialize()
             // The drafter can be set up on first use, so a short reply proves it works here.
-            if (plan.speculative) write(engine, WARM_UP_PROMPT, WARM_UP_TOKENS)
+            if (plan.speculative) {
+                engine.createConversation(ConversationConfig(samplerConfig = SAMPLER)).use { write(it, WARM_UP_PROMPT, WARM_UP_TOKENS) }
+            }
         } catch (e: Exception) {
             // Closing an engine that never started throws "Engine is not initialized", which
             // used to replace the real reason the start failed.

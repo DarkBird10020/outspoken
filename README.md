@@ -10,6 +10,7 @@ iQOO (vivo I2501, Android 16), from the app's own run logs of 2026-10-10:
 - Gemma 4 E2B through LiteRT-LM on the GPU with multi-token prediction (MTP): four replies in 0.6 to 1.4 s, 37 to 93 tokens per second. Without MTP: 1.6 to 1.9 s, 26 to 29 tokens per second.
 - Speech recognition and speech on the phone, offline.
 - Eye tracking at about 25 frames per second.
+- One run (05:45 to 05:52, build 61abde1): 42 model replies, median 0.9 s (0.67 to 1.8 s), median 60 tokens per second; 35 cards chosen by closing the eyes for 0.45 to 1.4 s; the 10 shorter blinks (up to 0.37 s) were ignored.
 
 ## Status
 
