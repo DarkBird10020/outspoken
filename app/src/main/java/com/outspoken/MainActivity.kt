@@ -151,6 +151,12 @@ class MainActivity : ComponentActivity() {
     private var micGranted = false
     private var visible = false
 
+    /**
+     * Set from launch until the start calibration opens. Listening began on the main page and was
+     * stopped 1 s later by the calibration (17:47:05, 17:59:29), so it now waits for it.
+     */
+    private var calibrationDue = false
+
     private val micPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             micGranted = granted
@@ -276,6 +282,7 @@ class MainActivity : ComponentActivity() {
         if (cameraGranted) {
             camera.start(eyeReader, analyzerExecutor)
             // Eye readings change with where the phone sits, so each start measures them again.
+            calibrationDue = true
             lifecycleScope.launch {
                 delay(CALIBRATION_START_DELAY_MS)
                 startCalibration()
@@ -554,6 +561,7 @@ class MainActivity : ComponentActivity() {
 
     /** Spoken steps that set the look and blink lines from this person's eyes (PRD F6). */
     private fun startCalibration() {
+        calibrationDue = false
         calibration.start(now())
         calibrationOutcome = null
         calibrationFailed = false
@@ -808,7 +816,7 @@ class MainActivity : ComponentActivity() {
         if (listeningNow()) listener.start() else listener.stop()
     }
 
-    private fun listeningNow() = micGranted && visible && micOn && screen in LISTENING_SCREENS
+    private fun listeningNow() = micGranted && visible && micOn && !calibrationDue && screen in LISTENING_SCREENS
 
     /** Words being heard now, shown live in the "Heard" card. */
     private var hearingText by mutableStateOf<String?>(null)
