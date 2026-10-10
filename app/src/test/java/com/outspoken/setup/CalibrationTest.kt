@@ -233,4 +233,17 @@ class CalibrationTest {
         // The blendshape look down barely moved, so it stays off.
         assertEquals(null, result.tuning.gaze.downStrength)
     }
+
+    @Test
+    fun `the screen steps run in order from 1 to 5 and end on done`() {
+        val stages = Calibration.Step.entries.map { it.stage }
+        assertEquals(stages.sorted(), stages)
+        assertEquals((1..Calibration.STAGES).toList(), stages.distinct())
+        assertEquals(Calibration.STAGES, Calibration.Step.Done.stage)
+    }
+
+    @Test
+    fun `the whole calibration takes one step length for each step before done`() {
+        assertEquals(2_500L * 12, calibration.totalMs)
+    }
 }

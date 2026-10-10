@@ -17,7 +17,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,12 +63,13 @@ import com.outspoken.ui.EyeCheckScreen
 import com.outspoken.ui.EyeMonitor
 import com.outspoken.ui.PracticeScreen
 import com.outspoken.ui.HelpAlertScreen
-import com.outspoken.ui.SetupStatus
+import com.outspoken.ui.ModelPageUi
+import com.outspoken.ui.ModelsScreen
+import com.outspoken.ui.SettingsScreen
 import com.outspoken.ui.StatsScreen
 import com.outspoken.ui.StatsUi
 import com.outspoken.ui.TranscriptScreen
 import com.outspoken.ui.TranscriptUi
-import com.outspoken.ui.describeReplies
 import com.outspoken.ui.theme.OutspokenTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -77,13 +77,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.math.roundToInt
 import java.time.LocalTime
 import java.util.Locale
 import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
 
-    private enum class Screen { Conversation, Practice, EyeCheck, Calibrate, Help, Stats, Transcript }
+    private enum class Screen { Conversation, Practice, EyeCheck, Settings, Models, Calibrate, Help, Stats, Transcript }
 
     private lateinit var speaker: Speaker
     private lateinit var camera: FrontCamera
@@ -129,7 +130,8 @@ class MainActivity : ComponentActivity() {
     private var calibrationProgress by mutableStateOf(0f)
     private var calibrationOutcome by mutableStateOf<String?>(null)
     private var calibrationFailed by mutableStateOf(false)
-    private var lastReplyLine by mutableStateOf("none yet")
+    /** Seconds and tokens per second of the newest reply, for the Model screen. */
+    private var lastReply by mutableStateOf<Pair<Float, Float?>?>(null)
     private var importLine by mutableStateOf<String?>(null)
     private var suggestionEngine: SuggestionEngine? = null
     private var engineModel: Any? = null
@@ -282,10 +284,11 @@ class MainActivity : ComponentActivity() {
             } else if (cameraGranted && screen == Screen.Calibrate) {
                 BackHandler { show(Screen.Conversation) }
                 val sample by eyeReader.samples.collectAsStateWithLifecycle()
-                MaterialTheme {
+                OutspokenTheme {
                     CalibrationScreen(
                         prompt = calibrationPrompt,
-                        progress = calibrationProgress,
+                        stage = calibration.step.stage,
+                        secondsLeft = ((1 - calibrationProgress) * calibration.totalMs / 1000).roundToInt(),
                         outcome = calibrationOutcome,
                         failed = calibrationFailed,
                         sample = sample,
@@ -301,23 +304,13 @@ class MainActivity : ComponentActivity() {
                 val sample by eyeReader.samples.collectAsStateWithLifecycle()
                 val fps by eyeReader.fps.collectAsStateWithLifecycle()
                 val recent by AppLog.recent.collectAsStateWithLifecycle()
-                val modelState by OnDeviceModel.state.collectAsStateWithLifecycle()
-                MaterialTheme {
+                OutspokenTheme {
                     EyeCheckScreen(
                         cameraGranted = cameraGranted,
                         sample = sample,
                         fps = fps,
                         tuning = tuning,
                         recentLines = recent,
-                        setup = SetupStatus(importLine ?: modelLine(modelState), offlineVoice, lastReplyLine, listenLine, buildLine),
-                        onTuningChange = {
-                            applyTuning(it)
-                            tuningStore.save(it)
-                        },
-                        onTuningReset = {
-                            tuningStore.clear()
-                            applyTuning(Tuning())
-                        },
                         onRequestCamera = { cameraPermission.launch(Manifest.permission.CAMERA) },
                         onPreviewReady = camera::showPreview,
                         onPreviewGone = camera::hidePreview,
@@ -326,19 +319,54 @@ class MainActivity : ComponentActivity() {
                         // The same smoothed values the steps use, so the dot is steady.
                         steadyGaze = gazeStepper.smoothedGaze,
                         steadyIris = gazeStepper.smoothedIrisDrop,
-                        onChooseModel = { modelPicker.launch(arrayOf("*/*")) },
-                        models = modelRows,
-                        canSeeDownloads = canSeeDownloads,
-                        onAllowDownloads = modelShelf::askToSeeDownloads,
-                        onDownloadModel = ::downloadModel,
-                        onUseModel = ::useModel,
-                        onSaveLogs = { logSaver.launch("outspoken-logs.txt") },
-                        onShareLogs = ::shareLogs,
-                        onCalibrate = ::startCalibration,
+                        onBack = { show(Screen.Conversation) },
+                        onSettings = { show(Screen.Settings) },
+                    )
+                }
+            } else if (screen == Screen.Settings) {
+                BackHandler { show(Screen.EyeCheck) }
+                OutspokenTheme {
+                    SettingsScreen(
+                        tuning = tuning,
+                        listenLine = listenLine,
+                        onTuningChange = {
+                            applyTuning(it)
+                            tuningStore.save(it)
+                        },
+                        onTuningReset = {
+                            tuningStore.clear()
+                            applyTuning(Tuning())
+                        },
                         onAsk = { question ->
                             controller.onHeard(question, now())
                             show(Screen.Conversation)
                         },
+                        onCalibrate = ::startCalibration,
+                        onModels = { show(Screen.Models) },
+                        onBack = { show(Screen.Conversation) },
+                    )
+                }
+            } else if (screen == Screen.Models) {
+                BackHandler { show(Screen.Settings) }
+                val modelState by OnDeviceModel.state.collectAsStateWithLifecycle()
+                OutspokenTheme {
+                    ModelsScreen(
+                        ui = ModelPageUi(
+                            state = modelState,
+                            modelLine = importLine ?: modelLine(modelState),
+                            replySeconds = lastReply?.first,
+                            tokensPerSecond = lastReply?.second,
+                            offlineVoice = offlineVoice,
+                            buildLine = buildLine,
+                        ),
+                        models = modelRows,
+                        canSeeDownloads = canSeeDownloads,
+                        onAllowDownloads = modelShelf::askToSeeDownloads,
+                        onDownload = ::downloadModel,
+                        onUse = ::useModel,
+                        onChooseFile = { modelPicker.launch(arrayOf("*/*")) },
+                        onShareLogs = ::shareLogs,
+                        onSaveLogs = { logSaver.launch("outspoken-logs.txt") },
                         onBack = { show(Screen.Conversation) },
                     )
                 }
@@ -593,7 +621,7 @@ class MainActivity : ComponentActivity() {
         replyJob?.cancel()
         replyJob = lifecycleScope.launch {
             val suggestions = engine.suggest(SuggestionRequest(turns, LocalTime.now().hour))
-            lastReplyLine = describeReplies(suggestions.elapsedMs, suggestions.fromModel, suggestions.tokensPerSecond)
+            lastReply = suggestions.elapsedMs / 1000f to suggestions.tokensPerSecond
             pitStats.onReplies(suggestions.elapsedMs, suggestions.fromModel, suggestions.tokensPerSecond)
             AppLog.write(
                 "model",

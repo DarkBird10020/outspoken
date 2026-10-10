@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: replies slowed after the model file was picked again in 4 of 6 cases (not proven; see "Slow replies after picking the model file again"). The 07:31 to 07:37 phone run had no new bug (40 replies, median 0.83 s; 39 cards chosen; help sounded; "Are you in pain?" got "Yes, it hurts a lot."). heat is not why replies slow down (thermal "none", 34 to 36 °C at 06:12 to 06:18); each reply now logs the model's own timing breakdown. every reply now logs the phone temperature and thermal status, to check why replies slow down after a few minutes. a newer question now stops the model writing a reply nobody will see (two quick taps took 1.8 s instead of 0.9 s). the 05:45 to 05:52 phone run showed no new bug (42 replies, median 0.9 s; 35 cards chosen; every close of 0.4 s or more chose). Fixed open eyes picking cards after calibration (05:37 to 05:38: the gap check had switched off). "Are you in pain" now gets answers about pain. what the visitor just said now decides the four replies ("Are you in pain" got rest and water cards at 05:27:38). Help sounded three times on the phone at 05:18 to 05:19. help now sounds when the eyes close again after the beep, blink or longer hold (three phone tries were cancelled at 05:08); calibration no longer sets a lid gap line so low that held closes miss; no more visitor-style question cards. the model's earlier cards no longer go into its prompt (it copied them back five times in a row, through "In pain"), and the line just said is not offered again. Phone logs 04:19 to 04:55: MTP on, replies 0.6 to 1.4 s. holding the eyes shut for help no longer says a card first (a card is now chosen when the eyes open). "Share logs" on the eye check page sends the run logs straight into a chat, and `tools\phone-logs.ps1` keeps a live copy on the laptop (CLAUDE.md section 12). A damaged model download is caught by its checksum and named plainly, instead of "Engine is not initialized" every 3 s. Download the model again; the app checks it once (about 2 s). Waiting for the phone test.
+Latest: the eye check, settings, model and calibration screens are built from the teammate's designs. Waiting for the phone test.
 
 Also: choosing now needs the eyes held shut for 0.4 s. The phone logs of 2026-10-10 showed unprompted blinks of 200 to 242 ms picking cards ("I need water" five times in 11 s) and a double blink picking one, so the hold went up from 0.2 s and double blinks are off by default. Listening no longer drops the working on-device recogniser when the phone speaks. Time with no face no longer counts as eyes shut (a close seen under 0.2 s, then the face lost for 0.2 s, picked a card). The model now starts with Gemma 4's own drafter (MTP) on the GPU for faster replies, falling back to the plain GPU and then the CPU. Model replies now fit a person in bed being cared for (no more "I want a glass of wine" small talk) and avoid repeating cards just passed over. Also: laptop builds can sign with the shared key (`~/.android/outspoken-debug.keystore`), so any APK installs over the last one and nothing is uninstalled; a model picked with "Choose model file" is found at every start. Models stay in Downloads across reinstalls. Waiting for the phone test.
 
@@ -535,14 +535,17 @@ The four designed screens are built exactly from the design file, as stand-alone
 - [ ] **Practice round** (wired in M3): star targets, blinks caught, eye-open bar with your blink line, hold time and scan speed. Code: `ui/PracticeScreen.kt`.
 - [ ] **Help alert** (wired in M4): alarm screen, last thing said, sound off, "I am here". Code: `ui/HelpAlertScreen.kt`.
 - [ ] **Session stats** (wired in M4): reply time, model speed, temperature, blink accuracy, session length, sentences spoken. Code: `ui/StatsScreen.kt`.
+- [ ] **Eye check** (design of 2026-10-10): back, an "Eyes open / Eyes shut / Half open / Looking for you" pill, settings button; the live camera with the eye dots in a dark box; "How open your eyes are" graph (left eye lavender, right eye ink, open line green, shut line pink, last 5 s); gaze, camera speed, left and right eye tiles; the last blink decision on the pink card. Code: `ui/EyeCheckScreen.kt`.
+- [ ] **Settings** (design of 2026-10-10), opened with the sliders button on eye check: the typed question with Ask and the topic buttons; "Look up to move / Blink only"; the tuning sliders (shut line, open line, shortest and longest blink, look hold, or scan speed in blink only); Reset and "Calibrate, 30 s". Code: `ui/SettingsScreen.kt`, `ui/Controls.kt`.
+- [ ] **Model** (design of 2026-10-10), opened with "Model and logs" in settings: status pill, Gemma 4 E2B and E4B with Download, Use or In use, "Choose a model file", the newest reply time and model speed, offline voice, build, Share logs and Save logs. Code: `ui/ModelsScreen.kt`.
+- [ ] **Calibration** (design of 2026-10-10): "Step n of 5", the spoken prompt as the heading, the live camera, which step is measured with five bars and what comes next, eyes open value and time left, "Skip for now". Code: `ui/CalibrationScreen.kt`, `setup/Calibration.kt` (`Step.stage`, `totalMs`). Tests: `CalibrationTest` "the screen steps run in order from 1 to 5 and end on done", "the whole calibration takes one step length for each step before done".
+- Not built yet: "Say anything" (the sentence builder design); it is the next step.
 
 Unit tests:
 - `FormatTest`: how numbers on the stats and practice screens are written ("1.2 s", "24 tok/s", "04:12", "-" when not measured).
 
 Design gaps, for the teammate to decide. Each uses the closest existing style for now:
 - Help screen after the sound is turned off: it still reads "Alarm is sounding".
-- No design for the typed question box and topic buttons; they are on the plain eye check page.
-- No design for the "Choose model file" button; it is on the plain eye check screen.
 - Main page live camera with eye dots (owner asked for it): a 150 dp rounded box under the status row, and a hint line in the soft ink style.
 - Highlight on "More options" and "Yes / No": pink glow, no "Blink" badge (the badge is taller than these cards).
 - Face lost: same pill reading "Looking for you" with a grey dot.
@@ -550,10 +553,14 @@ Design gaps, for the teammate to decide. Each uses the closest existing style fo
 - Practice round: the "Steady" and "One more and you are ready" lines will come from the calibration logic in M3.
 - Help alert: no design yet for after the sound is turned off.
 - Help alert glass blur is left out; the background behind it is a smooth gradient, so it looks the same.
-- No control to change scan speed (the practice round only shows it).
 - While the phone is speaking, no card is lit.
 - App icon (owner request, the default Android icon was in use): a speech bubble with a glowing green eye on a dark gradient, with a one-colour layer for themed icons. Code: `res/mipmap-anydpi/ic_launcher.xml`, `res/drawable/ic_launcher_*.xml`. For the teammate to replace if the design has its own.
 - Main page top bar: a fourth round button (eye icon) opens the eye check page; the practice round uses the star icon.
+- Settings: switches the design does not show (looking down, winks) are rows with an On / Off pill (green when on); "Look up distance" and the look down sliders use the design's slider. "Model and logs" is a glass button, since the design has no way to the Model screen. Scan speed replaces Look hold in blink only mode. A "Listening:" line under "Ask without the microphone" says what the microphone is doing.
+- Eye check: the design shows only "Eyes open"; shut is the pink surface, half open and no face are glass. The camera fills the dark box with the eye dots, with "Live camera" at the bottom.
+- Model: why a model is missing or failed shows as a grey line under the heading; "Allow access to Downloads" is a pink button when access is off; the status pill reads Loading, Could not load or No model yet when not ready; the build card adds a second line saying which signing key the APK has.
+- Calibration: the design's subtitle says "until you hear the tone"; the app speaks each step instead, so it reads "until the next step is spoken". A failed calibration shows the reason as the heading with "Skip for now" and a pink "Try again".
+- New icon from the design: the sliders icon (`res/drawable/ic_settings.xml`).
 
 ## CI checks
 

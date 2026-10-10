@@ -248,6 +248,19 @@ object Surfaces {
         ),
     )
 
+    /** The dark box the live camera sits in (eye check and calibration). */
+    val Camera = SurfaceStyle(
+        base = Color(0xFF1B1D1F),
+        layers = listOf(
+            RadialLayer(
+                0.5f, 0.3f, 0.9f, 0.8f,
+                listOf(0f to Color(0xFF4A4F54), 0.6f to Color(0xFF2A2D31), 1f to Color(0xFF1B1D1F)),
+            ),
+        ),
+        border = BorderStroke(1.dp, rgba(255, 255, 255, 0.75f)),
+        shadows = listOf(BoxShadow(y = 18.dp, blur = 30.dp, spread = (-14).dp, color = rgba(40, 45, 50, 0.5f))),
+    )
+
     val Chip = SurfaceStyle(
         base = rgba(255, 255, 255, 0.6f),
         border = BorderStroke(1.dp, rgba(255, 255, 255, 0.9f)),
