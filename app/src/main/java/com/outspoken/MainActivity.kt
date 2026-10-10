@@ -50,6 +50,7 @@ import com.outspoken.ui.ModelRow
 import com.outspoken.speech.Speaker
 import com.outspoken.practice.PracticeController
 import com.outspoken.stats.PitStats
+import com.outspoken.stats.ThermalZones
 import com.outspoken.suggest.ModelImporter
 import com.outspoken.suggest.ModelState
 import com.outspoken.suggest.ModelSuggestionEngine
@@ -226,6 +227,7 @@ class MainActivity : ComponentActivity() {
         if (cameraGranted) askForMicrophone()
 
         power.addThermalStatusListener(mainExecutor, thermalWatch)
+        logThermalSensors()
         checkOfflineVoice(this) {
             AppLog.write("app", "offline voice ${if (it) "ready" else "missing"}")
             offlineVoice = it
@@ -651,6 +653,15 @@ class MainActivity : ComponentActivity() {
         AppLog.write("ui", "screen $next")
         screen = next
         updateListening()
+        if (next == Screen.Stats) logThermalSensors()
+    }
+
+    /**
+     * Which of the phone's thermal sensors the app can read, at start and each time the stats open,
+     * so the logs show whether any of them moves faster than the battery's (about once a minute).
+     */
+    private fun logThermalSensors() {
+        lifecycleScope.launch(Dispatchers.IO) { AppLog.write("app", ThermalZones.describe()) }
     }
 
     /** Next words for "Say anything"; each step's reply time goes in the log. */
