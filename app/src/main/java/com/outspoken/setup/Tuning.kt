@@ -2,6 +2,7 @@ package com.outspoken.setup
 
 import android.content.Context
 import com.outspoken.blink.BlinkSettings
+import com.outspoken.hand.HandSign
 import com.outspoken.scan.GazeSettings
 
 /** Blink and scan settings the person at the bedside can adjust on the eye check screen. */
@@ -40,6 +41,13 @@ data class Tuning(
      * row (it fired on its own and missed real looks). Off, a look up moves to the next card.
      */
     val lookDown: Boolean = false,
+    /**
+     * Hand signs say short phrases (thumb up "Yes", and so on, see [HandSign]). Off by default:
+     * many people this app is for cannot lift a hand into the camera's view.
+     */
+    val handGestures: Boolean = false,
+    /** The signs this person uses; others are ignored (a hand resting curled can read as a fist). */
+    val handSigns: Set<HandSign> = HandSign.entries.toSet(),
 ) {
     /** The gaze settings the stepper uses: the look down lines only when looking down is on. */
     val activeGaze: GazeSettings
@@ -81,6 +89,10 @@ class TuningStore(context: Context) {
             moveByEyes = prefs.getBoolean("moveByEyes", default.moveByEyes),
             lookDown = prefs.getBoolean("lookDown", default.lookDown),
             winks = prefs.getBoolean("winks", default.winks),
+            handGestures = prefs.getBoolean("handGestures", default.handGestures),
+            // Saved as the signs switched off, so a sign added later starts on.
+            handSigns = HandSign.entries.toSet() -
+                prefs.getStringSet("handSignsOff", emptySet()).orEmpty().mapNotNull(HandSign::fromLabel).toSet(),
             gaze = GazeSettings(
                 lookStrength = safeLookStrength,
                 irisDownStrength = if (prefs.contains("irisDownStrength")) {
@@ -117,6 +129,8 @@ class TuningStore(context: Context) {
             .putBoolean("moveByEyes", tuning.moveByEyes)
             .putBoolean("lookDown", tuning.lookDown)
             .putBoolean("winks", tuning.winks)
+            .putBoolean("handGestures", tuning.handGestures)
+            .putStringSet("handSignsOff", (HandSign.entries - tuning.handSigns).map { it.label }.toSet())
             .putFloat("lookStrength", tuning.gaze.lookStrength)
             .putFloat("downStrength", tuning.gaze.downStrength ?: NOT_SET)
             .putFloat("irisDownStrength", tuning.gaze.irisDownStrength ?: NOT_SET)

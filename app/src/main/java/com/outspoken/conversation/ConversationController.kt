@@ -5,6 +5,7 @@ import com.outspoken.blink.BlinkEvent
 import com.outspoken.blink.Wink
 import com.outspoken.blink.WinkDetector
 import com.outspoken.eye.EyeSample
+import com.outspoken.hand.HandAction
 import com.outspoken.help.HelpStep
 import com.outspoken.help.HelpTrigger
 import com.outspoken.log.EventLog
@@ -178,6 +179,30 @@ class ConversationController(
         } else {
             log.write("scan", "tap on ${label(card)}")
             choose(card, nowMs)
+        }
+        publish(nowMs)
+    }
+
+    /**
+     * A hand sign held on purpose: a phrase is said as if its card were chosen, and a fist chooses
+     * the lit card as a blink would. Nothing while the phone speaks or waits for new cards, and
+     * no phrase while "Say anything" is open, where it would cut the sentence being built.
+     */
+    fun onHandSign(action: HandAction, timeMs: Long) {
+        val nowMs = advance(timeMs)
+        when {
+            speaking || waiting -> log.write("hand", "sign ignored while ${if (speaking) "speaking" else "waiting for new replies"}")
+            action is HandAction.Say && builder != null -> log.write("hand", "\"${action.text}\" ignored while Say anything is open")
+            action is HandAction.Say -> say(action.text, nowMs)
+            else -> {
+                val card = if (moveByEyes) cards.getOrNull(cursor) else scanner.cardAt(nowMs)
+                if (card == null) {
+                    log.write("hand", "fist ignored, no card lit")
+                } else {
+                    log.write("hand", "fist picked ${label(card)}")
+                    choose(card, nowMs)
+                }
+            }
         }
         publish(nowMs)
     }

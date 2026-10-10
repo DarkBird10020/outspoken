@@ -37,6 +37,10 @@ class EyeReader(context: Context, private val onSample: (EyeSample) -> Unit) : I
     @Volatile
     var dotsOn = false
 
+    /** Gets each upright frame too, on the camera thread, after the face has it (hand signs). */
+    @Volatile
+    var alsoFrame: ((Bitmap, Long) -> Unit)? = null
+
     private val _samples = MutableStateFlow<EyeSample?>(null)
     val samples: StateFlow<EyeSample?> = _samples.asStateFlow()
 
@@ -73,6 +77,7 @@ class EyeReader(context: Context, private val onSample: (EyeSample) -> Unit) : I
             // MediaPipe throws once it is shut down; a frame can still be in flight then.
             if (!closed) AppLog.write("eyes", "frame not analysed: $e")
         }
+        alsoFrame?.invoke(upright, timeMs)
     }
 
     fun close() {

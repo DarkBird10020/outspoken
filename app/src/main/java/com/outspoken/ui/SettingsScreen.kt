@@ -27,6 +27,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.outspoken.R
+import com.outspoken.hand.HandReading
+import com.outspoken.hand.HandSign
 import com.outspoken.listen.QuickTopics
 import com.outspoken.setup.MIN_PICK_HOLD_MS
 import com.outspoken.setup.Tuning
@@ -51,6 +53,7 @@ import kotlin.math.roundToLong
 fun SettingsScreen(
     tuning: Tuning,
     listenLine: String,
+    handReading: HandReading,
     onTuningChange: (Tuning) -> Unit,
     onTuningReset: () -> Unit,
     onAsk: (String) -> Unit,
@@ -70,6 +73,7 @@ fun SettingsScreen(
         AskCard(listenLine, onAsk)
         Segmented("Look up to move", "Blink only", tuning.moveByEyes) { onTuningChange(tuning.copy(moveByEyes = it)) }
         TuningCard(tuning, onTuningChange)
+        HandCard(tuning, handReading, onTuningChange)
         PillButton("Model and logs", onModels, Modifier.fillMaxWidth())
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             PillButton("Reset", onTuningReset, Modifier.weight(1f))
@@ -166,6 +170,29 @@ private fun TuningCard(tuning: Tuning, onChange: (Tuning) -> Unit) {
         } else {
             DesignSlider("Scan speed", "${tuning.scanMs} ms a card", tuning.scanMs.toFloat(), 600f..3_000f) {
                 onChange(tuning.copy(scanMs = it.roundTo(100)))
+            }
+        }
+    }
+}
+
+/**
+ * Hand signs (not in the design, listed as a design gap): on or off, what the camera reads now,
+ * and each sign on or off for this person.
+ */
+@Composable
+private fun HandCard(tuning: Tuning, reading: HandReading, onChange: (Tuning) -> Unit) {
+    GlassCard(gap = 14) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+            Text("Hand signs", style = type(15, 500))
+            Text("Hold about half a second", style = type(13, color = InkSoft))
+        }
+        ToggleRow("Hand signs in view of the camera", tuning.handGestures) { onChange(tuning.copy(handGestures = it)) }
+        if (tuning.handGestures) {
+            Text(describeHandReading(reading.sign, reading.score), style = type(15, color = InkSoft))
+            HandSign.entries.forEach { sign ->
+                ToggleRow("${sign.symbol}  ${sign.meaning}", sign in tuning.handSigns) { on ->
+                    onChange(tuning.copy(handSigns = if (on) tuning.handSigns + sign else tuning.handSigns - sign))
+                }
             }
         }
     }

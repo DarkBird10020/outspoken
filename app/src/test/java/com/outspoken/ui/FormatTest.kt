@@ -52,6 +52,12 @@ class FormatTest {
     }
 
     @Test
+    fun `hand reading for the settings screen`() {
+        assertEquals("Seen now: 👍 (0.91)", describeHandReading(com.outspoken.hand.HandSign.ThumbUp, 0.912f))
+        assertTrue(describeHandReading(null, 0f).startsWith("No sign seen"))
+    }
+
+    @Test
     fun `live line for the main page`() {
         assertEquals(listOf("Reply 0.9 s", "61 tok/s", "8 replies written"), liveStatsLine(0.86f, 61.1f, 8))
         assertEquals(listOf("Reply -", "- tok/s", "0 replies written"), liveStatsLine(null, null, 0))

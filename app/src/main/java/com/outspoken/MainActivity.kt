@@ -31,6 +31,9 @@ import com.outspoken.conversation.ConversationController
 import com.outspoken.eye.EyeReader
 import com.outspoken.eye.EyeSample
 import com.outspoken.eye.FrontCamera
+import com.outspoken.hand.GestureHold
+import com.outspoken.hand.HandReader
+import com.outspoken.hand.HandReading
 import com.outspoken.help.HelpAlarm
 import com.outspoken.help.HelpStep
 import com.outspoken.listen.HeardFilter
@@ -195,6 +198,9 @@ class MainActivity : ComponentActivity() {
             }
         }
         eyeReader.dotsOn = true
+        handReader = HandReader(this, ::onHandReading)
+        handReader.enabled = tuning.handGestures
+        eyeReader.alsoFrame = handReader::onFrame
         speaker = Speaker(this) {
             heardFilter.onSpeechDone(now())
             listener.resume()
@@ -342,10 +348,12 @@ class MainActivity : ComponentActivity() {
                 }
             } else if (screen == Screen.Settings) {
                 BackHandler { show(Screen.EyeCheck) }
+                val handReading by handReader.latest.collectAsStateWithLifecycle()
                 OutspokenTheme {
                     SettingsScreen(
                         tuning = tuning,
                         listenLine = listenLine,
+                        handReading = handReading,
                         onTuningChange = {
                             applyTuning(it)
                             tuningStore.save(it)
@@ -544,13 +552,20 @@ class MainActivity : ComponentActivity() {
         cue?.release()
         // Closed on the camera thread, after any frame already being analysed, so no frame reaches
         // a closed face tracker.
-        analyzerExecutor.execute { eyeReader.close() }
+        analyzerExecutor.execute {
+            eyeReader.close()
+            handReader.close()
+        }
         analyzerExecutor.shutdown()
     }
 
     private fun now() = SystemClock.elapsedRealtime()
 
     private fun applyTuning(next: Tuning) {
+        if (::handReader.isInitialized && handReader.enabled != next.handGestures) {
+            handReader.enabled = next.handGestures
+            AppLog.write("hand", "hand signs ${if (next.handGestures) "on" else "off"}")
+        }
         tuning = next
         blinkDetector.settings = next.blink
         scanner.intervalMs = next.scanMs
@@ -632,6 +647,17 @@ class MainActivity : ComponentActivity() {
         ) ?: return null
         val tenths = battery.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
         return if (tenths == Int.MIN_VALUE) null else tenths / 10f
+    }
+
+    private lateinit var handReader: HandReader
+    private val handHold = GestureHold()
+
+    /** Main thread. Only the conversation page acts on hand signs; elsewhere they let the hold go. */
+    private fun onHandReading(reading: HandReading, timeMs: Long) {
+        val acting = screen == Screen.Conversation
+        val fired = handHold.onFrame(reading.sign.takeIf { acting }, reading.score, timeMs, tuning.handSigns) ?: return
+        AppLog.write("hand", "${fired.label} held, ${fired.meaning}")
+        controller.onHandSign(fired.action, now())
     }
 
     private fun onHelpStep(step: HelpStep) {
