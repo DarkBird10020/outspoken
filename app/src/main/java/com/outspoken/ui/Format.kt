@@ -17,6 +17,12 @@ fun formatWhole(value: Float?, unit: String = ""): String =
 fun formatTenths(value: Float?, unit: String = ""): String =
     value?.let { String.format(Locale.US, "%.1f%s", it, unit) } ?: UNKNOWN
 
+/** Every number on the stats screen, written as the screen writes it, for the log. */
+fun describeStats(ui: StatsUi): String =
+    "reply ${formatSeconds(ui.replyTimeSeconds)}, ${formatWhole(ui.tokensPerSecond)} tok/s, ${ui.repliesWritten} replies written, " +
+        "${formatTenths(ui.phoneTempCelsius, " °C")}, blink accuracy ${formatWhole(ui.blinkAccuracyPercent, "%")}, " +
+        "session ${formatClock(ui.sessionMillis)}, ${ui.sentencesSpoken} sentences spoken"
+
 /** The model's live numbers in one line for the main page: "Reply 0.9 s · 61 tok/s · 8 replies written". */
 fun liveStatsLine(replyTimeSeconds: Float?, tokensPerSecond: Float?, repliesWritten: Int): String =
     "Reply ${formatSeconds(replyTimeSeconds)} · ${formatWhole(tokensPerSecond)} tok/s · $repliesWritten replies written"

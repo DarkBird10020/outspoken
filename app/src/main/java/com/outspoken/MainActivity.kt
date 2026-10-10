@@ -75,6 +75,7 @@ import com.outspoken.ui.StatsScreen
 import com.outspoken.ui.StatsUi
 import com.outspoken.ui.TranscriptScreen
 import com.outspoken.ui.TranscriptUi
+import com.outspoken.ui.describeStats
 import com.outspoken.ui.liveStatsLine
 import com.outspoken.ui.theme.OutspokenTheme
 import kotlinx.coroutines.Dispatchers
@@ -665,10 +666,16 @@ class MainActivity : ComponentActivity() {
     )
 
     private fun show(next: Screen) {
+        // What the stats screen showed when it opened and closed, so a report that a number did
+        // not move can be checked against the logs.
+        if (screen == Screen.Stats && next != Screen.Stats) AppLog.write("stats", "closed showing ${describeStats(currentStats())}")
         AppLog.write("ui", "screen $next")
         screen = next
         updateListening()
+        if (next == Screen.Stats) AppLog.write("stats", "opened showing ${describeStats(currentStats())}")
     }
+
+    private fun currentStats() = statsUi(now(), OnDeviceModel.state.value, phoneTemperature())
 
     /**
      * Which of the phone's thermal sensors the app can read, once at start, and the shell sensor the
