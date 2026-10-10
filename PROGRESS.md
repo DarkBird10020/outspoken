@@ -582,7 +582,7 @@ Design gaps, for the teammate to decide. Each uses the closest existing style fo
 - Model: why a model is missing or failed shows as a grey line under the heading; "Allow access to Downloads" is a pink button when access is off; the status pill reads Loading, Could not load or No model yet when not ready; the build card adds a second line saying which signing key the APK has.
 - Calibration: the design's subtitle says "until you hear the tone"; the app speaks each step instead, so it reads "until the next step is spoken". A failed calibration shows the reason as the heading with "Skip for now" and a pink "Try again".
 - New icon from the design: the sliders icon (`res/drawable/ic_settings.xml`).
-- Main page: "Say anything" is a full-width fixed card under "More options" and "Yes / No"; the main page design has no way into it.
+- Main page: "Say anything" is a third card in the row with "More options" and "Yes / No", all three at 16 sp (design: two at 18 sp), so the reply cards keep their height; the main page design has no way into it.
 - Say anything: the design has no exit the eyes can reach, so Delete reads "Exit" when the sentence is empty. Before the model answers, "Finish it for me" reads "Thinking of the rest…" in grey. A lit "Finish it for me" or bottom button uses the pink highlight, and the lit Finish card shows the Blink badge in place of the sparkle. Speak is greyed out while the sentence is empty. With no words yet, the sentence line reads "Pick a first word" in grey.
 - New icon from the design: the sparkle (`res/drawable/ic_sparkle.xml`).
 
