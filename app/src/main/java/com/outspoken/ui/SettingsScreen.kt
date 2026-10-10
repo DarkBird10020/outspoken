@@ -54,6 +54,9 @@ import kotlin.math.roundToLong
 fun SettingsScreen(
     tuning: Tuning,
     listenLine: String,
+    /** The card language's name when the phone has no offline voice for it. */
+    missingVoice: String?,
+    onInstallVoice: () -> Unit,
     handReading: HandReading,
     onTuningChange: (Tuning) -> Unit,
     onTuningReset: () -> Unit,
@@ -73,10 +76,7 @@ fun SettingsScreen(
         }
         AskCard(listenLine, onAsk)
         Segmented("Look up to move", "Blink only", tuning.moveByEyes) { onTuningChange(tuning.copy(moveByEyes = it)) }
-        // Not in the design (a design gap): the language of the cards, the voice and listening.
-        Segmented(AppLanguage.English.label, AppLanguage.Hindi.label, tuning.language == AppLanguage.English) { english ->
-            onTuningChange(tuning.copy(language = if (english) AppLanguage.English else AppLanguage.Hindi))
-        }
+        LanguageCard(tuning, missingVoice, onInstallVoice, onTuningChange)
         TuningCard(tuning, onTuningChange)
         HandCard(tuning, handReading, onTuningChange)
         PillButton("Model and logs", onModels, Modifier.fillMaxWidth())
@@ -184,6 +184,24 @@ private fun TuningCard(tuning: Tuning, onChange: (Tuning) -> Unit) {
  * Hand signs (not in the design, listed as a design gap): on or off, what the camera reads now,
  * and each sign on or off for this person.
  */
+/** Not in the design (a design gap): the language of the cards, the voice and listening. */
+@Composable
+private fun LanguageCard(tuning: Tuning, missingVoice: String?, onInstallVoice: () -> Unit, onChange: (Tuning) -> Unit) {
+    GlassCard(gap = 14) {
+        Text("Language", style = type(15, 500))
+        Segmented(AppLanguage.English.label, AppLanguage.Hindi.label, tuning.language == AppLanguage.English) { english ->
+            onChange(tuning.copy(language = if (english) AppLanguage.English else AppLanguage.Hindi))
+        }
+        ToggleRow("Follow the visitor: cards switch to the language they speak", tuning.autoLanguage) {
+            onChange(tuning.copy(autoLanguage = it))
+        }
+        if (missingVoice != null) {
+            Text("No offline $missingVoice voice on this phone yet", style = type(13, color = InkSoft))
+            PillButton("Download the $missingVoice voice", onInstallVoice, Modifier.fillMaxWidth())
+        }
+    }
+}
+
 @Composable
 private fun HandCard(tuning: Tuning, reading: HandReading, onChange: (Tuning) -> Unit) {
     GlassCard(gap = 14) {

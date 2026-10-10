@@ -7,12 +7,20 @@ import androidx.core.content.ContextCompat
 import com.outspoken.log.AppLog
 import com.outspoken.setup.offlineVoices
 
-/** Says sentences out loud with an offline voice. [onDone] runs on the main thread. */
-class Speaker(context: Context, private val onDone: () -> Unit) {
+/**
+ * Says sentences out loud with an offline voice. [onVoice] hears whether the language has one;
+ * [onDone] runs on the main thread.
+ */
+class Speaker(
+    context: Context,
+    private val onVoice: (found: Boolean) -> Unit = {},
+    private val onDone: () -> Unit,
+) {
 
     private val mainExecutor = ContextCompat.getMainExecutor(context)
     private lateinit var tts: TextToSpeech
     private var ready = false
+    private var hasVoice = true
 
     /** ISO 639 code of the language to speak; an Indian voice is preferred, then any offline one. */
     var language = "en"
@@ -53,6 +61,14 @@ class Speaker(context: Context, private val onDone: () -> Unit) {
         })
     }
 
+    /** The voice engine's package name, once it has started. */
+    val engine: String? get() = if (ready) tts.defaultEngine else null
+
+    /** Looks again for a voice that was missing, after the person may have downloaded it. */
+    fun checkVoice() {
+        if (ready && !hasVoice) pickVoice()
+    }
+
     fun speak(text: String) {
         if (!ready) {
             AppLog.write("speech", "not ready, skipped \"$text\"")
@@ -66,6 +82,8 @@ class Speaker(context: Context, private val onDone: () -> Unit) {
     private fun pickVoice() {
         val voices = offlineVoices(tts, language)
         val voice = voices.firstOrNull { it.locale.country == "IN" } ?: voices.firstOrNull()
+        hasVoice = voice != null
+        mainExecutor.execute { onVoice(voice != null) }
         if (voice == null) {
             AppLog.write("speech", "no offline \"$language\" voice on this phone; install it in the phone's text-to-speech settings")
             return

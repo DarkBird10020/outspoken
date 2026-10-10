@@ -47,10 +47,10 @@ Everything runs on the phone. The app has no internet permission, and CI fails a
 | **Two ways to move** | *Look up to move*: look above the phone for the next card. *Blink only*: the highlight moves on a timer, and a blink chooses. |
 | **Say anything** | Build any sentence a few words at a time: the model suggests the next four words and a finished sentence that one blink says. |
 | **Hand signs (optional)** | For someone who can still lift a hand into the camera's view: one to four fingers (thumb folded) light the first to fourth card and a fist says it, so any card can be chosen by hand; 👍 "Yes", 👎 "No", 🤟 "I love you", ✋ the whole hand open "Please wait". Held a moment (the fist a second); each sign can be switched off for a person. Off by default. |
-| **Hindi (optional)** | Settings, English / हिन्दी: the reply cards are written in Hindi by the same on-device model (nothing is translated), with a Hindi phrase bank, topic buttons and fixed cards, a Hindi voice, and the visitor heard in Hindi. Needs the phone's offline Hindi voice and speech pack. |
+| **Hindi (optional)** | Settings, English / हिन्दी: the reply cards are written in Hindi by the same on-device model (nothing is translated), with a Hindi phrase bank, topic buttons and fixed cards, a Hindi voice, and the visitor heard in Hindi. "Follow the visitor" switches the cards to the language the visitor speaks. Android's own speech service downloads the Hindi speech pack; Settings opens the voice download when the Hindi voice is missing. |
 | **Help alarm** | Eyes shut for 2 seconds, then a blink, sounds a loud alarm and shows a full-screen alert. |
 | **Calibration and practice** | Every start measures this person's eyes in about 30 seconds. A practice round teaches the blink and measures accuracy. |
-| **Listening** | On-device speech recognition hears the visitor. Typed questions and one-tap topics cover noisy rooms. |
+| **Listening** | On-device speech recognition hears the visitor, in one session that runs until the mic is switched off, with the words shown as they are said. Typed questions and one-tap topics cover noisy rooms. |
 | **Transcript and stats** | A large-type transcript for a laptop (Office Kit), and a stats screen with reply time, model speed, blink accuracy and session length. |
 | **Frequent phrases** | Sentences the person says often move to the front during a session. |
 | **Private by design** | No account, no cloud, no internet permission. Run logs stay in the app's own folder on the phone. |
