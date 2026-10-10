@@ -44,6 +44,8 @@ data class ConversationUi(
     val heard: String?,
     val replies: List<String>,
     val highlighted: Int,
+    /** Set while "Say anything" is open; its screen shows instead of the reply cards. */
+    val builder: BuilderUi? = null,
 )
 
 @Composable
@@ -108,6 +110,10 @@ fun ConversationScreen(
             FixedCard("Yes / No", ui.highlighted == Board.YES_NO, Modifier.weight(1f)) {
                 onSelect(Board.YES_NO)
             }
+        }
+        // Not in the main page design (listed as a design gap): the way into "Say anything".
+        FixedCard("Say anything", ui.highlighted == Board.SAY_ANYTHING, Modifier.fillMaxWidth()) {
+            onSelect(Board.SAY_ANYTHING)
         }
         // Not in the design yet (listed as a design gap): one-tap questions for the visitor when
         // the room is too loud for the microphone (PRD F7 fallback).

@@ -15,7 +15,7 @@ iQOO (vivo I2501, Android 16), from the app's own run logs of 2026-10-10:
 
 ## Status
 
-Working on M1 to M4 together. Look up above the phone for the next card and close your eyes for about half a second to say the lit card, or switch to blink only mode, where the highlight moves on a timer. The phone listens to the visitor's question, and Gemma on the phone writes four replies that fit; the built-in phrase bank shows while it thinks and whenever it fails. A practice round, a help alarm, a stats screen and a live transcript are built.
+Working on M1 to M4 together. Look up above the phone for the next card and close your eyes for about half a second to say the lit card, or switch to blink only mode, where the highlight moves on a timer. The phone listens to the visitor's question, and Gemma on the phone writes four replies that fit; the built-in phrase bank shows while it thinks and whenever it fails. A practice round, a help alarm, a stats screen, a live transcript and "Say anything" (build any sentence a few words at a time) are built.
 
 ## Setup
 
@@ -38,6 +38,7 @@ To run exactly the same app on two phones, install the CI APK (`outspoken-debug-
 2. On the main page, the visitor asks a question out loud. It shows on the "Heard" card and four replies appear.
 3. The speaker moves the highlight and closes both eyes for about half a second to say the lit card.
 4. Holding the eyes shut for 2 s (a beep), then opening them and closing them again within 5 s, as a blink or a longer close, sounds the help alarm.
+5. To say something the cards do not offer, choose "Say anything": pick words one at a time (the model suggests the next four, and a finished sentence that one blink says), then Speak.
 
 Two ways to move the highlight, switched on the eye check page:
 - **Eyes** (default): look up, above the phone, for the next card; it wraps round. Looking down and winks can be switched on too.
@@ -45,11 +46,11 @@ Two ways to move the highlight, switched on the eye check page:
 
 Buttons on the main page, top right:
 - **Star**: practice round. Catch three stars by blinking; it sets the blink length and gives the blink accuracy on the stats screen.
-- **Eye**: eye check page. Live graph of both eyes with the shut and open lines, OPEN / SHUT in large letters, the gaze box, the last decisions, the mode switches and sliders, "Calibrate my eyes", "Choose model file", "Share logs" and "Save logs". Sized to be read from about two metres for a demo.
+- **Eye**: eye check page. The live camera, a graph of both eyes against the shut and open lines, where the eyes look, the camera speed and the last blink decision. Its sliders button opens **Settings**: the typed question and topic buttons, "Look up to move" or "Blink only", the tuning sliders, Reset and "Calibrate, 30 s". From Settings, **Model and logs**: download or switch the Gemma model, "Choose a model file", reply speed, the build, "Share logs" and "Save logs".
 - **Transcript**: the conversation in large type, for a laptop through Office Kit.
 - **Stats**: reply time, model speed, blink accuracy, session length, sentences spoken.
 
-Run logs stay on the phone in `Android/data/com.outspoken/files/logs/`. Tap "Share logs" on the eye check page to send them to another app, or "Save logs" to keep a copy; on a laptop, `tools/phone-logs.ps1` copies them over USB or wireless debugging. Logs are never committed: they hold what people said.
+Run logs stay on the phone in `Android/data/com.outspoken/files/logs/`. Tap "Share logs" on the Model screen (eye button, then the sliders button, then "Model and logs") to send them to another app, or "Save logs" to keep a copy; on a laptop, `tools/phone-logs.ps1` copies them over USB or wireless debugging. Logs are never committed: they hold what people said.
 
 ## Checks
 

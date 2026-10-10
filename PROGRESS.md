@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: the eye check, settings, model and calibration screens are built from the teammate's designs. Waiting for the phone test.
+Latest: "Say anything" is built from the design: build any sentence by eyes, a few words at a time, with the model suggesting the next words and a finished sentence. The eye check, settings, model and calibration screens follow the new designs. Waiting for the phone test.
 
 Also: choosing now needs the eyes held shut for 0.4 s. The phone logs of 2026-10-10 showed unprompted blinks of 200 to 242 ms picking cards ("I need water" five times in 11 s) and a double blink picking one, so the hold went up from 0.2 s and double blinks are off by default. Listening no longer drops the working on-device recogniser when the phone speaks. Time with no face no longer counts as eyes shut (a close seen under 0.2 s, then the face lost for 0.2 s, picked a card). The model now starts with Gemma 4's own drafter (MTP) on the GPU for faster replies, falling back to the plain GPU and then the CPU. Model replies now fit a person in bed being cared for (no more "I want a glass of wine" small talk) and avoid repeating cards just passed over. Also: laptop builds can sign with the shared key (`~/.android/outspoken-debug.keystore`), so any APK installs over the last one and nothing is uninstalled; a model picked with "Choose model file" is found at every start. Models stay in Downloads across reinstalls. Waiting for the phone test.
 
@@ -114,6 +114,26 @@ How to test on the phone: eye check page → Share logs → a chat app; the file
 - [ ] **Listening keeps working after the phone speaks.** Error 5 after each pause dropped the working on-device recogniser for the normal one, which then failed with error 13 every 5 s. Code: `listen/Listener.kt`.
 
 How to test on the phone: look at the screen normally for a minute with "I need water" lit; nothing should be said. Then close both eyes about half a second, ten times; each one should say it. Ask a question aloud after each; the heard text should show. Tap "Save logs" and send the file.
+
+## Say anything: build any sentence (owner request, design of 2026-10-10)
+
+- [ ] **A "Say anything" card on the main page**, after "More options" and "Yes / No", reachable by eyes like every card. It opens the builder. Code: `conversation/Board.kt` (`SAY_ANYTHING`), `ui/ConversationScreen.kt`.
+- [ ] **Your sentence** at the top (where "Heard" sits), with the word count. Below it **"Finish it for me"**: the model's guess at the whole sentence; one blink says it. Then **four next words** (one to three words each), and **More words, Delete, Speak**. Code: `ui/SayAnythingScreen.kt`.
+- [ ] **Words show at once** from a built-in list of common next words (after "I": want, need, am, feel...), and the model's four words replace them when they arrive; if the model fails, the built-in words stay, as the phrase bank does for replies. Code: `conversation/SentenceBuilder.kt` (`SentenceBuilder`, `CommonWords`).
+- [ ] **The model is asked once per word step** for a JSON list of 5 strings: the finished sentence, then 4 next words. Same model, same runtime, same list parser as the replies; the answer is checked (the finished sentence must start with the sentence so far; words must be 1 to 3 words, not repeats, not the word just picked). Code: `suggest/WordPrompt.kt`, `suggest/ModelSuggestionEngine.kt` (`nextWords`), `MainActivity.kt` (`requestWords`).
+- [ ] **Each word step's model time is in the log**: `model: words in N ms, T tok/s, from the model for "I want"`, so the real number can be read.
+- [ ] **Everything by eyes:** words, More words, Delete, Speak and Finish are cards the highlight moves over (words first, Finish last). **Delete on an empty sentence reads Exit** and leaves without speaking. The back button does the same for the person at the bedside.
+- [ ] **Speak** says the whole sentence, adds it to the conversation and to the frequent phrases, and new replies are asked for, as after any card.
+- [ ] **No pick lands on a word not seen:** when the words change (a pick, or the model's words arriving) the highlight goes back to the first word, and a blink that began before the change picks nothing.
+- Tests: `SentenceBuilderTest`, `WordPromptTest`, `SayAnythingTest` (open, build, model words and stale answers, Speak, Finish, Delete and Exit, back button, More words, by eyes).
+- Tests changed on purpose: the main page has a seventh card, so `BoardTest` "first page leads with water" and "more options pages through and wraps", and `EyeModeTest` "looking up from the top wraps to the last card", "with looking down off a look up moves to the next card and wraps round", "a blink on More options opens the next page" and "a look fired just before a wink is taken back" now count "Say anything" as the last card.
+
+How to test on the phone:
+1. On the main page, move to "Say anything" and close your eyes about half a second.
+2. Pick "I", then a next word. The words change after each pick; within about a second the model's words and "Finish it for me" appear.
+3. Pick a few words, then "Speak": the phone says the sentence and it shows in the transcript.
+4. Open it again, pick one word, then Delete twice: the second Delete reads "Exit" and goes back to the main page.
+5. Share logs and look for the "words in ... ms" lines.
 
 ## Choosing reliably (goal: "I need water" ten times in a row, no wrong card, no missed blink)
 
@@ -539,7 +559,6 @@ The four designed screens are built exactly from the design file, as stand-alone
 - [ ] **Settings** (design of 2026-10-10), opened with the sliders button on eye check: the typed question with Ask and the topic buttons; "Look up to move / Blink only"; the tuning sliders (shut line, open line, shortest and longest blink, look hold, or scan speed in blink only); Reset and "Calibrate, 30 s". Code: `ui/SettingsScreen.kt`, `ui/Controls.kt`.
 - [ ] **Model** (design of 2026-10-10), opened with "Model and logs" in settings: status pill, Gemma 4 E2B and E4B with Download, Use or In use, "Choose a model file", the newest reply time and model speed, offline voice, build, Share logs and Save logs. Code: `ui/ModelsScreen.kt`.
 - [ ] **Calibration** (design of 2026-10-10): "Step n of 5", the spoken prompt as the heading, the live camera, which step is measured with five bars and what comes next, eyes open value and time left, "Skip for now". Code: `ui/CalibrationScreen.kt`, `setup/Calibration.kt` (`Step.stage`, `totalMs`). Tests: `CalibrationTest` "the screen steps run in order from 1 to 5 and end on done", "the whole calibration takes one step length for each step before done".
-- Not built yet: "Say anything" (the sentence builder design); it is the next step.
 
 Unit tests:
 - `FormatTest`: how numbers on the stats and practice screens are written ("1.2 s", "24 tok/s", "04:12", "-" when not measured).
@@ -561,6 +580,9 @@ Design gaps, for the teammate to decide. Each uses the closest existing style fo
 - Model: why a model is missing or failed shows as a grey line under the heading; "Allow access to Downloads" is a pink button when access is off; the status pill reads Loading, Could not load or No model yet when not ready; the build card adds a second line saying which signing key the APK has.
 - Calibration: the design's subtitle says "until you hear the tone"; the app speaks each step instead, so it reads "until the next step is spoken". A failed calibration shows the reason as the heading with "Skip for now" and a pink "Try again".
 - New icon from the design: the sliders icon (`res/drawable/ic_settings.xml`).
+- Main page: "Say anything" is a full-width fixed card under "More options" and "Yes / No"; the main page design has no way into it.
+- Say anything: the design has no exit the eyes can reach, so Delete reads "Exit" when the sentence is empty. Before the model answers, "Finish it for me" reads "Thinking of the rest…" in grey. A lit "Finish it for me" or bottom button uses the pink highlight, and the lit Finish card shows the Blink badge in place of the sparkle. Speak is greyed out while the sentence is empty. With no words yet, the sentence line reads "Pick a first word" in grey.
+- New icon from the design: the sparkle (`res/drawable/ic_sparkle.xml`).
 
 ## CI checks
 
@@ -577,5 +599,4 @@ Run on every push and pull request (`.github/workflows/ci.yml`). The `main` rule
 1. Owner runs the M1 pass test on the iQOO: "I need water" ten times in a row, in "Look up to move" and in "Blink only". Send the counts and the logs ("Share logs" on the Model screen). Then M0 and M1 can be marked.
 2. The M2 to M4 pass tests: a stranger's question in airplane mode, then help alarm, stats and transcript in one run.
 3. Owner sends the shared debug keystore to each laptop (`~/.android/outspoken-debug.keystore`) so every APK installs over the last one.
-4. "Say anything" sentence builder, from the teammate's design.
-5. M5: freeze, video, README, APK, submission, pitch rehearsals.
+4. M5: freeze, video, README, APK, submission, pitch rehearsals.

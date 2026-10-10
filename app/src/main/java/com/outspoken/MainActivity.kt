@@ -57,6 +57,7 @@ import com.outspoken.suggest.OnDeviceModel
 import com.outspoken.suggest.SuggestionEngine
 import com.outspoken.suggest.SuggestionRequest
 import com.outspoken.suggest.Turn
+import com.outspoken.suggest.WordRequest
 import com.outspoken.ui.CalibrationScreen
 import com.outspoken.ui.ConversationScreen
 import com.outspoken.ui.EyeCheckScreen
@@ -65,6 +66,7 @@ import com.outspoken.ui.PracticeScreen
 import com.outspoken.ui.HelpAlertScreen
 import com.outspoken.ui.ModelPageUi
 import com.outspoken.ui.ModelsScreen
+import com.outspoken.ui.SayAnythingScreen
 import com.outspoken.ui.SettingsScreen
 import com.outspoken.ui.StatsScreen
 import com.outspoken.ui.StatsUi
@@ -101,6 +103,7 @@ class MainActivity : ComponentActivity() {
         log = AppLog,
         gaze = gazeStepper,
         requestReplies = ::requestReplies,
+        requestWords = ::requestWords,
         onHelp = ::onHelpStep,
     )
     private val analyzerExecutor = Executors.newSingleThreadExecutor()
@@ -139,6 +142,7 @@ class MainActivity : ComponentActivity() {
     private var modelRows by mutableStateOf<List<ModelRow>>(emptyList())
     private var canSeeDownloads by mutableStateOf(false)
     private var replyJob: Job? = null
+    private var wordJob: Job? = null
 
     private val logSaver =
         registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri -> uri?.let(::saveLogs) }
@@ -393,7 +397,17 @@ class MainActivity : ComponentActivity() {
                 }
             } else {
                 val conversation by controller.ui.collectAsStateWithLifecycle()
-                OutspokenTheme {
+                val building = conversation.builder
+                if (building != null) {
+                    OutspokenTheme {
+                        SayAnythingScreen(
+                            ui = building,
+                            highlighted = conversation.highlighted,
+                            onSelect = { controller.onTap(it, now()) },
+                            onExit = { controller.closeSayAnything(now()) },
+                        )
+                    }
+                } else OutspokenTheme {
                     ConversationScreen(
                         ui = conversation,
                         onPractice = {
@@ -614,6 +628,23 @@ class MainActivity : ComponentActivity() {
         AppLog.write("ui", "screen $next")
         screen = next
         updateListening()
+    }
+
+    /** Next words for "Say anything"; each step's reply time goes in the log. */
+    private fun requestWords(requestId: Int, turns: List<Turn>, sentence: String): Boolean {
+        val engine = suggestionEngine ?: return false
+        wordJob?.cancel()
+        wordJob = lifecycleScope.launch {
+            val words = engine.nextWords(WordRequest(turns, sentence))
+            AppLog.write(
+                "model",
+                "words in ${words.elapsedMs} ms, ${words.tokensPerSecond ?: "-"} tok/s, " +
+                    (if (words.fromModel) "from the model" else "built-in words only") +
+                    " for \"$sentence\"" + (words.timing?.let { ", $it" } ?: ""),
+            )
+            controller.onWords(requestId, words.words, words.completion, now())
+        }
+        return true
     }
 
     private fun requestReplies(requestId: Int, turns: List<Turn>): Boolean {

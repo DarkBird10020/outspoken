@@ -60,9 +60,9 @@ class EyeModeTest {
     fun `looking up from the top wraps to the last card`() {
         frames(500)
         lookUp()
-        assertEquals(Board.YES_NO, highlighted)
+        assertEquals(Board.SAY_ANYTHING, highlighted)
         lookUp()
-        assertEquals(Board.MORE_OPTIONS, highlighted)
+        assertEquals(Board.YES_NO, highlighted)
     }
 
     @Test
@@ -71,7 +71,7 @@ class EyeModeTest {
         frames(500)
         lookUp()
         assertEquals(1, highlighted)
-        repeat(5) { lookUp() }
+        repeat(6) { lookUp() }
         assertEquals(0, highlighted)
         blink()
         assertEquals(listOf("I need water"), said)
@@ -97,6 +97,7 @@ class EyeModeTest {
     @Test
     fun `a blink on More options opens the next page`() {
         frames(500)
+        lookUp()
         lookUp()
         lookUp()
         blink()
@@ -268,7 +269,7 @@ class EyeModeTest {
         frames(500)
         // Phone 02:29:49: the eye starting to close read as a look up 0.4 s before the wink.
         frames(500, gazeY = -0.7f)
-        assertEquals(Board.YES_NO, highlighted)
+        assertEquals(Board.SAY_ANYTHING, highlighted)
         eyes(500, 0.05f, 0.95f)
         frames(1_100)
         assertEquals(1, highlighted)
