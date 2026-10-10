@@ -64,6 +64,7 @@ import com.outspoken.ui.EyeCheckScreen
 import com.outspoken.ui.EyeMonitor
 import com.outspoken.ui.PracticeScreen
 import com.outspoken.ui.HelpAlertScreen
+import com.outspoken.ui.LiveStatsLine
 import com.outspoken.ui.ModelPageUi
 import com.outspoken.ui.ModelsScreen
 import com.outspoken.ui.SayAnythingScreen
@@ -72,6 +73,7 @@ import com.outspoken.ui.StatsScreen
 import com.outspoken.ui.StatsUi
 import com.outspoken.ui.TranscriptScreen
 import com.outspoken.ui.TranscriptUi
+import com.outspoken.ui.liveStatsLine
 import com.outspoken.ui.theme.OutspokenTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -281,7 +283,14 @@ class MainActivity : ComponentActivity() {
                 }
                 val modelState by OnDeviceModel.state.collectAsStateWithLifecycle()
                 OutspokenTheme {
-                    StatsScreen(statsUi(nowMs, modelState, phoneTemp), onBack = { show(Screen.Conversation) })
+                    StatsScreen(
+                        statsUi(nowMs, modelState, phoneTemp),
+                        onBack = { show(Screen.Conversation) },
+                        onAsk = { question ->
+                            AppLog.write("listen", "quick topic \"$question\" on the stats screen")
+                            controller.onHeard(question, now())
+                        },
+                    )
                 }
             } else if (screen == Screen.Help) {
                 BackHandler { stopHelp() }
@@ -433,6 +442,11 @@ class MainActivity : ComponentActivity() {
                         eyeView = { modifier ->
                             val sample by eyeReader.samples.collectAsStateWithLifecycle()
                             EyeMonitor(sample, tuning.blink, camera::showPreview, camera::hidePreview, modifier)
+                        },
+                        liveStats = {
+                            LiveStatsLine(STATS_REFRESH_MS) {
+                                liveStatsLine(pitStats.replyTimeSeconds(now()), pitStats.tokensPerSecond, pitStats.repliesWritten)
+                            }
                         },
                     )
                 }
@@ -663,11 +677,13 @@ class MainActivity : ComponentActivity() {
         replyJob = lifecycleScope.launch {
             val suggestions = engine.suggest(SuggestionRequest(turns, LocalTime.now().hour))
             lastReply = suggestions.elapsedMs / 1000f to suggestions.tokensPerSecond
-            pitStats.onReplies(suggestions.elapsedMs, suggestions.fromModel, suggestions.tokensPerSecond)
+            pitStats.onReplies(suggestions.elapsedMs, suggestions.fromModel, suggestions.tokensPerSecond, suggestions.modelReplies)
+            val toppedUp = suggestions.replies.size - suggestions.modelReplies
             AppLog.write(
                 "model",
                 "replies in ${suggestions.elapsedMs} ms, ${suggestions.tokensPerSecond ?: "-"} tok/s, " +
                     (if (suggestions.fromModel) "from the model" else "phrase bank fallback") +
+                    (if (suggestions.fromModel && toppedUp > 0) " ($toppedUp topped up from the phrase bank)" else "") +
                     ", phone ${phoneTemperature() ?: "-"} °C, thermal ${thermalLabel(power.currentThermalStatus)}" +
                     (suggestions.timing?.let { ", $it" } ?: ""),
             )

@@ -26,6 +26,12 @@ class FormatTest {
     }
 
     @Test
+    fun `live line for the main page`() {
+        assertEquals("Reply 0.9 s · 61 tok/s · 8 replies written", liveStatsLine(0.86f, 61.1f, 8))
+        assertEquals("Reply - · - tok/s · 0 replies written", liveStatsLine(null, null, 0))
+    }
+
+    @Test
     fun `clock shows minutes and seconds`() {
         assertEquals("00:00", formatClock(0))
         assertEquals("04:12", formatClock(252_000))

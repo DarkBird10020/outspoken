@@ -18,6 +18,12 @@ import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,6 +43,7 @@ import com.outspoken.ui.theme.Surfaces
 import com.outspoken.ui.theme.dottedCanvas
 import com.outspoken.ui.theme.surface
 import com.outspoken.ui.theme.type
+import kotlinx.coroutines.delay
 
 /**
  * [highlighted] is a card id from [Board]: 0 to 3 for replies, or one of the two fixed cards.
@@ -62,6 +69,7 @@ fun ConversationScreen(
     eyeHint: String? = null,
     eyeView: (@Composable (Modifier) -> Unit)? = null,
     onAsk: ((String) -> Unit)? = null,
+    liveStats: (@Composable () -> Unit)? = null,
 ) {
     DesignScreen(Modifier.dottedCanvas(), gap = 14.dp) {
         Row(
@@ -94,6 +102,9 @@ fun ConversationScreen(
                 .clip(RoundedCornerShape(24.dp))
         )
         eyeHint?.let { Text(it, style = type(15, color = InkSoft)) }
+        // Not in the design yet (listed as a design gap): the model's numbers, live, so they can be
+        // watched changing while the person talks (owner request).
+        liveStats?.invoke()
         ui.heard?.let { HeardCard(it) }
         Column(
             Modifier
@@ -125,27 +136,48 @@ fun ConversationScreen(
         }
         // Not in the design yet (listed as a design gap): one-tap questions for the visitor when
         // the room is too loud for the microphone (PRD F7 fallback).
-        onAsk?.let { ask ->
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                QuickTopics.all.forEach { (label, question) ->
-                    Text(
-                        label,
-                        style = type(15, 500),
-                        modifier = Modifier
-                            .surface(Surfaces.Glass, RoundedCornerShape(20.dp))
-                            .clickable(role = Role.Button, onClickLabel = question) { ask(question) }
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                    )
-                }
-            }
-        }
+        onAsk?.let { QuickTopicRow(it) }
         FooterNote("Runs on this phone. No internet.")
     }
+}
+
+/** One-tap questions for the visitor, a row that scrolls sideways. */
+@Composable
+fun QuickTopicRow(onAsk: (String) -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        QuickTopics.all.forEach { (label, question) ->
+            Text(
+                label,
+                style = type(15, 500),
+                modifier = Modifier
+                    .surface(Surfaces.Glass, RoundedCornerShape(20.dp))
+                    .clickable(role = Role.Button, onClickLabel = question) { onAsk(question) }
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+            )
+        }
+    }
+}
+
+/**
+ * A line of text that [read] fills again every [refreshMs]. Only this line redraws, and only when
+ * the text changes.
+ */
+@Composable
+fun LiveStatsLine(refreshMs: Long, read: () -> String) {
+    val latestRead by rememberUpdatedState(read)
+    var text by remember { mutableStateOf(read()) }
+    LaunchedEffect(refreshMs) {
+        while (true) {
+            text = latestRead()
+            delay(refreshMs)
+        }
+    }
+    Text(text, style = type(14, color = InkSoft), maxLines = 1)
 }
 
 @Composable

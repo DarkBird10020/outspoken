@@ -17,8 +17,8 @@ class PitStatsTest {
 
     @Test
     fun `the latest model answer shows, not an average`() {
-        stats.onReplies(1_200, fromModel = true, tokensPerSecond = 20f)
-        stats.onReplies(1_800, fromModel = true, tokensPerSecond = 30f)
+        stats.onReplies(1_200, fromModel = true, tokensPerSecond = 20f, modelReplies = 4)
+        stats.onReplies(1_800, fromModel = true, tokensPerSecond = 30f, modelReplies = 4)
         assertEquals(1.8f, stats.replyTimeSeconds(10_000)!!, 0.001f)
         assertEquals(30f, stats.tokensPerSecond!!, 0.001f)
         assertEquals(8, stats.repliesWritten)
@@ -26,11 +26,11 @@ class PitStatsTest {
 
     @Test
     fun `reply time counts up while the model writes, then holds`() {
-        stats.onReplies(1_500, fromModel = true, tokensPerSecond = 40f)
+        stats.onReplies(1_500, fromModel = true, tokensPerSecond = 40f, modelReplies = 4)
         stats.onAsked(10_000)
         assertEquals(0f, stats.replyTimeSeconds(10_000)!!, 0.001f)
         assertEquals(0.4f, stats.replyTimeSeconds(10_400)!!, 0.001f)
-        stats.onReplies(900, fromModel = true, tokensPerSecond = 60f)
+        stats.onReplies(900, fromModel = true, tokensPerSecond = 60f, modelReplies = 4)
         assertEquals(0.9f, stats.replyTimeSeconds(20_000)!!, 0.001f)
         assertEquals(60f, stats.tokensPerSecond!!, 0.001f)
     }
@@ -44,9 +44,9 @@ class PitStatsTest {
 
     @Test
     fun `fallbacks are kept apart from model answers`() {
-        stats.onReplies(1_000, fromModel = true, tokensPerSecond = 25f)
+        stats.onReplies(1_000, fromModel = true, tokensPerSecond = 25f, modelReplies = 4)
         stats.onAsked(10_000)
-        stats.onReplies(300, fromModel = false, tokensPerSecond = null)
+        stats.onReplies(300, fromModel = false, tokensPerSecond = null, modelReplies = 0)
         assertEquals(1f, stats.replyTimeSeconds(20_000)!!, 0.001f)
         assertEquals(1, stats.fallbackCount)
         assertEquals(4, stats.repliesWritten)
@@ -54,10 +54,17 @@ class PitStatsTest {
 
     @Test
     fun `answers without a speed still count and keep the last speed`() {
-        stats.onReplies(1_000, fromModel = true, tokensPerSecond = 40f)
-        stats.onReplies(1_100, fromModel = true, tokensPerSecond = null)
+        stats.onReplies(1_000, fromModel = true, tokensPerSecond = 40f, modelReplies = 4)
+        stats.onReplies(1_100, fromModel = true, tokensPerSecond = null, modelReplies = 4)
         assertEquals(8, stats.repliesWritten)
         assertEquals(40f, stats.tokensPerSecond!!, 0.001f)
+    }
+
+    @Test
+    fun `only cards the model wrote are counted, not phrase bank top ups`() {
+        stats.onReplies(1_000, fromModel = true, tokensPerSecond = 40f, modelReplies = 4)
+        stats.onReplies(1_100, fromModel = true, tokensPerSecond = 40f, modelReplies = 2)
+        assertEquals(6, stats.repliesWritten)
     }
 
     @Test

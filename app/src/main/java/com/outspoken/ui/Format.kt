@@ -13,6 +13,10 @@ fun formatSeconds(seconds: Float?): String =
 fun formatWhole(value: Float?, unit: String = ""): String =
     value?.let { "${it.roundToInt()}$unit" } ?: UNKNOWN
 
+/** The model's live numbers in one line for the main page: "Reply 0.9 s · 61 tok/s · 8 replies written". */
+fun liveStatsLine(replyTimeSeconds: Float?, tokensPerSecond: Float?, repliesWritten: Int): String =
+    "Reply ${formatSeconds(replyTimeSeconds)} · ${formatWhole(tokensPerSecond)} tok/s · $repliesWritten replies written"
+
 /** Session length as minutes and seconds, "MM:SS". */
 fun formatClock(millis: Long): String {
     val totalSeconds = (millis / 1000).coerceAtLeast(0)
