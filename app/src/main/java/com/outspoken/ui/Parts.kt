@@ -24,6 +24,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -31,6 +33,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.outspoken.R
 import com.outspoken.ui.theme.Ink
 import com.outspoken.ui.theme.InkSoft
@@ -78,14 +81,22 @@ fun Pill(
 }
 
 @Composable
-fun DotPill(text: String, dot: Color, style: SurfaceStyle = Surfaces.Glass) {
-    Pill(style) {
+fun DotPill(text: String, dot: Color, style: SurfaceStyle = Surfaces.Glass, modifier: Modifier = Modifier) {
+    Pill(style, modifier) {
         Box(
             Modifier
                 .size(10.dp)
                 .surface(SurfaceStyle(base = dot), CircleShape)
         )
-        Text(text, style = type(15, 500))
+        // Shrinks rather than pushing buttons beside it off the screen ("Looking for you" next to
+        // four round buttons did, on the phone at 08:20).
+        BasicText(
+            text,
+            style = type(15, 500),
+            maxLines = 1,
+            softWrap = false,
+            autoSize = TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 15.sp, stepSize = 1.sp),
+        )
     }
 }
 

@@ -1,0 +1,64 @@
+name: Bug report
+description: Something in the app does not work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting. Please do not paste anything a person said near the phone; describe it instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+      placeholder: A normal blink chose "I need water" while I was reading the cards.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the app and finish calibration
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: Build
+      description: Shown on the Model screen (eye button, sliders button, Model and logs).
+      placeholder: 3da8a1a2, CI APK
+    validations:
+      required: true
+  - type: input
+    id: phone
+    attributes:
+      label: Phone and Android version
+      placeholder: iQOO 15, Android 16
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      options:
+        - Look up to move
+        - Blink only
+        - Not about choosing
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      placeholder: Gemma 4 E2B, ready on GPU with MTP
+  - type: textarea
+    id: logs
+    attributes:
+      label: Run logs
+      description: The relevant lines from "Share logs" or `adb logcat -s Outspoken`. Remove anything people said.
+      render: text
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Glasses, lighting, how far away the phone stood, screenshots.
