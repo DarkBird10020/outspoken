@@ -330,7 +330,15 @@ class MainActivity : ComponentActivity() {
                         onPreviewReady = camera::showPreview,
                         onPreviewGone = camera::hidePreview,
                         onRetry = ::startCalibration,
-                        onSkip = { show(Screen.Conversation) },
+                        onSkip = {
+                            val b = tuning.blink
+                            AppLog.write(
+                                "calibration",
+                                "skipped; the last lines stay: shut ${fmt(b.closedBelow)}, open ${fmt(b.openAbove)}, " +
+                                    "lid gap shut ${b.shapeClosedBelow?.let { fmt(it) } ?: "off"}, open ${b.shapeOpenAbove?.let { fmt(it) } ?: "off"}",
+                            )
+                            show(Screen.Conversation)
+                        },
                     )
                 }
             } else if (!cameraGranted || screen == Screen.EyeCheck) {
