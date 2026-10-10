@@ -48,6 +48,15 @@ object ModelCatalog {
     fun atStart(chosen: ModelChoice?, isHere: (ModelChoice) -> Boolean): ModelChoice? =
         chosen?.takeIf(isHere) ?: E2B.takeIf(isHere)
 
+    /**
+     * Whether a loaded file is [choice]: its own name, or the browser's copy of it ("name (1)"),
+     * which is what loads when the first download was damaged.
+     */
+    fun isFileOf(choice: ModelChoice, fileName: String): Boolean {
+        val stem = choice.fileName.removeSuffix(".litertlm")
+        return fileName == choice.fileName || (fileName.startsWith("$stem (") && fileName.endsWith(").litertlm"))
+    }
+
     fun byFileName(name: String?): ModelChoice? = all.firstOrNull { it.fileName == name }
 
     /**

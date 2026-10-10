@@ -763,8 +763,8 @@ class MainActivity : ComponentActivity() {
         modelRows = ModelCatalog.all.map { choice ->
             val here = modelShelf.installed(choice) != null
             val status = when {
-                state is ModelState.Ready && state.name == choice.fileName -> "in use, on ${state.backend}"
-                state is ModelState.Loading && state.name == choice.fileName -> "loading"
+                state is ModelState.Ready && ModelCatalog.isFileOf(choice, state.name) -> "in use, on ${state.backend}"
+                state is ModelState.Loading && ModelCatalog.isFileOf(choice, state.name) -> "loading"
                 here -> "downloaded"
                 waiting == choice -> "downloading in the browser, loads by itself when done"
                 else -> "not downloaded"

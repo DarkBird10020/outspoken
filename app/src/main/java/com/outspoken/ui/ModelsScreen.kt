@@ -7,9 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -58,7 +56,7 @@ fun ModelsScreen(
     onSaveLogs: () -> Unit,
     onBack: () -> Unit,
 ) {
-    DesignScreen(Modifier.dottedCanvas().verticalScroll(rememberScrollState()), gap = 14.dp) {
+    DesignScreen(Modifier.dottedCanvas(), gap = 14.dp, scrolls = true) {
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -97,11 +95,11 @@ fun ModelsScreen(
                 }
                 Column(Modifier.padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp), horizontalAlignment = Alignment.End) {
                     Text("Build", style = type(13, color = InkSoft))
-                    Text(ui.buildLine.substringBefore(','), style = type(18, 500))
+                    Text(ui.buildLine.substringBefore(' '), style = type(18, 500))
                 }
             }
             // Not in the design: whether this APK can install over the others (signing key).
-            Text(ui.buildLine.substringAfter(", ", ""), style = type(13, color = InkFaint))
+            Text(ui.buildLine.substringAfter(' ', "").replaceFirstChar { it.uppercase() }, style = type(13, color = InkFaint))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             PillButton("Share logs", onShareLogs, Modifier.weight(1f))

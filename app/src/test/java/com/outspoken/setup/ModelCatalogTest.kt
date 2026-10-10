@@ -1,6 +1,8 @@
 package com.outspoken.setup
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -68,5 +70,13 @@ class ModelCatalogTest {
         val size = ModelCatalog.E2B.sizeBytes
         val files = listOf("gemma-4-E2B-it.litertlm" to size, "gemma-4-E2B-it (1).litertlm" to size, "gemma-4-E2B-it (2).litertlm" to 10L)
         assertEquals(listOf("gemma-4-E2B-it.litertlm", "gemma-4-E2B-it (1).litertlm"), ModelCatalog.findDownloads(ModelCatalog.E2B, files))
+    }
+
+    @Test
+    fun `a browser copy of a model counts as that model, another model does not`() {
+        assertTrue(ModelCatalog.isFileOf(ModelCatalog.E2B, "gemma-4-E2B-it.litertlm"))
+        assertTrue(ModelCatalog.isFileOf(ModelCatalog.E2B, "gemma-4-E2B-it (1).litertlm"))
+        assertFalse(ModelCatalog.isFileOf(ModelCatalog.E2B, "gemma-4-E4B-it.litertlm"))
+        assertFalse(ModelCatalog.isFileOf(ModelCatalog.E2B, "gemma-4-E2B-it-gpu.litertlm"))
     }
 }

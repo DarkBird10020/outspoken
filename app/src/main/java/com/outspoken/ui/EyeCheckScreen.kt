@@ -14,10 +14,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -109,7 +107,7 @@ fun EyeCheckScreen(
         while (history.isNotEmpty() && sample.timeMs - history.first().timeMs > GRAPH_MS) history.removeAt(0)
     }
 
-    DesignScreen(Modifier.dottedCanvas().verticalScroll(rememberScrollState()), gap = 14.dp) {
+    DesignScreen(Modifier.dottedCanvas(), gap = 14.dp, scrolls = true) {
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -280,8 +278,8 @@ private fun GazeTile(gaze: Dot?, restGaze: Float?, irisY: Float?, restIris: Floa
         modifier
             .height(92.dp)
             .surface(Surfaces.Glass, RoundedCornerShape(24.dp))
-            .padding(horizontal = 18.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Canvas(
@@ -300,7 +298,7 @@ private fun GazeTile(gaze: Dot?, restGaze: Float?, irisY: Float?, restIris: Floa
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text("Gaze", style = type(13, color = InkSoft))
-            Text(gazeWords(value), style = type(20, 500))
+            Text(gazeWords(value), style = type(20, 500), maxLines = 1, softWrap = false)
         }
     }
 }

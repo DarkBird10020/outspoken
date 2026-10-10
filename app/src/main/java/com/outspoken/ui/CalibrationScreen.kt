@@ -5,10 +5,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -23,7 +23,6 @@ import com.outspoken.blink.BlinkSettings
 import com.outspoken.eye.EyeSample
 import com.outspoken.setup.Calibration
 import com.outspoken.ui.theme.BoxShadow
-import com.outspoken.ui.theme.Ink
 import com.outspoken.ui.theme.InkSoft
 import com.outspoken.ui.theme.SurfaceStyle
 import com.outspoken.ui.theme.Surfaces
@@ -74,7 +73,9 @@ fun CalibrationScreen(
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(300.dp)
+                // The design's 300 dp, giving way when a two-line heading needs the room.
+                .weight(1f)
+                .heightIn(max = 300.dp)
                 .surface(Surfaces.Camera, RoundedCornerShape(28.dp))
                 .clip(RoundedCornerShape(28.dp)),
         ) {
@@ -116,7 +117,6 @@ fun CalibrationScreen(
             Tile("Eyes open", open.formatOpen(), Modifier.weight(1f))
             Tile("Time left", "$secondsLeft s", Modifier.weight(1f))
         }
-        Spacer(Modifier.weight(1f))
         if (failed) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 PillButton("Skip for now", onSkip, Modifier.weight(1f), height = 60, size = 18, weight = 600)
