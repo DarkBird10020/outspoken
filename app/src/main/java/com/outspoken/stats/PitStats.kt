@@ -10,11 +10,14 @@ class PitStats(private val startedMs: Long) {
     private var askedAtMs: Long? = null
     private var lastReplyMs: Long? = null
     private var lastTokenRate: Float? = null
-    private var answers = 0
+    private var written = 0
     private var fallbacks = 0
 
-    /** Reply cards the model has written, four per answer. */
-    val repliesWritten get() = answers * REPLIES_PER_ANSWER
+    /**
+     * Reply cards the model has written. Phrase bank cards that topped up a short answer are not
+     * counted: four per answer was counted before, whatever the model gave.
+     */
+    val repliesWritten get() = written
 
     val fallbackCount get() = fallbacks
 
@@ -33,20 +36,17 @@ class PitStats(private val startedMs: Long) {
         askedAtMs = nowMs
     }
 
-    fun onReplies(elapsedMs: Long, fromModel: Boolean, tokensPerSecond: Float?) {
+    /** [modelReplies] is how many of the cards the model wrote. */
+    fun onReplies(elapsedMs: Long, fromModel: Boolean, tokensPerSecond: Float?, modelReplies: Int) {
         askedAtMs = null
         if (!fromModel) {
             fallbacks++
             return
         }
-        answers++
+        written += modelReplies
         lastReplyMs = elapsedMs
         tokensPerSecond?.let { lastTokenRate = it }
     }
 
     fun sessionMillis(nowMs: Long) = (nowMs - startedMs).coerceAtLeast(0)
-
-    private companion object {
-        const val REPLIES_PER_ANSWER = 4
-    }
 }

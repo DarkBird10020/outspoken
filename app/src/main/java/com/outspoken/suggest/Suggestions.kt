@@ -7,7 +7,8 @@ data class SuggestionRequest(val turns: List<Turn>, val hourOfDay: Int)
 
 /**
  * Four replies, and where they came from. [elapsedMs] runs from request to replies ready.
- * [timing] is the model's own breakdown of that time, for the log.
+ * [timing] is the model's own breakdown of that time, for the log. [modelReplies] is how many of
+ * [replies] the model wrote; the rest were topped up from the phrase bank.
  */
 data class Suggestions(
     val replies: List<String>,
@@ -15,6 +16,7 @@ data class Suggestions(
     val elapsedMs: Long,
     val tokensPerSecond: Float? = null,
     val timing: String? = null,
+    val modelReplies: Int = if (fromModel) replies.size else 0,
 )
 
 /** Conversation in, four replies out. The swap point for the on-device model. */

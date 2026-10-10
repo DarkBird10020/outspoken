@@ -29,6 +29,7 @@ class ModelSuggestionEngineTest {
         assertEquals("My back hurts", result.replies.first())
         assertEquals(1_400, result.elapsedMs)
         assertEquals(20f, result.tokensPerSecond)
+        assertEquals(4, result.modelReplies)
         assertEquals(1, model.calls)
     }
 
@@ -39,6 +40,8 @@ class ModelSuggestionEngineTest {
         assertTrue(result.fromModel)
         // PhraseBank.phrases[1] is "I am in pain", the line just said in [request], so it is skipped.
         assertEquals(listOf("My back hurts", "My head hurts", PhraseBank.phrases[0], PhraseBank.phrases[2]), result.replies)
+        // Only the two the model wrote count as written by it.
+        assertEquals(2, result.modelReplies)
         assertEquals(1, model.calls)
     }
 
@@ -48,6 +51,7 @@ class ModelSuggestionEngineTest {
         val result = ModelSuggestionEngine(model) { clock }.suggest(request)
         assertFalse(result.fromModel)
         assertEquals(PhraseBank.phrases.take(4), result.replies)
+        assertEquals(0, result.modelReplies)
         assertEquals(1, model.calls)
     }
 

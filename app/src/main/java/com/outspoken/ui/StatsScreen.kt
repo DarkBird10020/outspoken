@@ -44,7 +44,7 @@ data class StatsUi(
 )
 
 @Composable
-fun StatsScreen(ui: StatsUi, onBack: () -> Unit) {
+fun StatsScreen(ui: StatsUi, onBack: () -> Unit, onAsk: ((String) -> Unit)? = null) {
     DesignScreen(Modifier.dottedCanvas(), gap = 16.dp) {
         Row(
             Modifier.fillMaxWidth(),
@@ -73,7 +73,8 @@ fun StatsScreen(ui: StatsUi, onBack: () -> Unit) {
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     ModelStat("Replies written", ui.repliesWritten.toString(), Modifier.weight(1f))
-                    ModelStat("Phone temperature", formatWhole(ui.phoneTempCelsius, " °C"), Modifier.weight(1f))
+                    // One decimal, so a change shows as soon as the phone reports it (owner request).
+                    ModelStat("Phone temperature", formatTenths(ui.phoneTempCelsius, " °C"), Modifier.weight(1f))
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -103,6 +104,9 @@ fun StatsScreen(ui: StatsUi, onBack: () -> Unit) {
                 modifier = Modifier.widthIn(max = 140.dp),
             )
         }
+        // Not in the design yet (listed as a design gap): the quick topics, so a question can be
+        // asked here and the numbers above watched as the model answers it (owner request).
+        onAsk?.let { QuickTopicRow(it) }
         Spacer(Modifier.weight(1f))
         FooterNote("Nothing leaves this phone.")
     }
