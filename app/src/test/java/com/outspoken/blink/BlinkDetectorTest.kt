@@ -54,6 +54,14 @@ class BlinkDetectorTest {
     }
 
     @Test
+    fun `the last close length is kept, chosen or not`() {
+        blink(500)
+        assertTrue(detector.lastCloseMs in 495..530)
+        blink(1_700)
+        assertTrue(detector.lastCloseMs in 1_695..1_730)
+    }
+
+    @Test
     fun `normal fast blink is ignored`() {
         assertEquals(emptyList<BlinkEvent>(), blink(150))
     }

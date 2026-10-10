@@ -161,7 +161,7 @@ Each laptop signs debug builds with its own key, so an APK built on one laptop c
 | Star | Practice round |
 | Eye | Eye check, then **Settings** (sliders button), then **Model and logs** |
 | Speech bubble | Live transcript |
-| Bars | Session stats |
+| Bars | Session stats, all live: reply time counts up while the model writes |
 
 ## Privacy and safety
 
