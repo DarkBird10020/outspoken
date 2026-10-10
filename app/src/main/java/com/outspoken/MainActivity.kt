@@ -272,23 +272,16 @@ class MainActivity : ComponentActivity() {
             if (screen == Screen.Stats) {
                 BackHandler { show(Screen.Conversation) }
                 var nowMs by remember { mutableStateOf(now()) }
-                var phoneTemp by remember { mutableStateOf<Float?>(null) }
                 LaunchedEffect(Unit) {
                     while (true) {
                         nowMs = now()
                         delay(STATS_REFRESH_MS)
                     }
                 }
-                LaunchedEffect(Unit) {
-                    while (true) {
-                        phoneTemp = withContext(Dispatchers.IO) { phoneTemperature() }
-                        delay(TEMPERATURE_REFRESH_MS)
-                    }
-                }
                 val modelState by OnDeviceModel.state.collectAsStateWithLifecycle()
                 OutspokenTheme {
                     StatsScreen(
-                        statsUi(nowMs, modelState, phoneTemp),
+                        statsUi(nowMs, modelState, phoneTempNow),
                         onBack = { show(Screen.Conversation) },
                         onAsk = { question ->
                             AppLog.write("listen", "quick topic \"$question\" on the stats screen")
@@ -449,7 +442,7 @@ class MainActivity : ComponentActivity() {
                         },
                         liveStats = {
                             LiveStatsLine(STATS_REFRESH_MS) {
-                                liveStatsLine(pitStats.replyTimeSeconds(now()), pitStats.tokensPerSecond, pitStats.repliesWritten)
+                                liveStatsLine(pitStats.replyTimeSeconds(now()), pitStats.tokensPerSecond, pitStats.repliesWritten, phoneTempNow)
                             }
                         },
                     )
@@ -530,6 +523,7 @@ class MainActivity : ComponentActivity() {
         AppLog.write("app", "resumed")
         visible = true
         watchDownloads()
+        watchTemperature()
         updateListening()
     }
 
@@ -607,6 +601,21 @@ class MainActivity : ComponentActivity() {
      */
     private fun phoneTemperature(): Float? = shellSensor.celsius() ?: batteryTemperature()
 
+    /** The latest [phoneTemperature], for the stats screen and the line on the main page. Main thread only. */
+    private var phoneTempNow: Float? = null
+    private var temperatureWatch: Job? = null
+
+    /** Reads the temperature once a second off the main thread while the app is on screen. */
+    private fun watchTemperature() {
+        if (temperatureWatch?.isActive == true) return
+        temperatureWatch = lifecycleScope.launch {
+            while (visible) {
+                phoneTempNow = withContext(Dispatchers.IO) { phoneTemperature() }
+                delay(TEMPERATURE_REFRESH_MS)
+            }
+        }
+    }
+
     private val shellSensor = ThermalSensor("tz_shell")
 
     /** Both readings for the log: "battery 34.2 °C, shell 36.3 °C". */
@@ -675,7 +684,7 @@ class MainActivity : ComponentActivity() {
         if (next == Screen.Stats) AppLog.write("stats", "opened showing ${describeStats(currentStats())}")
     }
 
-    private fun currentStats() = statsUi(now(), OnDeviceModel.state.value, phoneTemperature())
+    private fun currentStats() = statsUi(now(), OnDeviceModel.state.value, phoneTempNow)
 
     /**
      * Which of the phone's thermal sensors the app can read, once at start, and the shell sensor the
