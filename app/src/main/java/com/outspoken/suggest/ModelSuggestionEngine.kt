@@ -57,6 +57,7 @@ class ModelSuggestionEngine(
             generation.tokensPerSecond,
             generation.timing,
             sentences = answer.sentences,
+            unfit = answer.unfit,
         )
     }
 
