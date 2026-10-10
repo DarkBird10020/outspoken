@@ -79,6 +79,15 @@ class ModelSuggestionEngineTest {
     }
 
     @Test
+    fun `the model's timing is passed on for the log`() = runBlocking {
+        val model = object : TextModel {
+            override suspend fun generate(prompt: String) = Generation(good, 60f, "prompt 300 tok at 900 tok/s, first token 0.35 s, reply 40 tok")
+        }
+        val result = ModelSuggestionEngine(model) { clock }.suggest(request)
+        assertEquals("prompt 300 tok at 900 tok/s, first token 0.35 s, reply 40 tok", result.timing)
+    }
+
+    @Test
     fun `model error falls back at once`() = runBlocking {
         val model = FakeModel(listOf({ throw IllegalStateException("boom") }, { good }))
         val result = ModelSuggestionEngine(model) { clock }.suggest(request)

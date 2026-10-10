@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.util.Locale
 import java.util.concurrent.Executors
 
 /**
@@ -58,10 +59,18 @@ class LiteRtLmModel(private val modelPath: String, private val cacheDir: String)
     @OptIn(ExperimentalApi::class)
     private fun write(conversation: Conversation, prompt: String, maxTokens: Int): Generation {
         val text = conversation.sendMessage(prompt, maxOutputToken = maxTokens).toString()
-        val tokensPerSecond = runCatching {
-            conversation.getBenchmarkInfo().lastDecodeTokensPerSecond.toFloat()
-        }.getOrNull()
-        return Generation(text, tokensPerSecond)
+        val info = runCatching { conversation.getBenchmarkInfo() }.getOrNull()
+        // Decode speed swung between about 40 and 70 tok/s on the phone with no heat warning
+        // (06:12 to 06:18 run); the breakdown shows whether the prompt, the reply length or the
+        // decoding itself changed.
+        val timing = info?.let {
+            String.format(
+                Locale.US,
+                "prompt %d tok at %.0f tok/s, first token %.2f s, reply %d tok",
+                it.lastPrefillTokenCount, it.lastPrefillTokensPerSecond, it.timeToFirstTokenInSecond, it.lastDecodeTokenCount,
+            )
+        }
+        return Generation(text, info?.lastDecodeTokensPerSecond?.toFloat(), timing)
     }
 
     /** Frees the model, after any reply being written finishes. */
