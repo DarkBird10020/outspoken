@@ -99,6 +99,7 @@ class Listener(
     private var sentences = 0
     private var updates = 0
     private val errors = mutableMapOf<Int, Int>()
+    private val unsureLanguages = mutableMapOf<String, Int>()
     private var lastSummaryMs = SystemClock.elapsedRealtime()
 
     fun start() {
@@ -517,15 +518,24 @@ class Listener(
         override fun onEvent(eventType: Int, params: Bundle?) = Unit
     }
 
+    /**
+     * Logs what the recogniser detects when it is at least fairly sure or switched; guesses it is
+     * not sure of only count toward the summary. On the phone they flipped between en-in and hi-in
+     * seven times in 1.6 s, all "not sure" (17:51:51 to 17:51:53).
+     */
     @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     private fun languageHeard(results: Bundle) {
         val tag = results.getString(SpeechRecognizer.DETECTED_LANGUAGE) ?: return
         val switch = switchName(results.getInt(SpeechRecognizer.LANGUAGE_SWITCH_RESULT, 0))
+        val level = results.getInt(SpeechRecognizer.LANGUAGE_DETECTION_CONFIDENCE_LEVEL)
+        if (level < SpeechRecognizer.LANGUAGE_DETECTION_CONFIDENCE_LEVEL_CONFIDENT && switch == null) {
+            unsureLanguages[tag] = (unsureLanguages[tag] ?: 0) + 1
+            return
+        }
         val key = "$tag $switch"
         if (key == lastLanguage) return
         lastLanguage = key
-        val sureness = confidenceName(results.getInt(SpeechRecognizer.LANGUAGE_DETECTION_CONFIDENCE_LEVEL))
-        AppLog.write("listen", "language heard: $tag, $sureness" + (switch?.let { ", $it" } ?: ""))
+        AppLog.write("listen", "language heard: $tag, ${confidenceName(level)}" + (switch?.let { ", $it" } ?: ""))
     }
 
     /**
@@ -576,7 +586,9 @@ class Listener(
     private fun summarise() {
         val now = SystemClock.elapsedRealtime()
         val errorText = if (errors.isEmpty()) "none" else errors.entries.joinToString(", ") { "${errorName(it.key)} ${it.value}" }
-        AppLog.write("listen", "last ${(now - lastSummaryMs) / 1000} s: $sessions sessions, $sentences sentences, $updates live word updates, errors: $errorText")
+        val unsure = if (unsureLanguages.isEmpty()) "" else ", languages guessed, not sure: " + unsureLanguages.entries.joinToString(", ") { "${it.key} ${it.value}" }
+        unsureLanguages.clear()
+        AppLog.write("listen", "last ${(now - lastSummaryMs) / 1000} s: $sessions sessions, $sentences sentences, $updates live word updates, errors: $errorText$unsure")
         lastSummaryMs = now
         sessions = 0
         sentences = 0

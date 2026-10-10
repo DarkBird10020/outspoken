@@ -109,6 +109,14 @@ class MainActivity : ComponentActivity() {
     private val blinkDetector = BlinkDetector(log = AppLog)
     private val scanner = Scanner()
     private val gazeStepper = GazeStepper(log = AppLog)
+
+    /**
+     * The eye check page tries looks and closes on its own stepper and detector, started from the
+     * main page's rest, so testing there moves neither the main page's highlight nor its resting
+     * point (17:51:08 on the phone: a test look up there became the main page's rest).
+     */
+    private val checkStepper = GazeStepper(log = AppLog)
+    private val checkBlink = BlinkDetector(log = AppLog)
     private val controller = ConversationController(
         speak = { say(it) },
         detector = blinkDetector,
@@ -197,13 +205,20 @@ class MainActivity : ComponentActivity() {
             when (screen) {
                 Screen.Practice -> practiceController.onSample(sample)
                 Screen.Calibrate -> onCalibrationSample(sample)
-                // While the alarm screen or mirrored transcript is up, eyes pick nothing.
-                Screen.Help, Screen.Transcript -> Unit
-                else -> {
+                Screen.EyeCheck -> {
+                    checkBlink.onSample(sample)
+                    checkStepper.onSample(sample.gaze, !checkBlink.eitherEyeShut(sample), sample.timeMs, sample.irisY)
+                }
+                Screen.Conversation -> {
                     controller.onSample(sample)
                     val missed = blinkDetector.missedInARow >= BlinkDetector.MISSED_BEFORE_ASKING
                     if (missed != closesMissed) closesMissed = missed
                 }
+                // Alarm, transcript, settings, stats and model pages: eyes pick nothing. Looks on
+                // the settings page moved the main page's highlight and set its resting point
+                // (17:48:46, 17:48:51), and back on the main page three looks down fired by
+                // themselves (17:49:05 to 17:49:06).
+                else -> Unit
             }
         }
         eyeReader.dotsOn = true
@@ -364,11 +379,11 @@ class MainActivity : ComponentActivity() {
                         onRequestCamera = { cameraPermission.launch(Manifest.permission.CAMERA) },
                         onPreviewReady = camera::showPreview,
                         onPreviewGone = camera::hidePreview,
-                        restGaze = gazeStepper.restGaze,
-                        restIris = gazeStepper.restIrisDrop,
+                        restGaze = checkStepper.restGaze,
+                        restIris = checkStepper.restIrisDrop,
                         // The same smoothed values the steps use, so the dot is steady.
-                        steadyGaze = gazeStepper.smoothedGaze,
-                        steadyIris = gazeStepper.smoothedIrisDrop,
+                        steadyGaze = checkStepper.smoothedGaze,
+                        steadyIris = checkStepper.smoothedIrisDrop,
                         onBack = { show(Screen.Conversation) },
                         onSettings = { show(Screen.Settings) },
                     )
@@ -620,8 +635,10 @@ class MainActivity : ComponentActivity() {
             AppLog.write("hand", "hand signs ${if (next.handGestures) "on" else "off"}")
         }
         blinkDetector.settings = next.blink
+        checkBlink.settings = next.blink
         scanner.intervalMs = next.scanMs
         gazeStepper.settings = next.activeGaze
+        checkStepper.settings = next.activeGaze
         controller.upMovesNext = !next.lookDown
         if (controller.moveByEyes != next.moveByEyes) controller.moveByEyes = next.moveByEyes
         controller.winks = next.winks
@@ -826,6 +843,7 @@ class MainActivity : ComponentActivity() {
         // not move can be checked against the logs.
         if (screen == Screen.Stats && next != Screen.Stats) AppLog.write("stats", "closed showing ${describeStats(currentStats())}")
         AppLog.write("ui", "screen $next")
+        if (next == Screen.EyeCheck) gazeStepper.restGaze?.let { checkStepper.restAt(it, gazeStepper.restIrisDrop) }
         screen = next
         updateListening()
         if (next == Screen.Stats) AppLog.write("stats", "opened showing ${describeStats(currentStats())}")
