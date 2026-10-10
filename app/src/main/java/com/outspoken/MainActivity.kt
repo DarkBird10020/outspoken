@@ -1,7 +1,7 @@
 package com.outspoken
 
 import android.Manifest
-import com.outspoken.listen.romanise
+import com.outspoken.suggest.mostlyLatin
 import com.outspoken.listen.mostlyDevanagari
 import com.outspoken.ui.ProfileScreen
 import com.outspoken.ui.ProfileEditScreen
@@ -261,13 +261,9 @@ class MainActivity : ComponentActivity() {
         listener = Listener(
             this,
             onHeard = { heard, spoken ->
-                val text = readable(heard, spoken)
-                val question = heardFilter.accept(text, now())
-                if (question == null) AppLog.write("listen", "ignored \"$text\" (the phone's own voice or too short)")
-                question?.let {
-                    if (tuning.autoLanguage) followVisitor(it, spoken)
-                    controller.onHeard(it, now())
-                }
+                val question = heardFilter.accept(heard, now())
+                if (question == null) AppLog.write("listen", "ignored \"$heard\" (the phone's own voice or too short)")
+                question?.let { onVisitor(it, spoken) }
             },
             onStatus = { listenLine = it },
             onHearing = { hearingText = it.ifBlank { null } },
@@ -840,8 +836,11 @@ class MainActivity : ComponentActivity() {
 
     /** The chosen language; with auto on, the other one too, so the recogniser can follow the visitor. */
     private fun speechWish(t: Tuning): SpeechWish {
-        val others = if (t.autoLanguage) AppLanguage.entries.filter { it != t.language }.map { speechLanguages(it) } else emptyList()
-        return SpeechWish(speechLanguages(t.language), others)
+        // Following the visitor, listening starts in English (owner: English is the default) and
+        // moves to another language only once the visitor is heard speaking it.
+        if (!t.autoLanguage) return SpeechWish(speechLanguages(t.language))
+        val others = AppLanguage.entries.filter { it != AppLanguage.English }.map { speechLanguages(it) }
+        return SpeechWish(speechLanguages(AppLanguage.English), others)
     }
 
     /** The language of the cards, the topics and the voice right now; in auto mode the visitor's. */
@@ -860,14 +859,37 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * English written in Hindi letters, which the recogniser does while listening in Hindi, in
-     * Latin letters instead, so the model and the person can read it ("vhaat's yor nem").
+     * A sentence the visitor said. When the recogniser wrote it in the other script (English in
+     * Hindi letters, or Hindi in English letters, just after the visitor changed language), the
+     * model writes it properly first, so English shows as English (owner request); no mix.
      */
-    private fun readable(text: String, spoken: String?): String {
-        if (spoken != "en" || !mostlyDevanagari(text)) return text
-        val latin = romanise(text)
-        AppLog.write("listen", "spoken in English, written in Hindi letters: read as \"$latin\"")
-        return latin
+    private fun onVisitor(text: String, heardIn: String?) {
+        val spokenIn = when (heardIn) {
+            "en" -> AppLanguage.English
+            "hi" -> AppLanguage.Hindi
+            else -> null
+        }
+        val wrongScript = (spokenIn == AppLanguage.English && mostlyDevanagari(text)) || (spokenIn == AppLanguage.Hindi && mostlyLatin(text))
+        val engine = suggestionEngine
+        if (!wrongScript || engine == null || spokenIn == null) {
+            takeVisitor(text, heardIn)
+            return
+        }
+        lifecycleScope.launch {
+            val started = now()
+            val fixed = engine.rewriteInScript(text, spokenIn)
+            AppLog.write(
+                "listen",
+                if (fixed != null) "spoken in ${spokenIn.name}, written in the other script: rewritten in ${now() - started} ms as \"$fixed\""
+                else "spoken in ${spokenIn.name}, written in the other script; the model could not rewrite it, kept as heard",
+            )
+            takeVisitor(fixed ?: text, heardIn)
+        }
+    }
+
+    private fun takeVisitor(text: String, heardIn: String?) {
+        if (tuning.autoLanguage) followVisitor(text, heardIn)
+        controller.onHeard(text, now())
     }
 
     /**

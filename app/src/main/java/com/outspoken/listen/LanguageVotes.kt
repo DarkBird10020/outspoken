@@ -35,71 +35,10 @@ class LanguageVotes(private val minVotes: Int = MIN_VOTES, private val share: Fl
     }
 }
 
-/**
- * Devanagari in Latin letters, sound for sound. Used when the recogniser, listening in Hindi,
- * wrote English speech in Hindi letters: "व्हाट'स योर नेम" becomes "vhaat's yor nem", which the
- * model and the person can still read. Other characters pass through unchanged.
- */
-fun romanise(text: String): String {
-    val out = StringBuilder()
-    var i = 0
-    while (i < text.length) {
-        val c = text[i]
-        val consonant = CONSONANTS[c]
-        if (consonant != null) {
-            out.append(consonant)
-            var next = text.getOrNull(i + 1)
-            if (next == NUKTA) {
-                i++
-                next = text.getOrNull(i + 1)
-            }
-            when {
-                next == VIRAMA -> i++
-                next != null && next in MATRAS -> {
-                    out.append(MATRAS.getValue(next))
-                    i++
-                }
-                // A word-final consonant drops the inherent "a" in Hindi ("नेम" is "nem").
-                next == null || !isDevanagari(next) -> Unit
-                else -> out.append('a')
-            }
-        } else {
-            out.append(VOWELS[c] ?: SIGNS[c] ?: c.toString())
-        }
-        i++
-    }
-    return out.toString()
-}
-
 /** True when most letters in [text] are Devanagari. */
 fun mostlyDevanagari(text: String): Boolean {
     val letters = text.filter { it.isLetter() }
     return letters.isNotEmpty() && letters.count(::isDevanagari) * 2 > letters.length
 }
 
-private fun isDevanagari(c: Char) = c in 'ऀ'..'ॿ'
-
-private const val VIRAMA = '्'
-private const val NUKTA = '़'
-
-private val VOWELS = mapOf(
-    'अ' to "a", 'आ' to "aa", 'इ' to "i", 'ई' to "ee", 'उ' to "u", 'ऊ' to "oo", 'ऋ' to "ri",
-    'ए' to "e", 'ऐ' to "ai", 'ओ' to "o", 'औ' to "au", 'ऑ' to "o", 'ऍ' to "e",
-)
-
-private val MATRAS = mapOf(
-    'ा' to "aa", 'ि' to "i", 'ी' to "ee", 'ु' to "u", 'ू' to "oo", 'ृ' to "ri",
-    'े' to "e", 'ै' to "ai", 'ो' to "o", 'ौ' to "au", 'ॉ' to "o", 'ॅ' to "e",
-)
-
-private val SIGNS = mapOf('ं' to "n", 'ँ' to "n", 'ः' to "h", '।' to ".", '॥' to ".")
-
-private val CONSONANTS = mapOf(
-    'क' to "k", 'ख' to "kh", 'ग' to "g", 'घ' to "gh", 'ङ' to "n",
-    'च' to "ch", 'छ' to "chh", 'ज' to "j", 'झ' to "jh", 'ञ' to "n",
-    'ट' to "t", 'ठ' to "th", 'ड' to "d", 'ढ' to "dh", 'ण' to "n",
-    'त' to "t", 'थ' to "th", 'द' to "d", 'ध' to "dh", 'न' to "n",
-    'प' to "p", 'फ' to "f", 'ब' to "b", 'भ' to "bh", 'म' to "m",
-    'य' to "y", 'र' to "r", 'ल' to "l", 'व' to "v",
-    'श' to "sh", 'ष' to "sh", 'स' to "s", 'ह' to "h",
-)
+private fun isDevanagari(c: Char) = c in '\u0900'..'\u097F'

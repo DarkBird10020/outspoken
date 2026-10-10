@@ -39,6 +39,17 @@ class ModelSuggestionEngine(
         )
     }
 
+    override suspend fun rewriteInScript(text: String, spokenIn: AppLanguage): String? {
+        val generation = try {
+            model.generate(buildRewritePrompt(text, spokenIn))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return null
+        }
+        return parseRewrite(generation.text, text, spokenIn)
+    }
+
     override suspend fun nextWords(request: WordRequest): WordSuggestions {
         val startMs = clockMs()
         val generation = try {

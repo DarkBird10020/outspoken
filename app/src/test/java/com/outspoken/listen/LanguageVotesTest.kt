@@ -41,18 +41,7 @@ class LanguageVotesTest {
         assertEquals("en 10", votes.describe())
     }
 
-    @Test
-    fun `english written in hindi letters reads back in latin letters`() {
-        // From the phone, 19:18 and 19:20: English questions heard while listening in Hindi.
-        assertEquals("vhaat's yor nem", romanise("व्हाट'स योर नेम"))
-        assertEquals("he vhaat yor nem", romanise("हे व्हाट योर नेम"))
-        assertEquals("feeling", romanise("फीलिंग"))
-    }
 
-    @Test
-    fun `latin letters and punctuation pass through`() {
-        assertEquals("OK, 2 times?", romanise("OK, 2 times?"))
-    }
 
     @Test
     fun `mostly devanagari tells the scripts apart`() {

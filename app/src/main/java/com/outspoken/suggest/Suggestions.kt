@@ -34,6 +34,9 @@ interface SuggestionEngine {
 
     /** Next words for "Say anything". An engine without it gives none, and the built-in words show. */
     suspend fun nextWords(request: WordRequest): WordSuggestions = WordSuggestions(null, emptyList(), fromModel = false, elapsedMs = 0)
+
+    /** A heard sentence written in the wrong script, in the script of [spokenIn]; null when it cannot. */
+    suspend fun rewriteInScript(text: String, spokenIn: AppLanguage): String? = null
 }
 
 data class Generation(val text: String, val tokensPerSecond: Float? = null, val timing: String? = null)
