@@ -103,7 +103,9 @@ class HandReader(context: Context, private val onReading: (HandReading, timeMs: 
         // nothing about it.
         val score = if (label == NO_LABEL && sign != null) 1f else top?.score() ?: 0f
         val reading = HandReading(sign, score, fingers)
-        val seenAs = sign?.key ?: if (handFound) "no sign" else "no hand"
+        // The model's label and the count side by side ("Open_Palm/4"), to see on the phone how it
+        // reads four fingers with the thumb folded.
+        val seenAs = if (handFound) "${label ?: "?"}/${fingers ?: "?"}" else "no hand"
         mainExecutor.execute { publish(reading, timeMs, handFound, seenAs) }
     }
 

@@ -511,7 +511,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handHint(tuning: Tuning) =
-        if (tuning.handGestures) "  Hand: 1 to 4 fingers light a card, a fist says it." else ""
+        if (tuning.handGestures) "  Hand: 1 to 4 fingers (thumb folded) light a card, a fist says it, an open hand: please wait." else ""
 
     private fun eyeHint(tuning: Tuning) = when {
         !tuning.moveByEyes -> "Close your eyes when your choice lights up."
@@ -658,6 +658,7 @@ class MainActivity : ComponentActivity() {
     /** Main thread. Only the conversation page acts on hand signs; elsewhere they let the hold go. */
     private fun onHandReading(reading: HandReading, timeMs: Long) {
         val acting = screen == Screen.Conversation
+        if (acting && (reading.sign != null || reading.fingers != null)) controller.onHandInView(timeMs)
         val held = handHold.onFrame(reading.sign.takeIf { acting }, reading.score, timeMs, tuning.handSigns) ?: return
         val sign = held.sign
         AppLog.write("hand", "${sign.key} held ${held.heldMs} ms, ${held.steadyReadings} of ${held.readings} readings, ${sign.meaning}")
