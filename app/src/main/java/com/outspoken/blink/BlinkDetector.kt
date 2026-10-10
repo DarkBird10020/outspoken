@@ -84,6 +84,10 @@ class BlinkDetector(
     /** When the eyes shut, while they are still shut; null while they are open. */
     val shutSinceMs: Long? get() = closedSinceMs
 
+    /** How long the last close that ended with the eyes seen open lasted, time with no face left out. */
+    var lastCloseMs = 0L
+        private set
+
     fun onSample(sample: EyeSample): BlinkEvent? {
         val rawLeft = sample.leftOpen
         val rawRight = sample.rightOpen
@@ -133,6 +137,7 @@ class BlinkDetector(
             // "I need water" as a 397 ms blink.
             val seenUntil = if (faceGoneSinceShutSeen) lastShutSeenMs else sample.timeMs
             val duration = seenUntil - closedSince
+            lastCloseMs = duration
             if (chosen) {
                 chosen = false
                 log.write("blink", "eyes open after $duration ms")

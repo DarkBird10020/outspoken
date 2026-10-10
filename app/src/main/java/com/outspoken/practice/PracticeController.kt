@@ -6,6 +6,7 @@ import com.outspoken.eye.EyeSample
 import com.outspoken.log.EventLog
 import com.outspoken.setup.MAX_PRACTICE_BLINK_MS
 import com.outspoken.setup.Tuning
+import com.outspoken.stats.BlinkTally
 import com.outspoken.ui.PracticeUi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,9 +42,11 @@ class PracticeController(
     private var closeCaught = false
     private var missed = 0
 
+    /** Stars caught and missed tries in this round. */
+    val blinks: BlinkTally get() = BlinkTally(caught, missed)
+
     /** Share of tries that caught a star, 0 to 100; null before the first try. */
-    val accuracyPercent: Float?
-        get() = (caught + missed).takeIf { it > 0 }?.let { caught * 100f / it }
+    val accuracyPercent: Float? get() = blinks.percent
 
     private val _ui = MutableStateFlow(
         PracticeUi(

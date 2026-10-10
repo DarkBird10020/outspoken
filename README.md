@@ -45,10 +45,10 @@ Two ways to move the highlight, switched in Settings:
 - **Blink only**: the highlight moves on a timer (scan speed slider); blink when the right card lights.
 
 Buttons on the main page, top right:
-- **Star**: practice round. Catch three stars by blinking; it sets the blink length and gives the blink accuracy on the stats screen.
+- **Star**: practice round. Catch three stars by blinking; it sets the blink length and adds to the blink accuracy on the stats screen.
 - **Eye**: eye check page. The live camera, a graph of both eyes against the shut and open lines, where the eyes look, the camera speed and the last blink decision. Its sliders button opens **Settings**: the typed question and topic buttons, "Look up to move" or "Blink only", the tuning sliders, Reset and "Calibrate, 30 s". From Settings, **Model and logs**: download or switch the Gemma model, "Choose a model file", reply speed, the build, "Share logs" and "Save logs".
 - **Transcript**: the conversation in large type, for a laptop through Office Kit.
-- **Stats**: reply time, model speed, blink accuracy, session length, sentences spoken.
+- **Stats**: reply time, model speed, blink accuracy, session length, sentences spoken, all live. Reply time counts up while the model writes.
 
 Run logs stay on the phone in `Android/data/com.outspoken/files/logs/`. Tap "Share logs" on the Model screen (eye button, then the sliders button, then "Model and logs") to send them to another app, or "Save logs" to keep a copy; on a laptop, `tools/phone-logs.ps1` copies them over USB or wireless debugging. Logs are never committed: they hold what people said.
 
