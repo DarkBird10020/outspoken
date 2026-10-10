@@ -1,9 +1,16 @@
 package com.outspoken.suggest
 
 import com.outspoken.conversation.AppLanguage
+import com.outspoken.profile.PatientProfile
+import com.outspoken.profile.profilePrompt
 
 /** The sentence so far for "Say anything", with the conversation it belongs to. */
-data class WordRequest(val turns: List<Turn>, val sentence: String, val language: AppLanguage = AppLanguage.English)
+data class WordRequest(
+    val turns: List<Turn>,
+    val sentence: String,
+    val language: AppLanguage = AppLanguage.English,
+    val profile: PatientProfile? = null,
+)
 
 /** The model's next words and its guess at the finished sentence, and how long that took. */
 data class WordSuggestions(
@@ -53,6 +60,7 @@ fun buildWordPrompt(request: WordRequest): String = buildString {
         appendLine("Answer: $WORD_EXAMPLE_ANSWER")
     }
     appendLine()
+    profilePrompt(request.profile)?.let { appendLine(it) }
     val turns = request.turns.takeLast(PROMPT_TURNS)
     if (turns.isNotEmpty()) {
         appendLine("Conversation so far:")

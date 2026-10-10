@@ -1,5 +1,6 @@
 package com.outspoken.suggest
 
+import com.outspoken.profile.PatientProfile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -106,5 +107,15 @@ class PromptTest {
         val prompt = buildPrompt(SuggestionRequest(emptyList(), hourOfDay = 9))
         assertTrue(prompt.contains(EXAMPLE_ANSWER))
         assertTrue(prompt.endsWith("Answer:"))
+    }
+
+    @Test
+    fun `the profile goes into the replies prompt before the conversation, and is left out when empty`() {
+        val turns = listOf(Turn(true, "Who should I call?"))
+        val withProfile = buildPrompt(SuggestionRequest(turns, 10, profile = PatientProfile.SAMPLE))
+        assertTrue(withProfile.contains("People close to them: wife Meera"))
+        assertTrue(withProfile.indexOf("About the Person") < withProfile.indexOf("Conversation so far"))
+        assertFalse(buildPrompt(SuggestionRequest(turns, 10)).contains("About the Person"))
+        assertFalse(buildPrompt(SuggestionRequest(turns, 10, profile = PatientProfile())).contains("About the Person"))
     }
 }
