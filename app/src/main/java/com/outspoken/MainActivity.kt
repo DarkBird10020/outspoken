@@ -1,6 +1,13 @@
 package com.outspoken
 
 import android.Manifest
+import com.outspoken.ui.ProfileScreen
+import com.outspoken.ui.ProfileEditScreen
+import com.outspoken.profile.ProfileStore
+import com.outspoken.profile.PatientProfile
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.activity.result.PickVisualMediaRequest
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
@@ -99,7 +106,7 @@ import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
 
-    private enum class Screen { Conversation, Practice, EyeCheck, Settings, Models, Calibrate, Help, Stats, Transcript }
+    private enum class Screen { Conversation, Practice, EyeCheck, Settings, Models, Profile, ProfileEdit, Calibrate, Help, Stats, Transcript }
 
     private lateinit var speaker: Speaker
     private lateinit var camera: FrontCamera
@@ -164,6 +171,14 @@ class MainActivity : ComponentActivity() {
     private var canSeeDownloads by mutableStateOf(false)
     private var replyJob: Job? = null
     private var wordJob: Job? = null
+    private lateinit var profileStore: ProfileStore
+
+    /** What the person told the app about themselves; goes into every model prompt. Never logged. */
+    private var profile by mutableStateOf(PatientProfile())
+    private var profilePhoto by mutableStateOf<ImageBitmap?>(null)
+
+    private val photoPicker =
+        registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let(::savePhoto) }
 
     private val logSaver =
         registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri -> uri?.let(::saveLogs) }
@@ -188,6 +203,13 @@ class MainActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         tuningStore = TuningStore(this)
+        profileStore = ProfileStore(this)
+        profile = profileStore.load()
+        AppLog.write("profile", if (profile.isEmpty) "none yet" else "loaded, ${profile.detailCount} details")
+        lifecycleScope.launch(Dispatchers.IO) {
+            val photo = profileStore.photo()?.asImageBitmap()
+            launch(Dispatchers.Main) { profilePhoto = photo }
+        }
         applyTuning(tuningStore.load())
         AppLog.write("app", "build $buildLine")
         AppLog.write("app", "tuning $tuning")
@@ -388,6 +410,27 @@ class MainActivity : ComponentActivity() {
                         onSettings = { show(Screen.Settings) },
                     )
                 }
+            } else if (screen == Screen.Profile) {
+                BackHandler { show(Screen.Settings) }
+                OutspokenTheme {
+                    ProfileScreen(
+                        profile = profile,
+                        photo = profilePhoto,
+                        onBack = { show(Screen.Conversation) },
+                        onSettings = { show(Screen.Settings) },
+                        onEdit = { show(Screen.ProfileEdit) },
+                        onPhoto = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                    )
+                }
+            } else if (screen == Screen.ProfileEdit) {
+                BackHandler { show(Screen.Profile) }
+                OutspokenTheme {
+                    ProfileEditScreen(
+                        initial = profile,
+                        onSave = ::saveProfile,
+                        onCancel = { show(Screen.Profile) },
+                    )
+                }
             } else if (screen == Screen.Settings) {
                 BackHandler { show(Screen.EyeCheck) }
                 val handReading by handReader.latest.collectAsStateWithLifecycle()
@@ -412,6 +455,7 @@ class MainActivity : ComponentActivity() {
                         },
                         onCalibrate = ::startCalibration,
                         onModels = { show(Screen.Models) },
+                        onProfile = { show(Screen.Profile) },
                         onBack = { show(Screen.Conversation) },
                     )
                 }
@@ -862,12 +906,41 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** Saves the profile; the log says only how many details there are, never what they say. */
+    private fun saveProfile(next: PatientProfile) {
+        profile = next
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                profileStore.save(next)
+                AppLog.write("profile", "saved, ${next.detailCount} details")
+            } catch (e: Exception) {
+                AppLog.write("profile", "could not save: ${e.message}")
+            }
+        }
+        show(Screen.Profile)
+        // The cards on show were written without the new profile.
+        controller.refreshReplies()
+    }
+
+    private fun savePhoto(uri: Uri) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                profileStore.savePhoto(uri)
+                val photo = profileStore.photo()?.asImageBitmap()
+                launch(Dispatchers.Main) { profilePhoto = photo }
+                AppLog.write("profile", "photo saved")
+            } catch (e: Exception) {
+                AppLog.write("profile", "could not save the photo: ${e.message}")
+            }
+        }
+    }
+
     /** Next words for "Say anything"; each step's reply time goes in the log. */
     private fun requestWords(requestId: Int, turns: List<Turn>, sentence: String): Boolean {
         val engine = suggestionEngine ?: return false
         wordJob?.cancel()
         wordJob = lifecycleScope.launch {
-            val words = engine.nextWords(WordRequest(turns, sentence, controller.language))
+            val words = engine.nextWords(WordRequest(turns, sentence, controller.language, profile.takeUnless { it.isEmpty }))
             AppLog.write(
                 "model",
                 "words in ${words.elapsedMs} ms, ${words.tokensPerSecond ?: "-"} tok/s, " +
@@ -886,7 +959,7 @@ class MainActivity : ComponentActivity() {
         replyJob?.cancel()
         pitStats.onAsked(now())
         replyJob = lifecycleScope.launch {
-            val suggestions = engine.suggest(SuggestionRequest(turns, LocalTime.now().hour, controller.language))
+            val suggestions = engine.suggest(SuggestionRequest(turns, LocalTime.now().hour, controller.language, profile.takeUnless { it.isEmpty }))
             lastReply = suggestions.elapsedMs / 1000f to suggestions.tokensPerSecond
             pitStats.onReplies(suggestions.elapsedMs, suggestions.fromModel, suggestions.tokensPerSecond, suggestions.modelReplies)
             val toppedUp = suggestions.replies.size - suggestions.modelReplies

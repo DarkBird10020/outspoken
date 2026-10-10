@@ -52,6 +52,7 @@ Everything runs on the phone. The app has no internet permission, and CI fails a
 | **Calibration and practice** | Every start measures this person's eyes in about 30 seconds. A practice round teaches the blink and measures accuracy. |
 | **Listening** | On-device speech recognition hears the visitor, in one session that runs until the mic is switched off, with the words shown as they are said. Typed questions and one-tap topics cover noisy rooms. |
 | **Transcript and stats** | A large-type transcript for a laptop (Office Kit), and a stats screen with reply time, model speed, blink accuracy and session length. |
+| **Patient profile** | Name, photo, the people close to them, likes, conditions and allergies, typed by family. The model uses them, so replies name the right people and never suggest an allergen. Kept in the app's private folder. |
 | **Frequent phrases** | Sentences the person says often move to the front during a session. |
 | **Private by design** | No account, no cloud, no internet permission. Run logs stay in the app's own folder on the phone. |
 
