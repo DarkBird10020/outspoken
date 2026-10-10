@@ -26,6 +26,32 @@ class FormatTest {
     }
 
     @Test
+    fun `tenths keep one decimal and take a unit`() {
+        assertEquals("36.3 °C", formatTenths(36.319f, " °C"))
+        assertEquals("34.0 °C", formatTenths(34f, " °C"))
+        assertEquals("-", formatTenths(null, " °C"))
+    }
+
+    @Test
+    fun `stats line for the log matches the screen`() {
+        val ui = StatsUi(
+            replyTimeSeconds = 1.354f,
+            tokensPerSecond = 44.1f,
+            repliesWritten = 28,
+            phoneTempCelsius = 35.1f,
+            modelName = "gemma-4-E2B-it",
+            runtime = "LiteRT-LM on GPU with MTP",
+            blinkAccuracyPercent = null,
+            sessionMillis = 19_000,
+            sentencesSpoken = 0,
+        )
+        assertEquals(
+            "reply 1.4 s, 44 tok/s, 28 replies written, 35.1 °C, blink accuracy -, session 00:19, 0 sentences spoken",
+            describeStats(ui),
+        )
+    }
+
+    @Test
     fun `live line for the main page`() {
         assertEquals("Reply 0.9 s · 61 tok/s · 8 replies written", liveStatsLine(0.86f, 61.1f, 8))
         assertEquals("Reply - · - tok/s · 0 replies written", liveStatsLine(null, null, 0))
