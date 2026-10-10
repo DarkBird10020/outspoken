@@ -12,6 +12,7 @@ import com.outspoken.scan.GazeStep
 import com.outspoken.scan.GazeStepper
 import com.outspoken.scan.Scanner
 import com.outspoken.suggest.Turn
+import com.outspoken.ui.BuilderUi
 import com.outspoken.ui.ConversationUi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +27,9 @@ import kotlinx.coroutines.flow.asStateFlow
  * to answer, and come back through [onReplies]; only the answer to the latest request is used.
  * After speaking, the highlight waits up to [replyWaitMs] for that answer so the cards do not
  * change under the person's eyes. All times share one clock. Call every method from the same thread.
+ *
+ * The "Say anything" card opens a [SentenceBuilder]: while it is open the cards are its words and
+ * buttons, its next words are asked for through [requestWords] and come back through [onWords].
  */
 class ConversationController(
     private val speak: (String) -> Unit,
@@ -36,6 +40,7 @@ class ConversationController(
     private val gaze: GazeStepper = GazeStepper(log = log),
     private val wink: WinkDetector = WinkDetector(log = log),
     private val requestReplies: (requestId: Int, turns: List<Turn>) -> Boolean = { _, _ -> false },
+    private val requestWords: (requestId: Int, turns: List<Turn>, sentence: String) -> Boolean = { _, _, _ -> false },
     private val help: HelpTrigger = HelpTrigger(log = log),
     private val onHelp: (HelpStep) -> Unit = {},
     private val replyWaitMs: Long = 2_500,
@@ -83,6 +88,16 @@ class ConversationController(
     /** Phrases spoken this session, most frequent first (PRD S3). */
     val frequentPhrases: List<String>
         get() = phraseFrequencies.entries.sortedByDescending { it.value }.map { it.key }
+
+    /** The sentence being built with "Say anything"; null while the reply cards show. */
+    private var builder: SentenceBuilder? = null
+    private var latestWordRequest = 0
+
+    /** When the builder's cards last changed; a blink that began before then picks nothing. */
+    private var builderChangedMs = Long.MIN_VALUE
+
+    /** The cards in scan order: the builder's while it is open, otherwise the board's. */
+    private val cards: List<Int> get() = builder?.cards ?: board.cards
 
     private val speaking get() = speakingSinceMs != null
     private val waiting get() = waitUntilMs != null
@@ -193,7 +208,18 @@ class ConversationController(
         repliesPending = false
         waitUntilMs = null
         board.showSuggestions(if (fromModel) replies else null)
-        if (!speaking) startCards(nowMs)
+        if (!speaking && builder == null) startCards(nowMs)
+        publish(nowMs)
+    }
+
+    /** The model's next words and finished sentence for "Say anything"; only the latest request counts. */
+    fun onWords(requestId: Int, words: List<String>, completion: String?, timeMs: Long) {
+        val sentence = builder ?: return
+        if (requestId != latestWordRequest) return
+        val nowMs = advance(timeMs)
+        sentence.showModel(words, completion)
+        log.write("scan", "words from the model: ${sentence.shown}, finish: ${sentence.completion ?: "none"}")
+        restartBuilderCards(nowMs)
         publish(nowMs)
     }
 
@@ -218,7 +244,7 @@ class ConversationController(
             return
         }
         val card = if (moveByEyes) cursorCardAt(blink.startMs) else scanner.cardAt(blink.startMs)
-        if (card == null) {
+        if (card == null || (builder != null && blink.startMs < builderChangedMs)) {
             log.write("scan", "blink ignored, it began before the cards changed")
             return
         }
@@ -227,6 +253,14 @@ class ConversationController(
     }
 
     private fun choose(card: Int, nowMs: Long) {
+        builder?.let {
+            chooseInBuilder(it, card, nowMs)
+            return
+        }
+        if (card == Board.SAY_ANYTHING) {
+            openBuilder(nowMs)
+            return
+        }
         val sentence = board.choose(card)
         if (sentence == null) {
             log.write("scan", "cards now ${board.replies}")
@@ -234,6 +268,78 @@ class ConversationController(
             scanner.restart(board.cards, nowMs)
             return
         }
+        say(sentence, nowMs)
+    }
+
+    /** The bedside helper leaves "Say anything" without speaking (the back button). */
+    fun closeSayAnything(timeMs: Long) {
+        if (builder == null) return
+        val nowMs = advance(timeMs)
+        closeBuilder(nowMs, "back button")
+        publish(nowMs)
+    }
+
+    private fun openBuilder(nowMs: Long) {
+        builder = SentenceBuilder()
+        log.write("scan", "say anything opened")
+        askWords()
+        restartBuilderCards(nowMs)
+    }
+
+    private fun closeBuilder(nowMs: Long, why: String) {
+        builder = null
+        latestWordRequest++
+        log.write("scan", "say anything closed, $why")
+        moveCursor(0, nowMs)
+        scanner.restart(board.cards, nowMs)
+    }
+
+    private fun chooseInBuilder(sentence: SentenceBuilder, card: Int, nowMs: Long) {
+        when (card) {
+            SentenceBuilder.MORE_WORDS -> sentence.more()
+            SentenceBuilder.DELETE -> if (!sentence.deleteLast()) {
+                closeBuilder(nowMs, "nothing to delete")
+                return
+            } else {
+                askWords()
+            }
+            SentenceBuilder.SPEAK -> {
+                val text = sentence.sentence
+                closeBuilder(nowMs, "spoken")
+                say(text, nowMs)
+                return
+            }
+            SentenceBuilder.FINISH -> {
+                val text = sentence.completion ?: return
+                closeBuilder(nowMs, "finished by the model")
+                say(text, nowMs)
+                return
+            }
+            else -> {
+                val word = sentence.shown.getOrNull(card) ?: return
+                sentence.add(word)
+                log.write("scan", "sentence now \"${sentence.sentence}\"")
+                askWords()
+            }
+        }
+        restartBuilderCards(nowMs)
+    }
+
+    private fun askWords() {
+        val sentence = builder ?: return
+        latestWordRequest++
+        requestWords(latestWordRequest, turns.toList(), sentence.sentence)
+    }
+
+    /** Back to the first word whenever the builder's cards change, so a pick never lands on a word not seen. */
+    private fun restartBuilderCards(nowMs: Long) {
+        builderChangedMs = nowMs
+        moveCursor(0, nowMs)
+        scanner.restart(cards, nowMs)
+    }
+
+    /** Says [sentence], adds it to the conversation and the frequent phrases, and asks for new replies. */
+    private fun say(sentence: String, nowMs: Long) {
         turns += Turn(fromListener = false, text = sentence)
         phraseFrequencies[sentence] = (phraseFrequencies[sentence] ?: 0) + 1
         board.updateFrequent(frequentPhrases)
@@ -270,11 +376,11 @@ class ConversationController(
                 startCards(nowMs)
             }
         }
-        if (scanner.cards != board.cards) scanner.restart(board.cards, nowMs)
+        if (scanner.cards != cards) scanner.restart(cards, nowMs)
         if (waiting) scanner.pause(nowMs)
         val highlighted = when {
             speaking || waiting -> -1
-            moveByEyes -> board.cards.getOrNull(cursor.coerceIn(0, board.cards.size - 1)) ?: -1
+            moveByEyes -> cards.getOrNull(cursor.coerceIn(0, cards.size - 1)) ?: -1
             else -> scanner.cardAt(nowMs) ?: -1
         }
         if (highlighted != lastHighlighted && highlighted != -1) log.write("scan", "highlight ${label(highlighted)}")
@@ -284,6 +390,15 @@ class ConversationController(
             heard = heard,
             replies = board.replies,
             highlighted = highlighted,
+            builder = builder?.let {
+                BuilderUi(
+                    sentence = it.sentence,
+                    wordCount = it.wordCount,
+                    words = it.shown,
+                    completion = it.completion,
+                    canSpeak = !it.isEmpty,
+                )
+            },
         )
     }
 
@@ -292,7 +407,7 @@ class ConversationController(
     private var beforeLook = 0
 
     private fun moveCursor(position: Int, nowMs: Long) {
-        val size = board.cards.size
+        val size = cards.size
         previousCursor = cursor
         cursor = ((position % size) + size) % size
         cursorMovedMs = nowMs
@@ -300,13 +415,26 @@ class ConversationController(
 
     private fun cursorCardAt(timeMs: Long): Int? {
         val position = if (cursorMovedMs > timeMs) previousCursor else cursor
-        return board.cards.getOrNull(position)
+        return cards.getOrNull(position)
     }
 
-    private fun label(card: Int) = when (card) {
-        Board.MORE_OPTIONS -> "More options"
-        Board.YES_NO -> "Yes / No"
-        else -> "\"${board.replies.getOrNull(card)}\""
+    private fun label(card: Int): String {
+        val sentence = builder
+        if (sentence != null) {
+            return when (card) {
+                SentenceBuilder.MORE_WORDS -> "More words"
+                SentenceBuilder.DELETE -> if (sentence.isEmpty) "Exit" else "Delete"
+                SentenceBuilder.SPEAK -> "Speak"
+                SentenceBuilder.FINISH -> "Finish it for me"
+                else -> "word \"${sentence.shown.getOrNull(card)}\""
+            }
+        }
+        return when (card) {
+            Board.MORE_OPTIONS -> "More options"
+            Board.YES_NO -> "Yes / No"
+            Board.SAY_ANYTHING -> "Say anything"
+            else -> "\"${board.replies.getOrNull(card)}\""
+        }
     }
 
     private companion object {

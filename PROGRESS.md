@@ -4,7 +4,7 @@ What has been built, why, and how to test it. Updated with every change.
 
 Marks: `[ ]` built, not yet tested on the phone. `[x]` passed on the iQOO (date).
 
-Latest: the stats screen now listens, so a question asked there updates the reply numbers live (owner's screenshot, 08:00). long replies shrink to fit their card instead of losing their second line (owner's screenshot, 07:46). replies slowed after the model file was picked again in 4 of 6 cases (not proven; see "Slow replies after picking the model file again"). The 07:31 to 07:37 phone run had no new bug (40 replies, median 0.83 s; 39 cards chosen; help sounded; "Are you in pain?" got "Yes, it hurts a lot."). heat is not why replies slow down (thermal "none", 34 to 36 °C at 06:12 to 06:18); each reply now logs the model's own timing breakdown. every reply now logs the phone temperature and thermal status, to check why replies slow down after a few minutes. a newer question now stops the model writing a reply nobody will see (two quick taps took 1.8 s instead of 0.9 s). the 05:45 to 05:52 phone run showed no new bug (42 replies, median 0.9 s; 35 cards chosen; every close of 0.4 s or more chose). Fixed open eyes picking cards after calibration (05:37 to 05:38: the gap check had switched off). "Are you in pain" now gets answers about pain. what the visitor just said now decides the four replies ("Are you in pain" got rest and water cards at 05:27:38). Help sounded three times on the phone at 05:18 to 05:19. help now sounds when the eyes close again after the beep, blink or longer hold (three phone tries were cancelled at 05:08); calibration no longer sets a lid gap line so low that held closes miss; no more visitor-style question cards. the model's earlier cards no longer go into its prompt (it copied them back five times in a row, through "In pain"), and the line just said is not offered again. Phone logs 04:19 to 04:55: MTP on, replies 0.6 to 1.4 s. holding the eyes shut for help no longer says a card first (a card is now chosen when the eyes open). "Share logs" on the eye check page sends the run logs straight into a chat, and `tools\phone-logs.ps1` keeps a live copy on the laptop (CLAUDE.md section 12). A damaged model download is caught by its checksum and named plainly, instead of "Engine is not initialized" every 3 s. Download the model again; the app checks it once (about 2 s). Waiting for the phone test.
+Latest: "Say anything" is built from the design: build any sentence by eyes, a few words at a time, with the model suggesting the next words and a finished sentence. The eye check, settings, model and calibration screens follow the new designs. Also from main: the stats screen now listens, so a question asked there updates the reply numbers live (owner's screenshot, 08:00). long replies shrink to fit their card instead of losing their second line (owner's screenshot, 07:46). replies slowed after the model file was picked again in 4 of 6 cases (not proven; see "Slow replies after picking the model file again"). The 07:31 to 07:37 phone run had no new bug (40 replies, median 0.83 s; 39 cards chosen; help sounded; "Are you in pain?" got "Yes, it hurts a lot."). heat is not why replies slow down (thermal "none", 34 to 36 °C at 06:12 to 06:18); each reply now logs the model's own timing breakdown. every reply now logs the phone temperature and thermal status, to check why replies slow down after a few minutes. a newer question now stops the model writing a reply nobody will see (two quick taps took 1.8 s instead of 0.9 s). the 05:45 to 05:52 phone run showed no new bug (42 replies, median 0.9 s; 35 cards chosen; every close of 0.4 s or more chose). Fixed open eyes picking cards after calibration (05:37 to 05:38: the gap check had switched off). "Are you in pain" now gets answers about pain. what the visitor just said now decides the four replies ("Are you in pain" got rest and water cards at 05:27:38). Help sounded three times on the phone at 05:18 to 05:19. help now sounds when the eyes close again after the beep, blink or longer hold (three phone tries were cancelled at 05:08); calibration no longer sets a lid gap line so low that held closes miss; no more visitor-style question cards. the model's earlier cards no longer go into its prompt (it copied them back five times in a row, through "In pain"), and the line just said is not offered again. Phone logs 04:19 to 04:55: MTP on, replies 0.6 to 1.4 s. holding the eyes shut for help no longer says a card first (a card is now chosen when the eyes open). "Share logs" on the eye check page sends the run logs straight into a chat, and `tools\phone-logs.ps1` keeps a live copy on the laptop (CLAUDE.md section 12). A damaged model download is caught by its checksum and named plainly, instead of "Engine is not initialized" every 3 s. Download the model again; the app checks it once (about 2 s). Waiting for the phone test.
 
 Also: choosing now needs the eyes held shut for 0.4 s. The phone logs of 2026-10-10 showed unprompted blinks of 200 to 242 ms picking cards ("I need water" five times in 11 s) and a double blink picking one, so the hold went up from 0.2 s and double blinks are off by default. Listening no longer drops the working on-device recogniser when the phone speaks. Time with no face no longer counts as eyes shut (a close seen under 0.2 s, then the face lost for 0.2 s, picked a card). The model now starts with Gemma 4's own drafter (MTP) on the GPU for faster replies, falling back to the plain GPU and then the CPU. Model replies now fit a person in bed being cared for (no more "I want a glass of wine" small talk) and avoid repeating cards just passed over. Also: laptop builds can sign with the shared key (`~/.android/outspoken-debug.keystore`), so any APK installs over the last one and nothing is uninstalled; a model picked with "Choose model file" is found at every start. Models stay in Downloads across reinstalls. Waiting for the phone test.
 
@@ -116,6 +116,27 @@ How to test on the phone: eye check page → Share logs → a chat app; the file
 - [ ] **Listening keeps working after the phone speaks.** Error 5 after each pause dropped the working on-device recogniser for the normal one, which then failed with error 13 every 5 s. Code: `listen/Listener.kt`.
 
 How to test on the phone: look at the screen normally for a minute with "I need water" lit; nothing should be said. Then close both eyes about half a second, ten times; each one should say it. Ask a question aloud after each; the heard text should show. Tap "Save logs" and send the file.
+
+## Say anything: build any sentence (owner request, design of 2026-10-10)
+
+- [ ] **A "Say anything" card on the main page**, after "More options" and "Yes / No", reachable by eyes like every card. It opens the builder. Code: `conversation/Board.kt` (`SAY_ANYTHING`), `ui/ConversationScreen.kt`.
+- [ ] **Your sentence** at the top (where "Heard" sits), with the word count. Below it **"Finish it for me"**: the model's guess at the whole sentence; one blink says it. Then **four next words** (one to three words each), and **More words, Delete, Speak**. Code: `ui/SayAnythingScreen.kt`.
+- [ ] **Words show at once** from a built-in list of common next words (after "I": want, need, am, feel...), and the model's four words replace them when they arrive; if the model fails, the built-in words stay, as the phrase bank does for replies. Code: `conversation/SentenceBuilder.kt` (`SentenceBuilder`, `CommonWords`).
+- [ ] **The model is asked once per word step** for a JSON list of 5 strings: the finished sentence, then 4 next words. Same model, same runtime, same list parser as the replies; the answer is checked (the finished sentence must start with the sentence so far; words must be 1 to 3 words, not repeats, not the word just picked). Code: `suggest/WordPrompt.kt`, `suggest/ModelSuggestionEngine.kt` (`nextWords`), `MainActivity.kt` (`requestWords`).
+- [ ] **Each word step's model time is in the log**: `model: words in N ms, T tok/s, from the model for "I want"`, so the real number can be read.
+- [ ] **Everything by eyes:** words, More words, Delete, Speak and Finish are cards the highlight moves over (words first, Finish last). **Delete on an empty sentence reads Exit** and leaves without speaking. The back button does the same for the person at the bedside.
+- [ ] **Speak** says the whole sentence, adds it to the conversation and to the frequent phrases, and new replies are asked for, as after any card.
+- [ ] **No pick lands on a word not seen:** when the words change (a pick, or the model's words arriving) the highlight goes back to the first word, and a blink that began before the change picks nothing.
+- Tests: `SentenceBuilderTest`, `WordPromptTest`, `SayAnythingTest` (open, build, model words and stale answers, Speak, Finish, Delete and Exit, back button, More words, by eyes).
+- Fixes found on the phone (08:03): the Model screen said "Downloaded" for the model in use when it was the browser's second copy ("gemma-4-E2B-it (1).litertlm"); a copy now counts as its model (`ModelCatalog.isFileOf`, test "a browser copy of a model counts as that model, another model does not"). Scrolled screens slid under the status bar; scrolling now happens inside the screen edges (`ui/Parts.kt`). The calibration camera box gives way when the heading takes two lines, so "Skip for now" is never squeezed. The gaze word stays on one line.
+- Tests changed on purpose: the main page has a seventh card, so `BoardTest` "first page leads with water" and "more options pages through and wraps", and `EyeModeTest` "looking up from the top wraps to the last card", "with looking down off a look up moves to the next card and wraps round", "a blink on More options opens the next page" and "a look fired just before a wink is taken back" now count "Say anything" as the last card.
+
+How to test on the phone:
+1. On the main page, move to "Say anything" and close your eyes about half a second.
+2. Pick "I", then a next word. The words change after each pick; within about a second the model's words and "Finish it for me" appear.
+3. Pick a few words, then "Speak": the phone says the sentence and it shows in the transcript.
+4. Open it again, pick one word, then Delete twice: the second Delete reads "Exit" and goes back to the main page.
+5. Share logs and look for the "words in ... ms" lines.
 
 ## Choosing reliably (goal: "I need water" ten times in a row, no wrong card, no missed blink)
 
@@ -486,7 +507,7 @@ To tune on the phone (PRD: pick the largest model that meets 2 s): try Gemma3-1B
 ## M3. Listening and calibration
 
 PRD pass test: a stranger asks an unscripted question aloud and gets a sensible blinked answer in under 20 seconds, in airplane mode.
-Status: in progress. Calibration is in its own section above; listening is built; the practice round is still to come.
+Status: built, pass test not run yet. Calibration, listening and the practice round are all built (sections above).
 
 - [ ] **Listening** (F7). The microphone listens all the time on the conversation page, on the phone itself: Android's on-device recogniser when there is one, otherwise the normal recogniser told to stay offline. Each finished sentence shows on the designed "Heard" card and goes to Gemma with the conversation, so the four replies answer it. Code: `listen/Listener.kt`, `conversation/ConversationController.kt`.
 - [ ] **Does not hear itself.** Listening pauses while the phone speaks (replies and calibration prompts), drops anything heard in the 1.5 s after, and drops text that matches what the phone just said. Code: `listen/HeardFilter.kt`.
@@ -510,7 +531,7 @@ Extras beyond the PRD:
 ## M4. Alarm, stats, laptop view (started)
 
 PRD pass test: the help alarm, the stats screen and the laptop view all shown in one run.
-Status: in progress. The help alarm and the stats screen are built; the laptop view is next.
+Status: built, pass test not run yet. The help alarm, the stats screen and the transcript for the laptop are all built.
 
 - [ ] **Help alarm** (F8). Eyes held shut for 2 s: a beep says the hold is done. Open the eyes and close them again within 5 s, as a blink or a longer close: the phone's alarm sound plays on the alarm channel, looping, at full volume, and the designed help screen fills the display with the last thing said. "I am here" (or back) stops it and returns to the cards; the speaker button silences it. The confirm blink never picks a card, and the hold itself never counts as a blink. Works even while the phone is speaking. Code: `help/HelpTrigger.kt`, `help/HelpAlarm.kt`, `conversation/ConversationController.kt`, `ui/HelpAlertScreen.kt`.
 - Why two steps: a person resting with their eyes closed should not set it off alone.
@@ -537,14 +558,16 @@ The four designed screens are built exactly from the design file, as stand-alone
 - [ ] **Practice round** (wired in M3): star targets, blinks caught, eye-open bar with your blink line, hold time and scan speed. Code: `ui/PracticeScreen.kt`.
 - [ ] **Help alert** (wired in M4): alarm screen, last thing said, sound off, "I am here". Code: `ui/HelpAlertScreen.kt`.
 - [ ] **Session stats** (wired in M4): reply time, model speed, temperature, blink accuracy, session length, sentences spoken. Code: `ui/StatsScreen.kt`.
+- [ ] **Eye check** (design of 2026-10-10): back, an "Eyes open / Eyes shut / Half open / Looking for you" pill, settings button; the live camera with the eye dots in a dark box; "How open your eyes are" graph (left eye lavender, right eye ink, open line green, shut line pink, last 5 s); gaze, camera speed, left and right eye tiles; the last blink decision on the pink card. Code: `ui/EyeCheckScreen.kt`.
+- [ ] **Settings** (design of 2026-10-10), opened with the sliders button on eye check: the typed question with Ask and the topic buttons; "Look up to move / Blink only"; the tuning sliders (shut line, open line, shortest and longest blink, look hold, or scan speed in blink only); Reset and "Calibrate, 30 s". Code: `ui/SettingsScreen.kt`, `ui/Controls.kt`.
+- [ ] **Model** (design of 2026-10-10), opened with "Model and logs" in settings: status pill, Gemma 4 E2B and E4B with Download, Use or In use, "Choose a model file", the newest reply time and model speed, offline voice, build, Share logs and Save logs. Code: `ui/ModelsScreen.kt`.
+- [ ] **Calibration** (design of 2026-10-10): "Step n of 5", the spoken prompt as the heading, the live camera, which step is measured with five bars and what comes next, eyes open value and time left, "Skip for now". Code: `ui/CalibrationScreen.kt`, `setup/Calibration.kt` (`Step.stage`, `totalMs`). Tests: `CalibrationTest` "the screen steps run in order from 1 to 5 and end on done", "the whole calibration takes one step length for each step before done".
 
 Unit tests:
 - `FormatTest`: how numbers on the stats and practice screens are written ("1.2 s", "24 tok/s", "04:12", "-" when not measured).
 
 Design gaps, for the teammate to decide. Each uses the closest existing style for now:
 - Help screen after the sound is turned off: it still reads "Alarm is sounding".
-- No design for the typed question box and topic buttons; they are on the plain eye check page.
-- No design for the "Choose model file" button; it is on the plain eye check screen.
 - Main page live camera with eye dots (owner asked for it): a 150 dp rounded box under the status row, and a hint line in the soft ink style.
 - Highlight on "More options" and "Yes / No": pink glow, no "Blink" badge (the badge is taller than these cards).
 - Face lost: same pill reading "Looking for you" with a grey dot.
@@ -553,10 +576,17 @@ Design gaps, for the teammate to decide. Each uses the closest existing style fo
 - Practice round: the "Steady" and "One more and you are ready" lines will come from the calibration logic in M3.
 - Help alert: no design yet for after the sound is turned off.
 - Help alert glass blur is left out; the background behind it is a smooth gradient, so it looks the same.
-- No control to change scan speed (the practice round only shows it).
 - While the phone is speaking, no card is lit.
 - App icon (owner request, the default Android icon was in use): a speech bubble with a glowing green eye on a dark gradient, with a one-colour layer for themed icons. Code: `res/mipmap-anydpi/ic_launcher.xml`, `res/drawable/ic_launcher_*.xml`. For the teammate to replace if the design has its own.
 - Main page top bar: a fourth round button (eye icon) opens the eye check page; the practice round uses the star icon.
+- Settings: switches the design does not show (looking down, winks) are rows with an On / Off pill (green when on); "Look up distance" and the look down sliders use the design's slider. "Model and logs" is a glass button, since the design has no way to the Model screen. Scan speed replaces Look hold in blink only mode. A "Listening:" line under "Ask without the microphone" says what the microphone is doing.
+- Eye check: the design shows only "Eyes open"; shut is the pink surface, half open and no face are glass. The camera fills the dark box with the eye dots, with "Live camera" at the bottom.
+- Model: why a model is missing or failed shows as a grey line under the heading; "Allow access to Downloads" is a pink button when access is off; the status pill reads Loading, Could not load or No model yet when not ready; the build card adds a second line saying which signing key the APK has.
+- Calibration: the design's subtitle says "until you hear the tone"; the app speaks each step instead, so it reads "until the next step is spoken". A failed calibration shows the reason as the heading with "Skip for now" and a pink "Try again".
+- New icon from the design: the sliders icon (`res/drawable/ic_settings.xml`).
+- Main page: "Say anything" is a third card in the row with "More options" and "Yes / No", all three at 16 sp (design: two at 18 sp), so the reply cards keep their height; the main page design has no way into it.
+- Say anything: the design has no exit the eyes can reach, so Delete reads "Exit" when the sentence is empty. Before the model answers, "Finish it for me" reads "Thinking of the rest…" in grey. A lit "Finish it for me" or bottom button uses the pink highlight, and the lit Finish card shows the Blink badge in place of the sparkle. Speak is greyed out while the sentence is empty. On a lit word card the Blink badge sits in the bottom right corner, not beside the word, and long words shrink to 18 sp: beside it, "please" broke into "pleas / e" on the phone. With no words yet, the sentence line reads "Pick a first word" in grey.
+- New icon from the design: the sparkle (`res/drawable/ic_sparkle.xml`).
 
 ## CI checks
 
@@ -570,11 +600,7 @@ Run on every push and pull request (`.github/workflows/ci.yml`). The `main` rule
 
 ## Next
 
-1. Owner runs "I need water" ten times in a row in both modes on the iQOO and sends the counts and logs. Copy the Gemma `.litertlm` file to the phone first ("Choose model file"); the last run had no model.
-2. Fix what the logs show, then mark M1 and the practice round.
-3. Sentence builder (plan, starts after step 1):
-   - A "Write my own" card opens a builder: the sentence so far where "Heard" sits, four next-word cards (one to three words each), then Speak, More words, Delete last word and Exit, all reachable by eyes.
-   - A built-in list of common next words shows at once; Gemma's four suggestions replace it when ready, and the list stays if the model fails.
-   - Speed: ask for about 32 tokens instead of 96, keep one model session open for the whole sentence, and work out the next words for the lit card while the person is still choosing.
-   - Each word step logs the model reply time.
-   - Open question for the owner: add "Starts with..." letter groups, or words only first.
+1. Owner runs the M1 pass test on the iQOO: "I need water" ten times in a row, in "Look up to move" and in "Blink only". Send the counts and the logs ("Share logs" on the Model screen). Then M0 and M1 can be marked.
+2. The M2 to M4 pass tests: a stranger's question in airplane mode, then help alarm, stats and transcript in one run.
+3. Owner sends the shared debug keystore to each laptop (`~/.android/outspoken-debug.keystore`) so every APK installs over the last one.
+4. M5: freeze, video, README, APK, submission, pitch rehearsals.

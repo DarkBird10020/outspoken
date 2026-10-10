@@ -31,6 +31,20 @@ class ModelSuggestionEngine(
         return Suggestions(topUp(replies, lastSaid), fromModel = true, clockMs() - startMs, generation.tokensPerSecond, generation.timing)
     }
 
+    override suspend fun nextWords(request: WordRequest): WordSuggestions {
+        val startMs = clockMs()
+        val generation = try {
+            model.generate(buildWordPrompt(request))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return WordSuggestions(null, emptyList(), fromModel = false, clockMs() - startMs)
+        }
+        val answer = parseWordAnswer(generation.text, request.sentence)
+        val usable = answer.completion != null || answer.words.isNotEmpty()
+        return WordSuggestions(answer.completion, answer.words, usable, clockMs() - startMs, generation.tokensPerSecond, generation.timing)
+    }
+
     private fun topUp(replies: List<String>, lastSaid: String?): List<String> {
         val pool = (frequentPhrases() + PhraseBank.phrases).filterNot { words(it) == lastSaid }
         val candidates = pool.filter { phrase -> replies.none { it.equals(phrase, ignoreCase = true) } }.distinct()

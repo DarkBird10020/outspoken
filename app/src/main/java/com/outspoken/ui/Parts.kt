@@ -23,6 +23,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -42,6 +44,7 @@ import com.outspoken.ui.theme.type
 fun DesignScreen(
     background: Modifier,
     gap: Dp,
+    scrolls: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
@@ -49,6 +52,8 @@ fun DesignScreen(
             .fillMaxSize()
             .then(background)
             .windowInsetsPadding(WindowInsets.safeDrawing)
+            // Inside the insets, so scrolled content never slides under the status bar.
+            .then(if (scrolls) Modifier.verticalScroll(rememberScrollState()) else Modifier)
             .padding(horizontal = 20.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(gap),
         content = content,

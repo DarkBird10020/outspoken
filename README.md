@@ -15,7 +15,7 @@ iQOO (vivo I2501, Android 16), from the app's own run logs of 2026-10-10:
 
 ## Status
 
-Working on M1 to M4 together. Look up above the phone for the next card and close your eyes for about half a second to say the lit card, or switch to blink only mode, where the highlight moves on a timer. The phone listens to the visitor's question, and Gemma on the phone writes four replies that fit; the built-in phrase bank shows while it thinks and whenever it fails. A practice round, a help alarm, a stats screen and a live transcript are built.
+Working on M1 to M4 together. Look up above the phone for the next card and close your eyes for about half a second to say the lit card, or switch to blink only mode, where the highlight moves on a timer. The phone listens to the visitor's question, and Gemma on the phone writes four replies that fit; the built-in phrase bank shows while it thinks and whenever it fails. A practice round, a help alarm, a stats screen, a live transcript and "Say anything" (build any sentence a few words at a time) are built.
 
 ## Setup
 
@@ -25,12 +25,12 @@ Every push builds a debug APK on GitHub Actions. Download `outspoken-debug-apk` 
    ```
    ./gradlew installDebug
    ```
-2. Get a Gemma model: on the eye check page (eye button, top right), tap Download next to Gemma 4 E2B (faster, the default) or E4B (more accurate, slower). The phone's browser downloads it and the app loads it by itself; the app never goes online. A `.litertlm` file already on the phone can be picked with "Choose model file". The model is not in this repo; it comes under the Gemma terms of use.
+2. Get a Gemma model: on the Model screen (eye button at the top right, then the sliders button, then "Model and logs"), tap Download next to Gemma 4 E2B (faster, the default) or E4B (more accurate, slower). The phone's browser downloads it and the app loads it by itself; the app never goes online. A `.litertlm` file already on the phone can be picked with "Choose model file". The model is not in this repo; it comes under the Gemma terms of use.
 3. Make sure the phone's text-to-speech engine has an offline English voice installed. The app shows "Offline voice: ready" when it does.
 
 Stand the phone on a table or holder at arm's length, front camera facing the speaker.
 
-To run exactly the same app on two phones, install the CI APK (`outspoken-debug-apk`) on both: it is signed with one shared key. To build on a laptop with that same key, save the team's shared debug keystore (ask the owner; it is never in the repo) as `~/.android/outspoken-debug.keystore`. Then every APK installs over the last one and the phone keeps its settings and models. Models stay in Downloads, so even an uninstall does not delete them. The eye check page shows "Build:" with the commit, so the two can be compared.
+To run exactly the same app on two phones, install the CI APK (`outspoken-debug-apk`) on both: it is signed with one shared key. To build on a laptop with that same key, save the team's shared debug keystore (ask the owner; it is never in the repo) as `~/.android/outspoken-debug.keystore`. Then every APK installs over the last one and the phone keeps its settings and models. Models stay in Downloads, so even an uninstall does not delete them. The Model screen shows the build (the commit), so the two can be compared.
 
 ## Using it
 
@@ -38,18 +38,19 @@ To run exactly the same app on two phones, install the CI APK (`outspoken-debug-
 2. On the main page, the visitor asks a question out loud. It shows on the "Heard" card and four replies appear.
 3. The speaker moves the highlight and closes both eyes for about half a second to say the lit card.
 4. Holding the eyes shut for 2 s (a beep), then opening them and closing them again within 5 s, as a blink or a longer close, sounds the help alarm.
+5. To say something the cards do not offer, choose "Say anything": pick words one at a time (the model suggests the next four, and a finished sentence that one blink says), then Speak.
 
-Two ways to move the highlight, switched on the eye check page:
+Two ways to move the highlight, switched in Settings:
 - **Eyes** (default): look up, above the phone, for the next card; it wraps round. Looking down and winks can be switched on too.
 - **Blink only**: the highlight moves on a timer (scan speed slider); blink when the right card lights.
 
 Buttons on the main page, top right:
 - **Star**: practice round. Catch three stars by blinking; it sets the blink length and gives the blink accuracy on the stats screen.
-- **Eye**: eye check page. Live graph of both eyes with the shut and open lines, OPEN / SHUT in large letters, the gaze box, the last decisions, the mode switches and sliders, "Calibrate my eyes", "Choose model file", "Share logs" and "Save logs". Sized to be read from about two metres for a demo.
+- **Eye**: eye check page. The live camera, a graph of both eyes against the shut and open lines, where the eyes look, the camera speed and the last blink decision. Its sliders button opens **Settings**: the typed question and topic buttons, "Look up to move" or "Blink only", the tuning sliders, Reset and "Calibrate, 30 s". From Settings, **Model and logs**: download or switch the Gemma model, "Choose a model file", reply speed, the build, "Share logs" and "Save logs".
 - **Transcript**: the conversation in large type, for a laptop through Office Kit.
 - **Stats**: reply time, model speed, blink accuracy, session length, sentences spoken.
 
-Run logs stay on the phone in `Android/data/com.outspoken/files/logs/`. Tap "Share logs" on the eye check page to send them to another app, or "Save logs" to keep a copy; on a laptop, `tools/phone-logs.ps1` copies them over USB or wireless debugging. Logs are never committed: they hold what people said.
+Run logs stay on the phone in `Android/data/com.outspoken/files/logs/`. Tap "Share logs" on the Model screen (eye button, then the sliders button, then "Model and logs") to send them to another app, or "Save logs" to keep a copy; on a laptop, `tools/phone-logs.ps1` copies them over USB or wireless debugging. Logs are never committed: they hold what people said.
 
 ## Checks
 

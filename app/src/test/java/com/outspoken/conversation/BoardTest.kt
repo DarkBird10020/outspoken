@@ -12,7 +12,7 @@ class BoardTest {
     fun `first page leads with water`() {
         assertEquals("I need water", board.replies.first())
         assertEquals(4, board.replies.size)
-        assertEquals(listOf(0, 1, 2, 3, Board.MORE_OPTIONS, Board.YES_NO), board.cards)
+        assertEquals(listOf(0, 1, 2, 3, Board.MORE_OPTIONS, Board.YES_NO, Board.SAY_ANYTHING), board.cards)
     }
 
     @Test
@@ -33,7 +33,7 @@ class BoardTest {
     fun `more options pages through and wraps`() {
         assertNull(board.choose(Board.MORE_OPTIONS))
         assertEquals(listOf("I am too hot", "I am too cold", "Thank you"), board.replies)
-        assertEquals(listOf(0, 1, 2, Board.MORE_OPTIONS, Board.YES_NO), board.cards)
+        assertEquals(listOf(0, 1, 2, Board.MORE_OPTIONS, Board.YES_NO, Board.SAY_ANYTHING), board.cards)
         board.choose(Board.MORE_OPTIONS)
         assertEquals("I need water", board.replies.first())
     }
