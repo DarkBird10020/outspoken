@@ -13,10 +13,6 @@ fun formatSeconds(seconds: Float?): String =
 fun formatWhole(value: Float?, unit: String = ""): String =
     value?.let { "${it.roundToInt()}$unit" } ?: UNKNOWN
 
-/** One decimal place with a unit, for example "33.8 °C". */
-fun formatTenths(value: Float?, unit: String = ""): String =
-    value?.let { String.format(Locale.US, "%.1f%s", it, unit) } ?: UNKNOWN
-
 /** The model's live numbers in one line for the main page: "Reply 0.9 s · 61 tok/s · 8 replies written". */
 fun liveStatsLine(replyTimeSeconds: Float?, tokensPerSecond: Float?, repliesWritten: Int): String =
     "Reply ${formatSeconds(replyTimeSeconds)} · ${formatWhole(tokensPerSecond)} tok/s · $repliesWritten replies written"

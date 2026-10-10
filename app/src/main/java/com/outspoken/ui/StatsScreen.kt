@@ -73,8 +73,7 @@ fun StatsScreen(ui: StatsUi, onBack: () -> Unit, onAsk: ((String) -> Unit)? = nu
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     ModelStat("Replies written", ui.repliesWritten.toString(), Modifier.weight(1f))
-                    // One decimal, so a change shows as soon as the phone reports it (owner request).
-                    ModelStat("Phone temperature", formatTenths(ui.phoneTempCelsius, " °C"), Modifier.weight(1f))
+                    ModelStat("Phone temperature", formatWhole(ui.phoneTempCelsius, " °C"), Modifier.weight(1f))
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
