@@ -655,9 +655,10 @@ class MainActivity : ComponentActivity() {
     /** Main thread. Only the conversation page acts on hand signs; elsewhere they let the hold go. */
     private fun onHandReading(reading: HandReading, timeMs: Long) {
         val acting = screen == Screen.Conversation
-        val fired = handHold.onFrame(reading.sign.takeIf { acting }, reading.score, timeMs, tuning.handSigns) ?: return
-        AppLog.write("hand", "${fired.label} held, ${fired.meaning}")
-        controller.onHandSign(fired.action, now())
+        val held = handHold.onFrame(reading.sign.takeIf { acting }, reading.score, timeMs, tuning.handSigns) ?: return
+        val sign = held.sign
+        AppLog.write("hand", "${sign.label} held ${held.heldMs} ms, ${held.steadyReadings} of ${held.readings} readings, ${sign.meaning}")
+        controller.onHandSign(sign.action, now())
     }
 
     private fun onHelpStep(step: HelpStep) {
@@ -734,7 +735,8 @@ class MainActivity : ComponentActivity() {
                 "words in ${words.elapsedMs} ms, ${words.tokensPerSecond ?: "-"} tok/s, " +
                     (if (words.fromModel) "from the model" else "built-in words only") +
                     " for \"$sentence\"" + (words.timing?.let { ", $it" } ?: "") +
-                    ", sentences that fit: ${words.sentences}",
+                    ", sentences that fit: ${words.sentences}" +
+                    (if (words.unfit.isNotEmpty()) ", did not fit: ${words.unfit}" else ""),
             )
             controller.onWords(requestId, words.words, words.completion, now())
         }

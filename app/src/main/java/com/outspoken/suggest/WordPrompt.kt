@@ -11,8 +11,9 @@ data class WordSuggestions(
     val elapsedMs: Long,
     val tokensPerSecond: Float? = null,
     val timing: String? = null,
-    /** The model's sentences the words came from, for the log. */
+    /** The model's sentences the words came from, and those that did not fit, for the log. */
     val sentences: List<String> = emptyList(),
+    val unfit: List<String> = emptyList(),
 )
 
 /** A next-word card holds at most this many words of a sentence the model wrote. */
@@ -60,10 +61,16 @@ fun buildWordPrompt(request: WordRequest): String = buildString {
 const val WORD_EXAMPLE_ANSWER = """["I want some water, please", "I want to sleep now", "I want my family here", "I am cold"]"""
 
 /**
- * What a word answer gave: the finished sentence, up to four next words, and every sentence of
- * the model's that fitted (for the log).
+ * What a word answer gave: the finished sentence, up to four next words, and the model's sentences
+ * that fitted and did not (for the log: at 10:30:47 only 1 of 4 fitted "I need to go", and the log
+ * could not say why).
  */
-data class WordAnswer(val completion: String?, val words: List<String>, val sentences: List<String> = emptyList())
+data class WordAnswer(
+    val completion: String?,
+    val words: List<String>,
+    val sentences: List<String> = emptyList(),
+    val unfit: List<String> = emptyList(),
+)
 
 /**
  * Reads the model's sentences for "Say anything". Only a sentence whose first words are exactly
@@ -79,20 +86,20 @@ fun parseWordAnswer(output: String, sentence: String): WordAnswer {
     val items = (if (start >= 0 && end > start) parseStringList(output.substring(start, end + 1)) else null)
         ?: Regex("\"([^\"\n]{1,120})\"").findAll(output).map { it.groupValues[1] }.toList()
     val soFar = tokens(sentence).map(::normal)
-    val fitting = items
+    val (fits, unfit) = items
         .map { it.trim().trim('"').trim() }
-        .filter { item ->
+        .partition { item ->
             val words = tokens(item)
             words.size in (soFar.size + 1)..MAX_SENTENCE_WORDS && words.take(soFar.size).map(::normal) == soFar
         }
-        .distinctBy { tokens(it).joinToString(" ", transform = ::normal) }
+    val fitting = fits.distinctBy { tokens(it).joinToString(" ", transform = ::normal) }
     val last = soFar.lastOrNull()
     val words = fitting
         .map { nextWords(tokens(it).drop(soFar.size)) }
         .filter { it.isNotEmpty() && normal(it) != last }
         .distinctBy { normal(it) }
         .take(4)
-    return WordAnswer(fitting.firstOrNull(), words, fitting)
+    return WordAnswer(fitting.firstOrNull(), words, fitting, unfit)
 }
 
 /** The first one or two of [rest], stopping after a word that ends a phrase, without its mark. */

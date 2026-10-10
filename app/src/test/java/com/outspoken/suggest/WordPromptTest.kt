@@ -41,6 +41,7 @@ class WordPromptTest {
         val answer = parseWordAnswer("""["It is cold here", "Please bring water", "I am cold"]""", "I")
         assertEquals("I am cold", answer.completion)
         assertEquals(listOf("am cold"), answer.words)
+        assertEquals(listOf("It is cold here", "Please bring water"), answer.unfit)
     }
 
     @Test
