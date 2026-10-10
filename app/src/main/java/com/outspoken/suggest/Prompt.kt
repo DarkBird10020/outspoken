@@ -51,8 +51,16 @@ const val EXAMPLE_ANSWER = """["Yes, please", "A little, thank you", "No, I am f
 
 const val EXAMPLE_ANSWER_HINDI = """["हाँ, कृपया", "थोड़ा सा, धन्यवाद", "नहीं, मैं ठीक हूँ", "क्या मुझे जूस मिल सकता है"]"""
 
-/** Asked of the model for Hindi cards: the instructions stay in English, the words it writes do not. */
-const val HINDI_LINE = "Write in Hindi, in Devanagari script, the everyday Hindi a family in India speaks."
+/**
+ * Asked of the model for Hindi cards: the instructions stay in English, the words it writes do
+ * not. On the phone the Hindi cards told the visitor what to do in the curt तुम form ("हाँ, बस चुप
+ * रहो", "थक गया हूँ, आराम करो", 18:01:11 to 18:01:30), where the English ones were the person's own
+ * needs, and used the masculine "गया" and "रहा" whoever is speaking; Hindi verbs show gender, and
+ * the app does not know the person's.
+ */
+const val HINDI_LINE = "Write in Hindi, in Devanagari script, the everyday Hindi a family in India speaks. " +
+    "To ask the Visitor for something, be polite: कृपया and the आप form, never तुम commands like \"चुप रहो\" or \"आराम करो\". " +
+    "Avoid words that show the Person's gender: \"मुझे थकान है\", not \"मैं थक गया हूँ\"."
 
 /**
  * Whether [text] asks for a yes or a no, from its first word. Heard speech comes without a
