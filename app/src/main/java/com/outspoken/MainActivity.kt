@@ -599,7 +599,8 @@ class MainActivity : ComponentActivity() {
                 "model",
                 "replies in ${suggestions.elapsedMs} ms, ${suggestions.tokensPerSecond ?: "-"} tok/s, " +
                     (if (suggestions.fromModel) "from the model" else "phrase bank fallback") +
-                    ", phone ${phoneTemperature() ?: "-"} °C, thermal ${thermalLabel(power.currentThermalStatus)}",
+                    ", phone ${phoneTemperature() ?: "-"} °C, thermal ${thermalLabel(power.currentThermalStatus)}" +
+                    (suggestions.timing?.let { ", $it" } ?: ""),
             )
             controller.onReplies(requestId, suggestions.replies, suggestions.fromModel, now())
         }

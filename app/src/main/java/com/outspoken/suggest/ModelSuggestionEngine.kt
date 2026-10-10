@@ -28,7 +28,7 @@ class ModelSuggestionEngine(
         val lastSaid = request.turns.lastOrNull { !it.fromListener }?.text?.let(::words)
         val replies = extractReplies(generation.text).filterNot { words(it) == lastSaid }
         if (replies.isEmpty()) return fallback(startMs)
-        return Suggestions(topUp(replies, lastSaid), fromModel = true, clockMs() - startMs, generation.tokensPerSecond)
+        return Suggestions(topUp(replies, lastSaid), fromModel = true, clockMs() - startMs, generation.tokensPerSecond, generation.timing)
     }
 
     private fun topUp(replies: List<String>, lastSaid: String?): List<String> {
