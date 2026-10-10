@@ -11,7 +11,7 @@ iQOO (vivo I2501, Android 16), from the app's own run logs of 2026-10-10:
 - Speech recognition and speech on the phone, offline.
 - Eye tracking at about 25 frames per second.
 - One run (05:45 to 05:52, build 61abde1): 42 model replies, median 0.9 s (0.67 to 1.8 s), median 60 tokens per second; 35 cards chosen by closing the eyes for 0.45 to 1.4 s; the 10 shorter blinks (up to 0.37 s) were ignored.
-- Another run (07:31 to 07:37, build 2600581): 40 replies, median 0.83 s (0.66 to 1.13 s), median 65 tokens per second (prompt read in about 0.15 s, replies of about 45 tokens); 39 cards chosen by closes of 0.41 to 1.0 s; 42 shorter blinks (up to 0.32 s) ignored; the help alarm sounded on the second close; the phone stayed at 32 to 36 °C with no heat warning. "Are you in pain?" got "Yes, it hurts a lot.", "No, I am okay now.", "A little bit, please.", "Just tired, not bad.".
+- Another run (07:31 to 07:37, build 2600581): 40 replies, median 0.83 s (0.66 to 1.13 s), median 65 tokens per second (prompt read in about 0.15 s, replies of about 45 tokens); 39 cards chosen by closes of 0.41 to 1.0 s; 40 shorter blinks (up to 0.32 s) ignored; the help alarm sounded on the second close; the app was not left and the model file was not picked again during the run; the phone stayed at 32 to 36 °C with no heat warning. "Are you in pain?" got "Yes, it hurts a lot.", "No, I am okay now.", "A little bit, please.", "Just tired, not bad.".
 
 ## Status
 
