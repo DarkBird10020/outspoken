@@ -33,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -316,10 +317,19 @@ private fun FixedCard(text: String, highlighted: Boolean, modifier: Modifier, si
             .height(60.dp)
             .surface(if (highlighted) Surfaces.Pink else Surfaces.Glass, RoundedCornerShape(30.dp))
             .clip(RoundedCornerShape(30.dp))
-            .clickable(role = Role.Button, onClick = onClick),
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, style = type(size, 500), maxLines = 1)
+        // With the Phone card four share the row, and one line at 16 sp cut "More options" to
+        // "More" and "Say anything" to "Say" (owner's screenshot, 10:07). Two lines, centred,
+        // shrinking to fit.
+        BasicText(
+            text,
+            style = type(size, 500, lineHeight = 1.1f, align = TextAlign.Center),
+            maxLines = 2,
+            autoSize = TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = size.sp, stepSize = 1.sp),
+        )
     }
 }
 
