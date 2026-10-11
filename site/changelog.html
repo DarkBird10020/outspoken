@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Changelog · Outspoken</title>
+<meta name="description" content="Every change to Outspoken, newest first.">
+<meta name="theme-color" content="#F5F6F6">
+<link rel="icon" href="assets/images/icon.png">
+<link rel="preload" href="assets/urbanist.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="nav" id="nav">
+  <div class="wrap">
+    <a class="brand" href="index.html" aria-label="Outspoken home">
+      <img src="assets/images/icon.png" alt="" width="40" height="40">
+      Outspoken
+    </a>
+    <nav class="nav-links glass" aria-label="Sections">
+      <a href="index.html#how">How it works</a>
+      <a href="index.html#features">Features</a>
+      <a href="index.html#team">Team</a>
+      <a href="changelog.html" aria-current="page">Changelog</a>
+    </nav>
+    <a class="btn btn-start" href="https://github.com/DarkBird10020/outspoken/releases/latest/download/outspoken.apk" data-download aria-label="Download the latest Outspoken APK">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>
+      <span>Download</span>
+    </a>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div class="page-head">
+      <a class="pill glass" href="index.html" style="align-self:flex-start">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>
+        Back
+      </a>
+      <h1>Changelog</h1>
+      <p>Every change to Outspoken, newest first. Each one reached the app through a pull request that passed the tests, lint and the no-internet check.</p>
+      <p class="release-line" data-release></p>
+    </div>
+    <div class="filters">
+      <label for="search" style="position:absolute;left:-9999px">Search the changelog</label>
+      <input id="search" class="glass" type="search" placeholder="Search changes, for example voice or Hindi" data-search>
+    </div>
+    <div class="log" data-log><div class="log-empty glass">Loading the changelog…</div></div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot glass">
+      <p><img src="assets/images/icon.png" alt="" width="24" height="24" style="border-radius:7px">Outspoken · Apache License 2.0</p>
+      <nav aria-label="Footer">
+        <a href="https://github.com/DarkBird10020/outspoken" target="_blank" rel="noopener">Source code</a>
+        <a href="https://github.com/DarkBird10020/outspoken/releases" target="_blank" rel="noopener">All releases</a>
+        <a href="index.html#download">Download</a>
+      </nav>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>
