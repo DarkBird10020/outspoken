@@ -1,5 +1,6 @@
 package com.outspoken.ui
 
+import org.junit.Assert.assertFalse
 import com.outspoken.hand.HandReading
 import com.outspoken.hand.HandSign
 import org.junit.Assert.assertEquals
@@ -79,5 +80,16 @@ class FormatTest {
         assertEquals("1.4 s from the model, 24 tok/s", describeReplies(1_400, fromModel = true, tokensPerSecond = 23.8f))
         assertEquals("2.1 s from the model", describeReplies(2_100, fromModel = true, tokensPerSecond = null))
         assertTrue(describeReplies(300, fromModel = false, tokensPerSecond = null).startsWith("0.3 s, phrase bank"))
+    }
+
+    @Test
+    fun `a long heard sentence keeps its end, from a word start`() {
+        val heard = "Gill has made around 2007 or 200022 runs inner around aapko entirement he didn't get out how do you think isn't it cool"
+        val shown = lastWords(heard, 40)
+        assertTrue(shown.startsWith("…"))
+        assertTrue(shown.endsWith("isn't it cool"))
+        assertTrue(shown.length <= 41)
+        assertFalse(shown.removePrefix("…").startsWith(" "))
+        assertEquals("Are you in pain?", lastWords("  Are you in pain?  ", 40))
     }
 }

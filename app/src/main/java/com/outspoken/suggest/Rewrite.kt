@@ -1,6 +1,8 @@
 package com.outspoken.suggest
 
 import com.outspoken.conversation.AppLanguage
+import com.outspoken.conversation.Script
+import com.outspoken.conversation.dominantScript
 
 /**
  * Asks the model to write a heard sentence in the language it was spoken in. Listening in Hindi,
@@ -8,9 +10,9 @@ import com.outspoken.conversation.AppLanguage
  * wants English shown as English, not a mix: the model turns it back into "What's your name?".
  */
 fun buildRewritePrompt(text: String, spokenIn: AppLanguage): String = buildString {
-    val target = if (spokenIn == AppLanguage.Hindi) "Hindi, in Devanagari script" else "English, in English letters"
-    val other = if (spokenIn == AppLanguage.Hindi) "English letters" else "Hindi (Devanagari) letters"
-    appendLine("A speech recogniser heard a visitor speak ${spokenIn.label} but wrote the sounds in $other.")
+    val target = "${spokenIn.englishName}, in ${spokenIn.script.promptName} script"
+    val other = dominantScript(text)?.let { "${it.promptName} letters" } ?: "other letters"
+    appendLine("A speech recogniser heard a visitor speak ${spokenIn.englishName} but wrote the sounds in $other.")
     appendLine("Write the sentence they said, in $target, with normal spelling and punctuation. Do not translate it or answer it.")
     appendLine("Answer with only the sentence.")
     appendLine()
@@ -27,26 +29,29 @@ fun buildRewritePrompt(text: String, spokenIn: AppLanguage): String = buildStrin
 }
 
 /**
- * The model's sentence when it is in the right script and about as long as what was heard; null
- * otherwise, and the caller keeps what the recogniser wrote.
+ * The model's sentence when it is in [spokenIn]'s script and about as long as what was heard;
+ * null otherwise, and the caller keeps what the recogniser wrote.
  */
 fun parseRewrite(output: String, heard: String, spokenIn: AppLanguage): String? {
     val line = output.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() } ?: return null
-    val sentence = line.removePrefix("Sentence:").trim().trim('"', '“', '”', '\'').trim()
+    val sentence = line.removePrefix("Sentence:").trim().trim('"', '\u201C', '\u201D', '\'').trim()
     if (sentence.isEmpty()) return null
-    val letters = sentence.filter { it.isLetter() }
-    if (letters.isEmpty()) return null
-    val devanagari = letters.count { it in 'ऀ'..'ॿ' }
-    val rightScript = if (spokenIn == AppLanguage.Hindi) devanagari * 2 > letters.length else devanagari == 0
-    if (!rightScript) return null
+    if (dominantScript(sentence) != spokenIn.script || mixesScripts(sentence, spokenIn.script)) return null
     val heardWords = heard.split(Regex("\\s+")).count { it.isNotBlank() }
     val words = sentence.split(Regex("\\s+")).count { it.isNotBlank() }
     if (words > heardWords * 2 + 2) return null
     return sentence
 }
 
-/** True when most letters are Latin, as when the recogniser writes Hindi in English letters. */
-fun mostlyLatin(text: String): Boolean {
-    val letters = text.filter { it.isLetter() }
-    return letters.isNotEmpty() && letters.count { it in 'a'..'z' || it in 'A'..'Z' } * 2 > letters.length
+/** True when [text] has letters of a script other than [script] (a half-rewritten sentence). */
+private fun mixesScripts(text: String, script: Script): Boolean =
+    text.any { c -> Script.of(c).let { it != null && it != script && !(script == Script.Japanese && it == Script.Han) } }
+
+/** True when [text] is written in another script than [language]'s, as when the recogniser listened in the wrong language. */
+fun inWrongScript(text: String, language: AppLanguage): Boolean {
+    val script = dominantScript(text) ?: return false
+    return script != language.script && !(language.script == Script.Japanese && script == Script.Han)
 }
+
+/** True when most letters are Latin, as when the recogniser writes Hindi in English letters. */
+fun mostlyLatin(text: String): Boolean = dominantScript(text) == Script.Latin

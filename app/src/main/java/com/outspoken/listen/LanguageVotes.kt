@@ -1,5 +1,7 @@
 package com.outspoken.listen
 
+import com.outspoken.conversation.AppLanguage
+
 /**
  * The recogniser's language guesses while one sentence is heard. Each guess alone is often "not
  * sure", but together they are clear: listening in Hindi, an English question gave 32 guesses,
@@ -48,8 +50,9 @@ class LanguageVotes(private val minVotes: Int = MIN_VOTES, private val share: Fl
         const val MIN_VOTES = 5
         const val SHARE = 0.75f
 
-        /** "en-IN" and "en_us" are both "en". */
-        fun primary(tag: String): String = tag.replace('_', '-').substringBefore('-').lowercase()
+        /** "en-IN" and "en_us" are both "en"; "cmn-Hans-CN" is "zh", the app's code for Chinese. */
+        fun primary(tag: String): String =
+            AppLanguage.fromCode(tag)?.code ?: tag.replace('_', '-').substringBefore('-').lowercase()
     }
 }
 

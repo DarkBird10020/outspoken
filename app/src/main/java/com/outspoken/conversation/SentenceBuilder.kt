@@ -120,12 +120,11 @@ object CommonWords {
     }
 
     /** Built-in Hindi words: first words for an empty sentence, then a few that fit after most words. */
-    fun nextHindi(words: List<String>): List<String> = if (words.isEmpty()) AppLanguage.Hindi.firstWords else hindiAnywhere
+    fun nextHindi(words: List<String>): List<String> = nextIn(AppLanguage.Hindi, words)
 
-    private val hindiAnywhere = listOf("कृपया", "अभी", "थोड़ा", "पानी", "दर्द", "आराम", "चाहिए", "है", "नहीं", "और", "बहुत", "मदद")
+    /** For a language other than English: its first words for an empty sentence, then ones that fit after most words. */
+    fun nextIn(language: AppLanguage, words: List<String>): List<String> = if (words.isEmpty()) language.firstWords else language.anywhere
 
-    fun forLanguage(language: AppLanguage): (List<String>) -> List<String> = when (language) {
-        AppLanguage.English -> ::next
-        AppLanguage.Hindi -> ::nextHindi
-    }
+    fun forLanguage(language: AppLanguage): (List<String>) -> List<String> =
+        if (language == AppLanguage.English) ::next else { words -> nextIn(language, words) }
 }

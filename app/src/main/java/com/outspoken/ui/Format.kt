@@ -54,3 +54,16 @@ fun describeReplies(elapsedMs: Long, fromModel: Boolean, tokensPerSecond: Float?
     if (!fromModel) return "$time, phrase bank (model failed or gave a bad answer twice)"
     return "$time from the model" + (tokensPerSecond?.let { ", ${formatWhole(it, " tok/s")}" } ?: "")
 }
+
+/**
+ * The end of [text] when it is longer than [maxChars], from a word start, after "…"; what the
+ * visitor said last is usually the question.
+ */
+fun lastWords(text: String, maxChars: Int): String {
+    val trimmed = text.trim()
+    if (trimmed.length <= maxChars) return trimmed
+    val tail = trimmed.takeLast(maxChars)
+    val space = tail.indexOf(' ')
+    val start = if (space in 0 until tail.length - 1) tail.substring(space + 1) else tail
+    return "…$start"
+}

@@ -15,7 +15,7 @@ fun buildPrompt(request: SuggestionRequest): String = buildString {
     appendLine("You suggest replies for a person in bed who cannot move or speak, cared for by family or a nurse (the Visitor). They pick one by blinking, and the phone says it aloud.")
     appendLine("Write 4 different replies they may want to say next.")
     appendLine("Each reply: first person, plain everyday words, at most 8 words, said by the Person, never by the Visitor.")
-    if (request.language == AppLanguage.Hindi) appendLine(hindiLine(request.profile))
+    languageLine(request.language, request.profile)?.let { appendLine(it) }
     appendLine("Answer with only a JSON list of 4 strings.")
     appendLine()
     // One worked example: small models copy the shape of an example far more reliably than they
@@ -26,6 +26,7 @@ fun buildPrompt(request: SuggestionRequest): String = buildString {
     } else {
         appendLine("Example. Question: Do you want some water?")
         appendLine("Answer: ${EXAMPLE_ANSWER}")
+        exampleNote(request.language)?.let { appendLine(it) }
     }
     appendLine()
     profilePrompt(request.profile)?.let { appendLine(it) }
@@ -77,6 +78,30 @@ fun hindiLine(profile: PatientProfile?): String = when (genderOf(profile?.gender
     Gender.Female -> "$HINDI_BASE The Person is a woman: use the feminine forms, \"मैं थक गई हूँ\"."
     Gender.Unknown -> HINDI_LINE
 }
+
+/**
+ * What the model is told about the language of the cards: nothing for English, the Hindi line for
+ * Hindi, and for the others which language and script to write, politely. Where the language marks
+ * the speaker's gender in its words, the profile's gender is given so the cards can speak as them.
+ */
+fun languageLine(language: AppLanguage, profile: PatientProfile?): String? = when (language) {
+    AppLanguage.English -> null
+    AppLanguage.Hindi -> hindiLine(profile)
+    else -> buildString {
+        append("Write in ${language.englishName}, in ${language.script.promptName} script, the everyday ${language.englishName} a family speaks. ")
+        append("To ask the Visitor for something, be polite and respectful.")
+        when (genderOf(profile?.gender.orEmpty())) {
+            Gender.Male -> append(" The Person is a man: where words show the speaker's gender, use the masculine forms.")
+            Gender.Female -> append(" The Person is a woman: where words show the speaker's gender, use the feminine forms.")
+            Gender.Unknown -> append(" Where you can, avoid words that show the Person's gender.")
+        }
+    }
+}
+
+/** Under the English example when the cards are in another language without an example of its own. */
+fun exampleNote(language: AppLanguage): String? =
+    if (language == AppLanguage.English || language == AppLanguage.Hindi) null
+    else "The example is in English; write your answer in ${language.englishName}."
 
 /**
  * Whether [text] asks for a yes or a no, from its first word. Heard speech comes without a
