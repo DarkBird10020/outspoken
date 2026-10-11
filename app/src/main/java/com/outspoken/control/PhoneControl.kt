@@ -341,15 +341,15 @@ object PhoneControl {
             fun local(b: Box) = RectF(b.left.toFloat(), b.top.toFloat(), b.right.toFloat(), b.bottom.toFloat()).apply {
                 offset(-location[0].toFloat(), -location[1].toFloat())
             }
-            val lit = now.box?.let { local(it).apply { inset(-6 * density, -6 * density) } }
+            val litRect = now.box?.let { local(it).apply { inset(-6 * density, -6 * density) } }
             val dimmed = Path().apply {
                 fillType = Path.FillType.EVEN_ODD
                 addRect(0f, 0f, width.toFloat(), height.toFloat(), Path.Direction.CW)
-                lit?.let { addRoundRect(it, 14 * density, 14 * density, Path.Direction.CW) }
+                litRect?.let { addRoundRect(it, 14 * density, 14 * density, Path.Direction.CW) }
             }
             canvas.drawPath(dimmed, dim)
             now.parts.forEach { canvas.drawRoundRect(local(it), 8 * density, 8 * density, part) }
-            lit?.let { canvas.drawRoundRect(it, 14 * density, 14 * density, box) }
+            litRect?.let { canvas.drawRoundRect(it, 14 * density, 14 * density, box) }
 
             val margin = 20 * density
             val textWidth = width - 4 * margin
@@ -364,14 +364,14 @@ object PhoneControl {
             ).filter { it.second.isNotEmpty() }
             val wrapped = lines.flatMap { (paint, text) -> wrap(text, paint, textWidth).map { paint to it } }
             val lineGap = 8 * density
-            val height = wrapped.sumOf { (paint, _) -> (paint.textSize + lineGap).toDouble() }.toFloat() + 2 * margin
+            val cardHeight = wrapped.sumOf { (paint, _) -> (paint.textSize + lineGap).toDouble() }.toFloat() + 2 * margin
             // The card goes in the middle for the menu, else at whichever end the lit part is not.
             val top = when {
-                lit == null -> (this.height - height) / 2
-                lit.centerY() > this.height / 2 -> 56 * density
-                else -> this.height - height - 56 * density
+                litRect == null -> (height - cardHeight) / 2
+                litRect.centerY() > height / 2 -> 56 * density
+                else -> height - cardHeight - 56 * density
             }
-            val area = RectF(margin, top, width - margin, top + height)
+            val area = RectF(margin, top, width - margin, top + cardHeight)
             canvas.drawRoundRect(area, 24 * density, 24 * density, card)
             canvas.drawRoundRect(area, 24 * density, 24 * density, box)
             var y = area.top + margin
