@@ -68,6 +68,15 @@ class ScreenScan(private val groupSize: Int = GROUP_SIZE) {
         position = 0
     }
 
+    /**
+     * The same screen read again: when its buttons are where they were, only what they say is
+     * updated and the scan stays where it is. A chat's "online" or a video's clock changing
+     * would otherwise send the light back to the menu every moment.
+     */
+    fun refresh(screen: List<Target>) {
+        if (screen.map { it.box } == targets.map { it.box }) targets = screen else show(screen)
+    }
+
     fun next() = move(1)
 
     fun previous() = move(-1)

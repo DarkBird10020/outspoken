@@ -83,6 +83,20 @@ class ScreenScanTest {
     }
 
     @Test
+    fun `the same buttons with new words keep the scan where it is`() {
+        val scan = ScreenScan()
+        scan.show(listOf(button(0, 100, "Chat, online"), button(0, 200, "Call")))
+        scan.next()
+        scan.next()
+        // "online" became "typing…": same place, same buttons.
+        scan.refresh(listOf(button(0, 100, "Chat, typing…"), button(0, 200, "Call")))
+        assertEquals("Call", scan.lit()?.label)
+        // A new screen starts again.
+        scan.refresh(listOf(button(0, 300, "Send")))
+        assertEquals("Menu", scan.lit()?.label)
+    }
+
+    @Test
     fun `an empty screen still offers the menu`() {
         val scan = ScreenScan()
         scan.show(emptyList())

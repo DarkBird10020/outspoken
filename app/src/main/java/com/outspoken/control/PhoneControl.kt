@@ -31,7 +31,7 @@ object PhoneControl {
     private val main = Handler(Looper.getMainLooper())
     private val scan = ScreenScan()
     private var nodes: List<AccessibilityNodeInfo> = emptyList()
-    private var shownKey: List<Pair<Box, String>> = emptyList()
+    private var shownKey: List<Box> = emptyList()
     private var overlay: Overlay? = null
     private var onStop: (() -> Unit)? = null
     private var onType: (() -> Unit)? = null
@@ -77,7 +77,7 @@ object PhoneControl {
 
     /** Something on screen changed; read it again once it settles. */
     fun screenChanged() {
-        if (!on) return
+        if (!on || typing) return
         main.removeCallbacks(refresh)
         main.postDelayed(refresh, SETTLE_MS)
     }
@@ -106,14 +106,16 @@ object PhoneControl {
     }
 
     private fun readScreen() {
+        if (!on || typing) return
         val service = SosAccessibility.running ?: return stop("the accessibility helper went off")
         val found = service.screenButtons() ?: return
-        val key = found.map { it.second.box to it.second.label }
-        if (key == shownKey) return
-        shownKey = key
         nodes = found.map { it.first }
-        scan.show(found.map { it.second })
-        AppLog.write("control", "${service.rootInActiveWindow?.packageName}: ${found.size} buttons")
+        val key = found.map { it.second.box }
+        scan.refresh(found.map { it.second })
+        if (key != shownKey) {
+            shownKey = key
+            AppLog.write("control", "${service.rootInActiveWindow?.packageName}: ${found.size} buttons")
+        }
         draw()
     }
 
