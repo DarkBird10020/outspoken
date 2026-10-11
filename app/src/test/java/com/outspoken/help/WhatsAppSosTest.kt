@@ -16,6 +16,21 @@ class WhatsAppSosTest {
     }
 
     @Test
+    fun `a number saved without the country code gets the phone's own`() {
+        // 06:55:51 to 06:59:14 on the phone: saved without "+91", every WhatsApp SOS was skipped.
+        assertEquals("919876548548", whatsAppNumber("9876548548", "91"))
+        assertEquals("919876548548", whatsAppNumber("09876548548", "91"))
+        assertEquals("919876548548", whatsAppNumber("919876548548", "91"))
+        // A 10-digit number that starts with 91 is still a national one.
+        assertEquals("919123456789", whatsAppNumber("9123456789", "91"))
+        // The saved code wins over the phone's.
+        assertEquals("447700900123", whatsAppNumber("+447700900123", "91"))
+        assertNull(whatsAppNumber("12345", "91"))
+        assertEquals("91", callingCode("in"))
+        assertNull(callingCode("ZZ"))
+    }
+
+    @Test
     fun `the chat link carries the message, spaces and quotes encoded`() {
         assertEquals(
             "https://api.whatsapp.com/send?phone=919876548548&text=Help%20needed%20now.%20Last%20said%3A%20%22I%20am%20in%20pain%22.",

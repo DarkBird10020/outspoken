@@ -64,6 +64,8 @@ fun SettingsScreen(
     onTestSos: () -> Unit,
     whatsAppHelperOn: Boolean = false,
     onOpenAccessibility: () -> Unit = {},
+    /** What the last test did, while Settings stays open. */
+    sosTestResult: String? = null,
     handReading: HandReading,
     onTuningChange: (Tuning) -> Unit,
     onTuningReset: () -> Unit,
@@ -85,7 +87,7 @@ fun SettingsScreen(
         AskCard(listenLine, onAsk)
         Segmented("Look up to move", "Blink only", tuning.moveByEyes) { onTuningChange(tuning.copy(moveByEyes = it)) }
         LanguageCard(tuning, missingVoice, onInstallVoice, onTuningChange)
-        SosCard(tuning, sosLine, onSaveSos, onTestSos, whatsAppHelperOn, onOpenAccessibility, onTuningChange)
+        SosCard(tuning, sosLine, onSaveSos, onTestSos, whatsAppHelperOn, onOpenAccessibility, sosTestResult, onTuningChange)
         TuningCard(tuning, onTuningChange)
         HandCard(tuning, handReading, onTuningChange)
         // Not in the settings design (listed as a design gap): the way to the profile page.
@@ -204,6 +206,7 @@ private fun SosCard(
     onTest: () -> Unit,
     whatsAppHelperOn: Boolean,
     onOpenAccessibility: () -> Unit,
+    testResult: String?,
     onChange: (Tuning) -> Unit,
 ) {
     var typed by remember(tuning.sosNumber) { mutableStateOf(tuning.sosNumber) }
@@ -234,6 +237,8 @@ private fun SosCard(
             }
             PillButton("Save", { onSave(typed) }, Modifier.width(72.dp), style = Surfaces.StartButton, height = 52, size = 16, weight = 600)
         }
+        // Not in the design (a design gap): the PRD's confirm close, now off by default.
+        ToggleRow("Help asks for a second close after the 2 s hold", tuning.helpConfirm) { onChange(tuning.copy(helpConfirm = it)) }
         ToggleRow("Text them when help is called", tuning.sosText) { onChange(tuning.copy(sosText = it)) }
         ToggleRow("Then call them", tuning.sosCall) { onChange(tuning.copy(sosCall = it)) }
         // Not in the design (a design gap): WhatsApp for a phone with no SIM.
@@ -243,6 +248,8 @@ private fun SosCard(
             PillButton("Turn on Outspoken in Accessibility", onOpenAccessibility, Modifier.fillMaxWidth())
         }
         if (tuning.sosNumber.isNotEmpty()) PillButton("Test: text and call now", onTest, Modifier.fillMaxWidth())
+        // Not in the design (a design gap): what the test did.
+        if (testResult != null) Text("Test: $testResult", style = type(13, color = InkSoft))
     }
 }
 

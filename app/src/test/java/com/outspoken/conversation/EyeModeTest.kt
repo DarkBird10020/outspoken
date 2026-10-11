@@ -3,6 +3,7 @@ package com.outspoken.conversation
 import com.outspoken.eye.Dot
 import com.outspoken.eye.EyeSample
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 /** The highlight moved by the eyes: look down for the card below, up for the one above, blink to say it. */
@@ -41,6 +42,32 @@ class EyeModeTest {
     }
 
     private val highlighted get() = controller.ui.value.highlighted
+
+    /** Looks down a frame at a time and stops on the frame the highlight moves. */
+    private fun lookDownUntilMoved() {
+        repeat(60) { if (highlighted == 0) frames(33, gazeY = 0.5f) }
+        assertEquals(1, highlighted)
+    }
+
+    @Test
+    fun `a look down just before the eyes shut is the close starting, and is taken back`() {
+        // 06:32:46 on the phone: a look down 147 ms before the eyes shut said the card below.
+        frames(500)
+        lookDownUntilMoved()
+        frames(500, open = 0.05f, gazeY = 0.5f)
+        frames(300)
+        assertEquals(listOf("I need water"), said)
+    }
+
+    @Test
+    fun `a close well after a look down chooses the card it moved to`() {
+        frames(500)
+        lookDownUntilMoved()
+        frames(600)
+        blink()
+        assertEquals(1, said.size)
+        assertNotEquals("I need water", said.single())
+    }
 
     @Test
     fun `the highlight waits for the eyes`() {

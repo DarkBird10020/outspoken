@@ -13,11 +13,25 @@ import java.net.URLEncoder
 val WHATSAPP_PACKAGES = listOf("com.whatsapp", "com.whatsapp.w4b")
 
 /**
- * The number as WhatsApp's chat link takes it, the country code and the rest with no plus, or
- * null when the saved number has no country code: WhatsApp cannot tell whose number it is then.
+ * The number as WhatsApp's chat link takes it: the country code and the rest, no plus. A number
+ * saved without "+" gets [countryCode], the phone's own ("91" in India): the owner saved it
+ * without one, and every WhatsApp SOS was skipped (06:55:51 to 06:59:14). Null when there is no
+ * code to add, as WhatsApp cannot tell whose number it is then.
  */
-fun whatsAppNumber(number: String): String? =
-    number.takeIf { it.startsWith("+") }?.drop(1)?.takeIf { it.length >= MIN_WHATSAPP_DIGITS }
+fun whatsAppNumber(number: String, countryCode: String? = null): String? {
+    if (number.startsWith("+")) return number.drop(1).takeIf { it.length >= MIN_WHATSAPP_DIGITS }
+    val code = countryCode ?: return null
+    val digits = number.trimStart('0')
+    return when {
+        // Typed with the code but no plus: "919876543210".
+        digits.length > NATIONAL_DIGITS && digits.startsWith(code) -> digits
+        digits.length in MIN_NATIONAL_DIGITS..NATIONAL_DIGITS -> code + digits
+        else -> null
+    }
+}
+
+/** The country calling code for the phone's region ("IN" -> "91"), for the regions this app is used in. */
+fun callingCode(region: String): String? = CALLING_CODES[region.uppercase()]
 
 /** WhatsApp's link that opens the chat with [number] ([whatsAppNumber]), [message] typed in. */
 fun whatsAppChatLink(number: String, message: String): String =
@@ -67,6 +81,12 @@ fun buttonFor(step: WhatsAppStep, buttons: List<ScreenButton>): Int? {
 }
 
 private const val MIN_WHATSAPP_DIGITS = 8
+private const val MIN_NATIONAL_DIGITS = 6
+private const val NATIONAL_DIGITS = 10
+private val CALLING_CODES = mapOf(
+    "IN" to "91", "NP" to "977", "BD" to "880", "LK" to "94", "PK" to "92", "AE" to "971",
+    "SA" to "966", "SG" to "65", "GB" to "44", "US" to "1", "CA" to "1", "AU" to "61",
+)
 private val SEND_LABELS = setOf("send", "भेजें")
 private val CALL_LABELS = setOf("voice call", "audio call", "वॉइस कॉल", "ऑडियो कॉल")
 private val CONFIRM_LABELS = setOf("call", "कॉल करें", "कॉल")

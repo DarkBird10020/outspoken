@@ -74,6 +74,11 @@ data class Tuning(
      */
     val sosWhatsApp: Boolean = false,
     val sosWhatsAppCall: Boolean = false,
+    /**
+     * The help alarm waits for a second close after the 2 s hold (PRD F8). Off by default, owner
+     * decision: the hold alone raises it. On suits a person who rests with the eyes closed.
+     */
+    val helpConfirm: Boolean = false,
 ) {
     /** The person's languages with the starting one first; never empty. */
     val chosenLanguages: List<AppLanguage> get() = (listOf(language) + languages).distinct()
@@ -143,6 +148,7 @@ class TuningStore(context: Context) {
             sosCall = prefs.getBoolean("sosCall", default.sosCall),
             sosWhatsApp = prefs.getBoolean("sosWhatsApp", default.sosWhatsApp),
             sosWhatsAppCall = prefs.getBoolean("sosWhatsAppCall", default.sosWhatsAppCall),
+            helpConfirm = prefs.getBoolean("helpConfirm", default.helpConfirm),
             // Saved as the signs switched off, so a sign added later starts on.
             handSigns = HandSign.entries.toSet() -
                 prefs.getStringSet("handSignsOff", emptySet()).orEmpty().mapNotNull(HandSign::fromKey).toSet(),
@@ -195,6 +201,7 @@ class TuningStore(context: Context) {
             .putBoolean("sosCall", tuning.sosCall)
             .putBoolean("sosWhatsApp", tuning.sosWhatsApp)
             .putBoolean("sosWhatsAppCall", tuning.sosWhatsAppCall)
+            .putBoolean("helpConfirm", tuning.helpConfirm)
             .putStringSet("handSignsOff", (HandSign.entries - tuning.handSigns).map { it.key }.toSet())
             .putFloat("lookStrength", tuning.gaze.lookStrength)
             .putFloat("downStrength", tuning.gaze.downStrength ?: NOT_SET)

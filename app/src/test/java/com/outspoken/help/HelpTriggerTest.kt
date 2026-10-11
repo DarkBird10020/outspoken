@@ -29,6 +29,18 @@ class HelpTriggerTest {
     }
 
     @Test
+    fun `with no confirm the hold alone sounds the alarm, once, and is no pick`() {
+        // Owner decision: one 2 s hold, not a hold and then a second close.
+        trigger.confirm = false
+        assertEquals(listOf(HelpStep.Alarm), shut(1_000, 3_500))
+        assertTrue(trigger.isHold(2_500))
+        assertFalse(trigger.armed)
+        // The next blink is a blink again.
+        assertNull(trigger.onBlink(4_000))
+        assertFalse(trigger.isHold(600))
+    }
+
+    @Test
     fun `a blink after the hold sounds the alarm`() {
         shut(1_000, 3_500)
         assertEquals(HelpStep.Alarm, trigger.onBlink(4_000))
