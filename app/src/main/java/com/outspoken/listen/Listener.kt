@@ -31,11 +31,15 @@ import java.util.Locale
  * The language comes from [wish], matched against the speech packs on the phone ([planSpeech]).
  * A missing pack is asked for from Android, whose own speech service downloads it (this app has no
  * internet permission), and listening goes on meanwhile in a pack the phone has. On Android 14 and
- * later the recogniser may switch between the wished languages as the visitor talks.
+ * later the recogniser may switch between the wished languages as the visitor talks. It did not
+ * on the phone, so the app also counts its language guesses for each sentence ([LanguageVotes]):
+ * when they name another wished language, the sentence is passed on with that language and the
+ * next session listens in it.
  */
 class Listener(
     private val context: Context,
-    private val onHeard: (String) -> Unit,
+    /** A finished sentence, and the language the recogniser's guesses named for it ("en"), if clear. */
+    private val onHeard: (text: String, spoken: String?) -> Unit,
     private val onStatus: (String) -> Unit,
     private val onHearing: (String) -> Unit = {},
 ) {
@@ -100,6 +104,7 @@ class Listener(
     private var updates = 0
     private val errors = mutableMapOf<Int, Int>()
     private val unsureLanguages = mutableMapOf<String, Int>()
+    private val votes = LanguageVotes()
     private var lastSummaryMs = SystemClock.elapsedRealtime()
 
     fun start() {
@@ -403,16 +408,40 @@ class Listener(
         val timing = firstWordsMs?.let { first ->
             ", words shown live from ${now - first} ms before, last new word ${now - (lastChangeMs ?: first)} ms before, $liveUpdates updates"
         } ?: ", no live words before it"
+        // Read before clearLive, which drops the guesses once the session is over.
+        val spoken = votes.dominant()
+        val guesses = votes.describe()
+        votes.clear()
         clearLive()
         if (text == null) return
         sentences++
         sessionSentences++
         sessionHeard = true
-        AppLog.write("listen", "${if (segment) "segment" else "result"} \"$text\"$timing")
-        onHeard(text)
+        AppLog.write("listen", "${if (segment) "segment" else "result"} \"$text\"$timing" + (spoken?.let { ", spoken in $it ($guesses)" } ?: ""))
+        onHeard(text, spoken)
+        spoken?.let(::follow)
+    }
+
+    /**
+     * Listens in [spoken] from the next session when it is another of the planned languages: the
+     * recogniser's own switch left English questions in Hindi letters (phone 19:18 to 19:20).
+     */
+    private fun follow(spoken: String) {
+        val current = plan ?: return
+        val planned = listOf(current.listenIn) + current.switchTo
+        val target = planned.firstOrNull { LanguageVotes.primary(it) == spoken } ?: return
+        if (target == current.listenIn) return
+        plan = current.copy(listenIn = target, switchTo = planned.filterNot { it == target })
+        AppLog.write("listen", "the visitor speaks $spoken; listening in $target from now")
+        // After this callback returns: the session is still delivering it.
+        main.post {
+            halt("switching to $target")
+            listenAfter(RESTART_MS)
+        }
     }
 
     private fun clearLive() {
+        if (!listening) votes.clear()
         firstWordsMs = null
         lastChangeMs = null
         liveWords = ""
@@ -526,6 +555,7 @@ class Listener(
     @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     private fun languageHeard(results: Bundle) {
         val tag = results.getString(SpeechRecognizer.DETECTED_LANGUAGE) ?: return
+        votes.add(tag)
         val switch = switchName(results.getInt(SpeechRecognizer.LANGUAGE_SWITCH_RESULT, 0))
         val level = results.getInt(SpeechRecognizer.LANGUAGE_DETECTION_CONFIDENCE_LEVEL)
         if (level < SpeechRecognizer.LANGUAGE_DETECTION_CONFIDENCE_LEVEL_CONFIDENT && switch == null) {

@@ -1,6 +1,7 @@
 package com.outspoken.suggest
 
 import com.outspoken.conversation.AppLanguage
+import com.outspoken.profile.profilePrompt
 
 /** Turns older than this are left out to keep the prompt, and so the reply time, short. */
 const val PROMPT_TURNS = 6
@@ -24,6 +25,7 @@ fun buildPrompt(request: SuggestionRequest): String = buildString {
         appendLine("Answer: ${EXAMPLE_ANSWER}")
     }
     appendLine()
+    profilePrompt(request.profile)?.let { appendLine(it) }
     appendLine("It is ${partOfDay(request.hourOfDay)}.")
     val turns = request.turns.takeLast(PROMPT_TURNS)
     if (turns.isEmpty()) {

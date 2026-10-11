@@ -261,6 +261,34 @@ object Surfaces {
         shadows = listOf(BoxShadow(y = 18.dp, blur = 30.dp, spread = (-14).dp, color = rgba(40, 45, 50, 0.5f))),
     )
 
+    /** The profile photo frame (design of the profile page). */
+    val ProfilePhoto = SurfaceStyle(
+        base = Color(0xFFEDF3E2),
+        layers = listOf(
+            RadialLayer(
+                0.5f, 0.45f, 0.9f, 0.7f,
+                listOf(
+                    0f to Color(0xFF2E9B48),
+                    0.38f to rgba(86, 176, 92, 0.85f),
+                    0.7f to rgba(190, 222, 180, 0.6f),
+                    1f to rgba(240, 244, 236, 0.9f),
+                ),
+            ),
+        ),
+        border = BorderStroke(1.dp, rgba(255, 255, 255, 0.9f)),
+        shadows = listOf(
+            BoxShadow(y = 0.dp, blur = 22.dp, spread = 6.dp, color = rgba(255, 255, 255, 0.55f), inset = true),
+            BoxShadow(y = 24.dp, blur = 36.dp, spread = (-16).dp, color = rgba(52, 150, 70, 0.55f)),
+        ),
+    )
+
+    /** A text field: white, with a soft inner shadow. */
+    val Field = SurfaceStyle(
+        base = rgba(255, 255, 255, 0.7f),
+        border = BorderStroke(1.dp, rgba(255, 255, 255, 0.95f)),
+        shadows = listOf(BoxShadow(y = 2.dp, blur = 6.dp, color = rgba(80, 90, 100, 0.12f), inset = true)),
+    )
+
     val Chip = SurfaceStyle(
         base = rgba(255, 255, 255, 0.6f),
         border = BorderStroke(1.dp, rgba(255, 255, 255, 0.9f)),

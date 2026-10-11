@@ -16,6 +16,7 @@
 </p>
 
 <p align="center">
+  <a href="#launch-film">Film</a> ·
   <a href="#why-outspoken">Why</a> ·
   <a href="#features">Features</a> ·
   <a href="#screenshots">Screenshots</a> ·
@@ -25,6 +26,12 @@
 </p>
 
 ---
+
+## Launch film
+
+<a href="docs/video/outspoken-launch-16x9.mp4"><img src="docs/images/launch-film.jpg" alt="Launch film: a reply chosen by blinking, said out loud by the phone" width="100%"></a>
+
+One minute: the problem, a real conversation on an iQOO 15 chosen only with the eyes, the numbers measured on the phone, and where the project goes next. [Watch it (16:9)](docs/video/outspoken-launch-16x9.mp4) or the [vertical cut for phones (9:16)](docs/video/outspoken-launch-9x16.mp4).
 
 ## Why Outspoken
 
@@ -53,6 +60,7 @@ Everything runs on the phone. The app has no internet permission, and CI fails a
 | **Calibration and practice** | Every start measures this person's eyes in about 30 seconds. A practice round teaches the blink and measures accuracy. |
 | **Listening** | On-device speech recognition hears the visitor, in one session that runs until the mic is switched off, with the words shown as they are said. Typed questions and one-tap topics cover noisy rooms. |
 | **Transcript and stats** | A large-type transcript for a laptop (Office Kit), and a stats screen with reply time, model speed, blink accuracy and session length. |
+| **Patient profile** | Name, photo, the people close to them, likes, conditions and allergies, typed by family. The model uses them, so replies name the right people and never suggest an allergen. Kept in the app's private folder. |
 | **Frequent phrases** | Sentences the person says often move to the front during a session. |
 | **Private by design** | No account, no cloud, no internet permission. Run logs stay in the app's own folder on the phone. |
 

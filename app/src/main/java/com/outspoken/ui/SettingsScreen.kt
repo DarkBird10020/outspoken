@@ -69,6 +69,7 @@ fun SettingsScreen(
     onCalibrate: () -> Unit,
     onModels: () -> Unit,
     onBack: () -> Unit,
+    onProfile: () -> Unit = {},
 ) {
     DesignScreen(Modifier.dottedCanvas(), gap = 14.dp, scrolls = true) {
         Row(
@@ -85,6 +86,8 @@ fun SettingsScreen(
         SosCard(tuning, sosLine, onSaveSos, onTestSos, onTuningChange)
         TuningCard(tuning, onTuningChange)
         HandCard(tuning, handReading, onTuningChange)
+        // Not in the settings design (listed as a design gap): the way to the profile page.
+        PillButton("Patient profile", onProfile, Modifier.fillMaxWidth())
         PillButton("Model and logs", onModels, Modifier.fillMaxWidth())
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             PillButton("Reset", onTuningReset, Modifier.weight(1f))
@@ -111,7 +114,7 @@ private fun AskCard(listenLine: String, onAsk: (String) -> Unit) {
                 Modifier
                     .weight(1f)
                     .height(52.dp)
-                    .surface(FieldSurface, RoundedCornerShape(26.dp))
+                    .surface(Surfaces.Field, RoundedCornerShape(26.dp))
                     .padding(horizontal = 18.dp),
                 contentAlignment = Alignment.CenterStart,
             ) {
@@ -264,11 +267,6 @@ private fun HandCard(tuning: Tuning, reading: HandReading, onChange: (Tuning) ->
     }
 }
 
-private val FieldSurface = SurfaceStyle(
-    base = rgba(255, 255, 255, 0.7f),
-    border = BorderStroke(1.dp, rgba(255, 255, 255, 0.95f)),
-    shadows = listOf(BoxShadow(y = 2.dp, blur = 6.dp, color = rgba(80, 90, 100, 0.12f), inset = true)),
-)
 
 private fun Float.two() = "%.2f".format(Locale.US, this)
 

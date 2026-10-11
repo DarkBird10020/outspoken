@@ -1,5 +1,7 @@
 package com.outspoken.suggest
 
+import org.junit.Assert.assertFalse
+import com.outspoken.profile.PatientProfile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -87,5 +89,12 @@ class WordPromptTest {
         val answer = parseWordAnswer("I cannot help with that.", "I")
         assertNull(answer.completion)
         assertEquals(emptyList<String>(), answer.words)
+    }
+
+    @Test
+    fun `the profile goes into the Say anything prompt`() {
+        val prompt = buildWordPrompt(WordRequest(emptyList(), "Please call", profile = PatientProfile.SAMPLE))
+        assertTrue(prompt.contains("son Arjun"))
+        assertTrue(prompt.indexOf("About the Person") < prompt.lastIndexOf("Words so far"))
     }
 }
