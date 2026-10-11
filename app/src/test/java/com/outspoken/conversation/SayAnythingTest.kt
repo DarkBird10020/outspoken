@@ -33,6 +33,48 @@ class SayAnythingTest {
     }
 
     @Test
+    fun `a sentence typed for another app is handed over, not said`() {
+        val typed = mutableListOf<String?>()
+        controller.typeSentence(time) { typed += it }
+        tap(0)
+        tap(0)
+        controller.onTick(time)
+        tap(SentenceBuilder.SPEAK)
+        assertEquals(listOf<String?>("I want"), typed)
+        assertEquals(emptyList<String>(), said)
+        assertNull(builder)
+    }
+
+    @Test
+    fun `leaving the builder while typing for another app hands over nothing`() {
+        val typed = mutableListOf<String?>()
+        controller.typeSentence(time) { typed += it }
+        tap(SentenceBuilder.DELETE)
+        assertEquals(listOf<String?>(null), typed)
+        assertNull(builder)
+        // An ordinary Say anything afterwards is said again.
+        open()
+        tap(0)
+        controller.onTick(time)
+        tap(SentenceBuilder.SPEAK)
+        assertEquals(listOf("I"), said)
+    }
+
+    @Test
+    fun `the Phone card shows only when turned on, and starts phone control`() {
+        val board = Board()
+        assertTrue(Board.PHONE !in board.cards)
+        board.phone = true
+        assertEquals(Board.PHONE, board.cards.last())
+        var started = 0
+        val withPhone = ConversationController(speak = { said += it }, onPhone = { started++ })
+        withPhone.phoneCard = true
+        withPhone.onTap(Board.PHONE, time)
+        assertEquals(1, started)
+        assertEquals(emptyList<String>(), said)
+    }
+
+    @Test
     fun `the Say anything card opens the builder with built-in words and asks the model`() {
         open()
         assertNotNull(builder)

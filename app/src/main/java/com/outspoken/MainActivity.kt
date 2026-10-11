@@ -270,7 +270,7 @@ class MainActivity : ComponentActivity() {
         )
 
         eyeReader = EyeReader(this) { sample ->
-            if (PhoneControl.on) onControlSample(sample) else when (screen) {
+            if (PhoneControl.on && !PhoneControl.typing) onControlSample(sample) else when (screen) {
                 Screen.Practice -> practiceController.onSample(sample)
                 Screen.Calibrate -> onCalibrationSample(sample)
                 Screen.EyeCheck -> {
@@ -320,7 +320,8 @@ class MainActivity : ComponentActivity() {
             override fun onStart(owner: LifecycleOwner) {
                 cameraLifecycle.appShown(true)
                 // Outspoken in front again (its icon, or the alarm): its own pages take the eyes.
-                PhoneControl.stop("Outspoken is in front")
+                // Not while it is writing a sentence for the app below.
+                if (!PhoneControl.typing) PhoneControl.stop("Outspoken is in front")
             }
 
             override fun onStop(owner: LifecycleOwner) = cameraLifecycle.appShown(false)
@@ -657,8 +658,21 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * "Type" in phone control: Say anything opens here, and Speak puts the sentence in the other
+     * app's text box instead of saying it. Outspoken then steps back behind that app.
+     */
     private fun typeFromControl() {
-        AppLog.write("control", "typing into other apps is not built yet")
+        if (!PhoneControl.startTyping()) return
+        show(Screen.Conversation)
+        controller.typeSentence(now()) { text ->
+            // Phone control ended meanwhile (the help alarm): Outspoken stays in front.
+            if (!PhoneControl.on) return@typeSentence
+            AppLog.write("control", if (text == null) "type: left without a sentence" else "type: sentence ready")
+            controlEyes.reset()
+            moveTaskToBack(true)
+            PhoneControl.finishTyping(text)
+        }
     }
 
     /** Spoken steps that set the look and blink lines from this person's eyes (PRD F6). */
@@ -903,6 +917,7 @@ class MainActivity : ComponentActivity() {
         when (step) {
             HelpStep.HoldReached -> cue?.startTone(ToneGenerator.TONE_PROP_BEEP2, CUE_MS)
             HelpStep.Alarm -> {
+                PhoneControl.stop("help called")
                 alarm.start()
                 show(Screen.Help)
                 triggerSos()

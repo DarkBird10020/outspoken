@@ -41,6 +41,11 @@ object PhoneControl {
     var on = false
         private set
 
+    /** Outspoken is in front writing a sentence for the app below; the eyes go to Outspoken. */
+    @Volatile
+    var typing = false
+        private set
+
     /**
      * Starts reading the screen and lighting its buttons; false when the accessibility helper is
      * off. [onStop] runs when control ends from its menu; [onType] when "Type" is chosen.
@@ -60,6 +65,7 @@ object PhoneControl {
     fun stop(reason: String) {
         if (!on) return
         on = false
+        typing = false
         main.removeCallbacks(refresh)
         overlay?.hide()
         overlay = null
@@ -169,6 +175,62 @@ object PhoneControl {
         AppLog.write("control", if (scrolled) "scrolled" else "nothing to scroll here")
     }
 
+    /**
+     * "Type": when the app in front has a text box, Outspoken comes forward to build the sentence;
+     * false when there is nowhere to type.
+     */
+    fun startTyping(): Boolean {
+        val service = SosAccessibility.running ?: return false
+        val root = service.rootInActiveWindow ?: return false
+        if (textBox(root) == null) {
+            AppLog.write("control", "type: no text box on this screen")
+            return false
+        }
+        typing = true
+        main.removeCallbacks(refresh)
+        overlay?.hide()
+        AppLog.write("control", "type: writing a sentence for ${root.packageName}")
+        backToOutspoken(service)
+        return true
+    }
+
+    /**
+     * The sentence is written (or [text] is null when it was left): the app below is back in
+     * front, and the sentence goes into its text box, where the eyes can then press Send.
+     */
+    fun finishTyping(text: String?) {
+        if (!typing) return
+        typing = false
+        main.postDelayed({
+            if (!on) return@postDelayed
+            overlay?.show()
+            if (text != null) fill(text)
+            screenChanged()
+        }, RETURN_MS)
+    }
+
+    /** The text box being typed in, else the first one on screen. */
+    private fun textBox(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.takeIf { it.isEditable }?.let { return it }
+        fun walk(node: AccessibilityNodeInfo, depth: Int): AccessibilityNodeInfo? {
+            if (depth > MAX_DEPTH) return null
+            if (node.isEditable && node.isVisibleToUser) return node
+            for (i in 0 until node.childCount) node.getChild(i)?.let { child -> walk(child, depth + 1)?.let { return it } }
+            return null
+        }
+        return walk(root, 0)
+    }
+
+    private fun fill(text: String) {
+        val root = SosAccessibility.running?.rootInActiveWindow ?: return
+        val box = textBox(root)
+        val args = android.os.Bundle().apply {
+            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+        }
+        val done = box?.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args) == true
+        AppLog.write("control", if (done) "type: ${text.length} characters put in the text box" else "type: the text box did not take the sentence")
+    }
+
     /** Brings Outspoken back in front; from the helper, which Android lets start it. */
     fun backToOutspoken(context: Context? = SosAccessibility.running) {
         val from = context ?: return
@@ -251,6 +313,9 @@ object PhoneControl {
     }
 
     private const val SETTLE_MS = 400L
+
+    /** Time for the app below to come back in front before the sentence goes in. */
+    private const val RETURN_MS = 700L
     private const val TAP_MS = 60L
     private const val MAX_DEPTH = 40
     private const val MAX_LABEL = 40

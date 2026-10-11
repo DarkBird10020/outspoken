@@ -419,6 +419,20 @@ class ConversationController(
         publish(nowMs)
     }
 
+    /** Where a sentence built for another app goes, instead of being said; null for none. */
+    private var typeInto: ((String?) -> Unit)? = null
+
+    /**
+     * Opens "Say anything" to write into another app's text box (phone control): Speak hands the
+     * sentence to [onDone] instead of saying it, and leaving without one hands it null.
+     */
+    fun typeSentence(timeMs: Long, onDone: (String?) -> Unit) {
+        val nowMs = advance(timeMs)
+        typeInto = onDone
+        openBuilder(nowMs)
+        publish(nowMs)
+    }
+
     private fun openBuilder(nowMs: Long) {
         builder = SentenceBuilder(CommonWords.forLanguage(language))
         log.write("scan", "say anything opened")
@@ -426,12 +440,27 @@ class ConversationController(
         restartBuilderCards(nowMs)
     }
 
-    private fun closeBuilder(nowMs: Long, why: String) {
+    private fun closeBuilder(nowMs: Long, why: String, typed: String? = null) {
         builder = null
         latestWordRequest++
         log.write("scan", "say anything closed, $why")
         moveCursor(0, nowMs)
         scanner.restart(board.cards, nowMs)
+        typeInto?.let { done ->
+            typeInto = null
+            done(typed)
+        }
+    }
+
+    /** Says the sentence, or hands it to the app being typed into. */
+    private fun finishSentence(text: String, nowMs: Long, why: String) {
+        if (typeInto != null) {
+            log.write("scan", "sentence of ${text.length} characters typed into the other app")
+            closeBuilder(nowMs, "typed", typed = text)
+            return
+        }
+        closeBuilder(nowMs, why)
+        say(text, nowMs)
     }
 
     private fun chooseInBuilder(sentence: SentenceBuilder, card: Int, nowMs: Long) {
@@ -444,15 +473,11 @@ class ConversationController(
                 askWords()
             }
             SentenceBuilder.SPEAK -> {
-                val text = sentence.sentence
-                closeBuilder(nowMs, "spoken")
-                say(text, nowMs)
+                finishSentence(sentence.sentence, nowMs, "spoken")
                 return
             }
             SentenceBuilder.FINISH -> {
-                val text = sentence.completion ?: return
-                closeBuilder(nowMs, "finished by the model")
-                say(text, nowMs)
+                finishSentence(sentence.completion ?: return, nowMs, "finished by the model")
                 return
             }
             else -> {
