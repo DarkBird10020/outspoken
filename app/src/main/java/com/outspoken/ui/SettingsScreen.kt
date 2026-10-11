@@ -205,7 +205,7 @@ private fun SosCard(tuning: Tuning, sosLine: String, onSave: (String) -> Unit, o
                 Modifier
                     .weight(1f)
                     .height(52.dp)
-                    .surface(FieldSurface, RoundedCornerShape(26.dp))
+                    .surface(Surfaces.Field, RoundedCornerShape(26.dp))
                     .padding(horizontal = 18.dp),
                 contentAlignment = Alignment.CenterStart,
             ) {
