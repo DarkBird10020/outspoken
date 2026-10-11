@@ -75,10 +75,10 @@ data class Tuning(
     val sosWhatsApp: Boolean = false,
     val sosWhatsAppCall: Boolean = false,
     /**
-     * The help alarm waits for a second close after the 2 s hold (PRD F8). Off by default, owner
-     * decision: the hold alone raises it. On suits a person who rests with the eyes closed.
+     * The help alarm waits for a confirm close after the 2 s hold (PRD F8). On by default, owner
+     * decision: with the hold alone, sleep could call for help. Off, the hold alone raises it.
      */
-    val helpConfirm: Boolean = false,
+    val helpConfirm: Boolean = true,
 ) {
     /** The person's languages with the starting one first; never empty. */
     val chosenLanguages: List<AppLanguage> get() = (listOf(language) + languages).distinct()

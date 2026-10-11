@@ -155,7 +155,7 @@ class ConversationController(
             null -> Unit
         }
         // Help works at any time, even while the phone speaks.
-        help.onEyes(detector.shutSinceMs, nowMs, detector.settings.maxBlinkMs)?.let {
+        help.onEyes(detector.shutSinceMs, nowMs, faceSeen = detector.tracking)?.let {
             tryCounts = false
             onHelp(it)
         }
