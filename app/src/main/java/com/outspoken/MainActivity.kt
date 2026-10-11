@@ -858,6 +858,7 @@ class MainActivity : ComponentActivity() {
         val who = maskedNumber(number)
         return when {
             !tuning.sosText && !tuning.sosCall -> "Saved ($who), but texting and calling are both off."
+            !sos.hasSim() -> "This phone has no SIM, so the help alarm cannot text or call $who."
             !sosAllowed -> "Allow calls and texts so the help alarm can reach $who: tap Save."
             tuning.sosCall && isEmergencyNumber(number) -> "$number cannot be called by an app, only texted. A person's number works best."
             else -> "The help alarm " + listOfNotNull("texts".takeIf { tuning.sosText }, "calls".takeIf { tuning.sosCall }).joinToString(" and then ") + " $who."
@@ -878,8 +879,7 @@ class MainActivity : ComponentActivity() {
             return
         }
         AppLog.write("help", "SOS contact saved: ${maskedNumber(number)}")
-        // The phone state lets the alarm pick the SIM to call from when none is set for calls.
-        sosPermissions.launch(arrayOf(Manifest.permission.SEND_SMS, Manifest.permission.CALL_PHONE, Manifest.permission.READ_PHONE_STATE))
+        sosPermissions.launch(arrayOf(Manifest.permission.SEND_SMS, Manifest.permission.CALL_PHONE))
     }
 
     /** Everything the phone says goes through here, so the microphone does not take it for a question. */
@@ -1024,6 +1024,9 @@ class MainActivity : ComponentActivity() {
         if (screen == Screen.Stats && next != Screen.Stats) AppLog.write("stats", "closed showing ${describeStats(currentStats())}")
         AppLog.write("ui", "screen $next")
         if (next == Screen.EyeCheck) gazeStepper.restGaze?.let { checkStepper.restAt(it, gazeStepper.restIrisDrop) }
+        // Each detector gets frames only on its own page.
+        if (screen == Screen.Conversation && next != Screen.Conversation) blinkDetector.reset()
+        if (screen == Screen.EyeCheck && next != Screen.EyeCheck) checkBlink.reset()
         screen = next
         updateListening()
         if (next == Screen.Stats) AppLog.write("stats", "opened showing ${describeStats(currentStats())}")

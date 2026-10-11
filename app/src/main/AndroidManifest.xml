@@ -20,11 +20,9 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <!-- SOS contact: the help alarm texts and calls one number saved in Settings, over the phone
-         network, not the internet. The phone state lets it pick the SIM when none is set for
-         calls. Asked for only when a number is saved. -->
+         network, not the internet. Asked for only when a number is saved. -->
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.CALL_PHONE" />
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
 
     <!-- Lets the app see Downloads, to pick up a model the browser downloaded. The app itself
          never goes online. -->

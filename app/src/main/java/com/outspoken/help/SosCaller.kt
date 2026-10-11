@@ -14,20 +14,16 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import android.telecom.PhoneAccountHandle
-import android.telecom.TelecomManager
 import android.telephony.SmsManager
 import android.telephony.SubscriptionManager
-import android.telephony.TelephonyManager
 import androidx.core.content.ContextCompat
 import com.outspoken.log.AppLog
 
 /**
  * Texts and then calls the SOS contact when the help alarm sounds, over the phone network: no
  * internet. The text goes first, as it arrives even when the call is not picked up; the call
- * waits for the text to be sent, up to [TEXT_WAIT_MS]. Both go out on a SIM the app picks, so the
- * phone never asks which SIM to use. Each step and its outcome go in the log, with the number
- * masked. [onStatus] gets a short line for the help screen.
+ * waits for the text to be sent, up to [TEXT_WAIT_MS]. Each step and its outcome go in the log,
+ * with the number masked. [onStatus] gets a short line for the help screen.
  */
 class SosCaller(private val activity: Activity, private val onStatus: (String) -> Unit) {
 
@@ -57,18 +53,25 @@ class SosCaller(private val activity: Activity, private val onStatus: (String) -
 
     fun has(permission: String) = ContextCompat.checkSelfPermission(activity, permission) == PackageManager.PERMISSION_GRANTED
 
+    fun allowed(): Boolean = has(Manifest.permission.SEND_SMS) && has(Manifest.permission.CALL_PHONE)
+
     /**
-     * Whether the alarm can text and call without the phone asking anything: texts and calls
-     * allowed, and, when no SIM is set for calls, the phone state too, to pick one.
+     * Whether the phone has a SIM to text and call from. Android's default SIM is the one for
+     * calls, else the first SIM, so none means no SIM at all. The owner's phone has none, and
+     * every SOS text failed with code 32 (06:15:56, 06:16:35, 06:16:56).
      */
-    fun allowed(): Boolean = has(Manifest.permission.SEND_SMS) && has(Manifest.permission.CALL_PHONE) &&
-        (has(Manifest.permission.READ_PHONE_STATE) || SubscriptionManager.isValidSubscriptionId(SubscriptionManager.getDefaultVoiceSubscriptionId()))
+    fun hasSim(): Boolean = SubscriptionManager.isValidSubscriptionId(SubscriptionManager.getDefaultSubscriptionId())
 
     /** Texts [message] if [text], then calls if [call]; [number] as [sosNumber] gives it. */
     fun alert(number: String, message: String, text: Boolean, call: Boolean) {
         handler.removeCallbacksAndMessages(null)
         pendingCall = null
         val who = maskedNumber(number)
+        if ((text || call) && !hasSim()) {
+            AppLog.write("help", "SOS to $who: no SIM in the phone, so no text or call can go out")
+            onStatus("No SIM in this phone: $who cannot be texted or called")
+            return
+        }
         val texting = text && sendText(number, message)
         if (text && !texting && !has(Manifest.permission.SEND_SMS)) AppLog.write("help", "SOS text to $who skipped: no permission to send texts")
         val calling = call && !isEmergencyNumber(number)
@@ -115,11 +118,8 @@ class SosCaller(private val activity: Activity, private val onStatus: (String) -
             AppLog.write("help", "SOS call to $who skipped: no permission to make calls")
             return false
         }
-        val account = callAccount(who)
         return try {
-            val intent = Intent(Intent.ACTION_CALL, Uri.fromParts("tel", number, null))
-            account?.let { intent.putExtra(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, it) }
-            activity.startActivity(intent)
+            activity.startActivity(Intent(Intent.ACTION_CALL, Uri.fromParts("tel", number, null)))
             AppLog.write("help", "SOS call to $who started")
             watchCall(who)
             true
@@ -129,33 +129,6 @@ class SosCaller(private val activity: Activity, private val onStatus: (String) -
         } catch (e: ActivityNotFoundException) {
             AppLog.write("help", "SOS call to $who: no phone app ($e)")
             false
-        }
-    }
-
-    /**
-     * The SIM to call from, when the phone has none set for calls and would ask; null to let the
-     * phone use its own. Finding it needs the phone state permission.
-     */
-    private fun callAccount(who: String): PhoneAccountHandle? {
-        val sim = sosSim(SubscriptionManager.getDefaultVoiceSubscriptionId(), SubscriptionManager.getDefaultSubscriptionId(), "calls")
-        if (SubscriptionManager.isValidSubscriptionId(SubscriptionManager.getDefaultVoiceSubscriptionId())) {
-            AppLog.write("help", "SOS call to $who on ${sim.why}")
-            return null
-        }
-        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
-            AppLog.write("help", "SOS call to $who: no SIM set for calls and no permission to pick one; the phone may ask which SIM to use")
-            return null
-        }
-        val subId = sim.subId ?: return null
-        return try {
-            val telecom = activity.getSystemService(TelecomManager::class.java)
-            val telephony = activity.getSystemService(TelephonyManager::class.java)
-            telecom.callCapablePhoneAccounts.firstOrNull { telephony.getSubscriptionId(it) == subId }.also {
-                AppLog.write("help", if (it != null) "SOS call to $who on SIM $subId (${sim.why})" else "SOS call to $who: SIM $subId has no calling account; the phone may ask which SIM to use")
-            }
-        } catch (e: SecurityException) {
-            AppLog.write("help", "SOS call to $who: could not pick a SIM ($e)")
-            null
         }
     }
 
@@ -187,7 +160,7 @@ class SosCaller(private val activity: Activity, private val onStatus: (String) -
         SmsManager.RESULT_ERROR_RADIO_OFF -> "radio off, airplane mode?"
         SmsManager.RESULT_ERROR_NULL_PDU -> "message could not be built"
         SmsManager.RESULT_ERROR_GENERIC_FAILURE -> "failed"
-        SmsManager.RESULT_NO_DEFAULT_SMS_APP -> "no SIM chosen for texts"
+        SmsManager.RESULT_NO_DEFAULT_SMS_APP -> "no SIM for texts"
         else -> "code $code"
     }
 

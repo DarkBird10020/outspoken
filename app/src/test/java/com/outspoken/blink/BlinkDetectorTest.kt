@@ -336,6 +336,17 @@ class BlinkDetectorTest {
     }
 
     @Test
+    fun `a close cut short by leaving the page is forgotten`() {
+        hold(500) { eyes(0.95f) }
+        hold(300) { eyes(0.05f) }
+        detector.reset()
+        assertNull(detector.shutSinceMs)
+        // Back on the page a second later with the eyes open: no pick for a close nobody saw end.
+        time += 1_000
+        assertEquals(emptyList<BlinkEvent>(), hold(300) { eyes(0.95f) })
+    }
+
+    @Test
     fun `a real close passes both checks`() {
         detector.settings = gapSettings
         hold(500) { withGap(0.9f, 0.30f) }

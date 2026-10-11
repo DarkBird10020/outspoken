@@ -45,8 +45,7 @@ class SosTest {
     }
 
     @Test
-    fun `the SOS goes out on the SIM set for it, else the phone's default, never unchosen`() {
-        // 06:15:56 on the phone: no SIM set for texts, and every text failed with code 32.
+    fun `the SOS text goes out on the SIM set for texts, else the phone's default`() {
         assertEquals(SimChoice(2, "the phone's SIM for texts"), sosSim(setFor = 2, phoneDefault = 1, use = "texts"))
         assertEquals(1, sosSim(setFor = -1, phoneDefault = 1, use = "texts").subId)
         assertTrue(sosSim(setFor = -1, phoneDefault = 1, use = "texts").why.startsWith("no SIM set for texts"))

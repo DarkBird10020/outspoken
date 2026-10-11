@@ -147,6 +147,21 @@ class BlinkDetector(
     /** When the eyes shut, while they are still shut; null while they are open. */
     val shutSinceMs: Long? get() = closedSinceMs
 
+    /**
+     * Forgets a close or half shut in progress, for when this detector stops getting frames (its
+     * page is left). Otherwise the close ran on until the page came back: "half shut 36211 ms"
+     * on the eye check page (06:16:20) and "ignored 20405 ms" on the main page (06:16:14), each
+     * spanning the time on other pages.
+     */
+    fun reset() {
+        closedSinceMs = null
+        halfShutSinceMs = null
+        chosen = false
+        smoothLeft = null
+        smoothRight = null
+        missingSinceMs = null
+    }
+
     /** How long the last close that ended with the eyes seen open lasted, time with no face left out. */
     var lastCloseMs = 0L
         private set
