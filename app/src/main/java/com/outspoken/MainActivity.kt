@@ -323,9 +323,19 @@ class MainActivity : ComponentActivity() {
                 // Outspoken in front again (its icon, or the alarm): its own pages take the eyes.
                 // Not while it is writing a sentence for the app below.
                 if (!PhoneControl.typing) PhoneControl.stop("Outspoken is in front")
+                // Started now, while Outspoken is on screen, so phone control can take over in
+                // another app: Android lets the camera service start only then.
+                if (tuning.phoneControl && SosAccessibility.running != null && cameraGranted) ControlService.start(this@MainActivity)
             }
 
-            override fun onStop(owner: LifecycleOwner) = cameraLifecycle.appShown(false)
+            override fun onStop(owner: LifecycleOwner) {
+                cameraLifecycle.appShown(false)
+                when {
+                    PhoneControl.on -> Unit
+                    phoneControlOnLeaving() -> startPhoneControl(goHome = false)
+                    else -> ControlService.stop(this@MainActivity)
+                }
+            }
         })
         cameraGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
@@ -625,17 +635,30 @@ class MainActivity : ComponentActivity() {
      * and their buttons. The camera keeps running through a camera service started now, while
      * Outspoken is on screen, as Android requires.
      */
-    private fun startPhoneControl() {
+    private fun startPhoneControl(goHome: Boolean = true) {
         if (SosAccessibility.running == null) {
             AppLog.write("control", "phone control not started: the Outspoken helper is off in Accessibility")
             say("Phone control needs the Outspoken helper. Turn it on in Accessibility settings.")
             return
         }
-        ControlService.start(this)
+        // From the Phone card Outspoken is still on screen; on leaving, the service already runs.
+        if (goHome) ControlService.start(this)
         cameraLifecycle.controlOn(true)
         gazeStepper.restGaze?.let { controlStepper.restAt(it, gazeStepper.restIrisDrop) }
         controlEyes.reset()
-        if (!PhoneControl.start(onStop = ::phoneControlStopped, onType = ::typeFromControl)) phoneControlStopped()
+        if (!PhoneControl.start(onStop = ::phoneControlStopped, onType = ::typeFromControl, goHome = goHome)) phoneControlStopped()
+    }
+
+    /**
+     * Phone control takes over when the main page is left for another app (Home, a recent app),
+     * with the Phone card on and the helper on. In the 08:05 run the helper was turned on and
+     * the phone went to another app (08:05:02), but control waited for the Phone card, which was
+     * never chosen. Not from the carer's pages, the alarm, or a screen turned off.
+     */
+    private fun phoneControlOnLeaving(): Boolean {
+        val keyguard = getSystemService(android.app.KeyguardManager::class.java)
+        return tuning.phoneControl && SosAccessibility.running != null && cameraGranted && screen == Screen.Conversation &&
+            !isFinishing && !isChangingConfigurations && power.isInteractive && keyguard?.isKeyguardLocked != true
     }
 
     private fun phoneControlStopped() {
@@ -784,6 +807,7 @@ class MainActivity : ComponentActivity() {
         cue?.release()
         sos.release()
         PhoneControl.stop("app closed")
+        ControlService.stop(this)
         cameraLifecycle.close()
         // Closed on the camera thread, after any frame already being analysed, so no frame reaches
         // a closed face tracker.

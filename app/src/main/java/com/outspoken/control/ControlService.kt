@@ -27,7 +27,7 @@ class ControlService : Service() {
         val notification = Notification.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_eye)
             .setContentTitle("Outspoken is reading your eyes")
-            .setContentText("Phone control is on. Choose \"Back to Outspoken\" in its menu to stop.")
+            .setContentText("Phone control: the eyes work in other apps too. Turn the Phone card off in Settings to stop.")
             .setOngoing(true)
             .build()
         try {

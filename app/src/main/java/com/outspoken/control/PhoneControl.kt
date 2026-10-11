@@ -50,14 +50,14 @@ object PhoneControl {
      * Starts reading the screen and lighting its buttons; false when the accessibility helper is
      * off. [onStop] runs when control ends from its menu; [onType] when "Type" is chosen.
      */
-    fun start(onStop: () -> Unit, onType: () -> Unit): Boolean {
+    fun start(onStop: () -> Unit, onType: () -> Unit, goHome: Boolean = true): Boolean {
         val service = SosAccessibility.running ?: return false
         this.onStop = onStop
         this.onType = onType
         on = true
         overlay = Overlay(service).also { it.show() }
-        AppLog.write("control", "phone control on")
-        service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
+        AppLog.write("control", "phone control on${if (goHome) ", home screen" else ", in the app opened"}")
+        if (goHome) service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
         screenChanged()
         return true
     }
