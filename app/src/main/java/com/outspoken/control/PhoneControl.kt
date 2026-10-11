@@ -16,6 +16,7 @@ import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.widget.LinearLayout
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.TextView
 import androidx.compose.ui.graphics.toArgb
@@ -45,6 +46,26 @@ object PhoneControl {
     /** How to move on, shown on the card; set from the eye settings ([controlMoveHint]). */
     @Volatile
     var moveHint = controlMoveHint(moveByEyes = true, upMovesNext = false)
+
+    /**
+     * The tips: the grey screen and the big card that explains what is lit and what a close does.
+     * Off, only the green box and a small line show. The owner took the card for a tutorial that
+     * never ended (screenshot and logs-89, 09:41); it ends with Skip tips, or once an app has been
+     * opened by eye, and Settings can bring it back.
+     */
+    var tips = true
+        set(value) {
+            field = value
+            overlay?.showTips(value)
+            draw()
+        }
+
+    /** Phone control ends once an app has been opened by eye (a switch in Settings). */
+    @Volatile
+    var endsInApp = false
+
+    private var onTipsDone: (() -> Unit)? = null
+    private val opened = OpenedApp()
 
     /** A short word on the card after a choice that did nothing, for [NOTICE_MS]. */
     private var notice: String? = null
@@ -96,15 +117,20 @@ object PhoneControl {
      * Starts reading the screen and lighting its buttons; false when the accessibility helper is
      * off. [onStop] runs when control ends from its menu; [onType] when "Type" is chosen.
      */
-    fun start(onStop: () -> Unit, onType: () -> Unit, goHome: Boolean = true): Boolean {
+    fun start(onStop: () -> Unit, onType: () -> Unit, onTipsDone: () -> Unit = {}, goHome: Boolean = true): Boolean {
         val service = SosAccessibility.running ?: return false
         this.onStop = onStop
         this.onType = onType
+        this.onTipsDone = onTipsDone
         on = true
         // A new start begins at the menu, not inside the group lit when control last stopped
         // (09:00:43: "pressed button 1 of 4 in group 6" right after control came back).
         scan.show(emptyList())
-        overlay = Overlay(service) { stop("stopped by hand with the Stop button") }.also { it.show() }
+        overlay = Overlay(service, onStopTapped = { stop("stopped by hand with the Stop button") }, onSkipTapped = { tipsDone("skipped with the Skip tips button") })
+            .also {
+                it.show()
+                it.showTips(tips)
+            }
         AppLog.write("control", "phone control on${if (goHome) ", home screen" else ", in the app opened"}")
         if (goHome) service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
         lastEyesMs = android.os.SystemClock.elapsedRealtime()
@@ -188,11 +214,25 @@ object PhoneControl {
         nodes = found.map { it.first }
         val key = found.map { it.second.box }
         scan.refresh(found.map { it.second })
+        val app = service.rootInActiveWindow?.packageName?.toString()
         if (key != shownKey) {
             shownKey = key
-            AppLog.write("control", "${service.rootInActiveWindow?.packageName}: ${found.size} buttons")
+            AppLog.write("control", "$app: ${found.size} buttons")
+        }
+        if (opened.onScreen(app, android.os.SystemClock.elapsedRealtime())) {
+            AppLog.write("control", "$app opened by eye")
+            tipsDone("an app was opened by eye")
+            if (endsInApp) return stop("an app was opened by eye; Settings ends phone control there")
         }
         draw()
+    }
+
+    /** The tips are not needed any more; Outspoken saves that, so they stay off. */
+    private fun tipsDone(why: String) {
+        if (!tips) return
+        AppLog.write("control", "tips off: $why")
+        tips = false
+        onTipsDone?.invoke()
     }
 
     /**
@@ -211,7 +251,8 @@ object PhoneControl {
         val bounds = Rect().also(node::getBoundsInScreen)
         val x = bounds.exactCenterX()
         val y = bounds.exactCenterY()
-        if (bounds.isEmpty || overlay?.coversStop(x, y) == true) return click(node, what)
+        opened.pressed(service.rootInActiveWindow?.packageName?.toString(), android.os.SystemClock.elapsedRealtime())
+        if (bounds.isEmpty || overlay?.coversButtons(x, y) == true) return click(node, what)
         val before = shownKey
         val path = Path().apply { moveTo(x, y) }
         val gesture = GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, TAP_MS)).build()
@@ -369,12 +410,28 @@ object PhoneControl {
      * the owner could not find a way out and chose the menu's Home four times (08:50:49 to
      * 08:50:56), which keeps control on. Not in the design (a design gap): the theme's green and ink.
      */
-    private class Overlay(private val service: AccessibilityService, private val onStopTapped: () -> Unit) {
+    private class Overlay(
+        private val service: AccessibilityService,
+        private val onStopTapped: () -> Unit,
+        private val onSkipTapped: () -> Unit,
+    ) {
         private val windows = service.getSystemService(WindowManager::class.java)
         private val view = HighlightView(service)
         private val density = service.resources.displayMetrics.density
-        private val stopButton = TextView(service).apply {
-            setText(R.string.control_stop)
+        private val skipButton = pill(R.string.control_skip_tips, onSkipTapped)
+        private val stopButton = pill(R.string.control_stop, onStopTapped)
+
+        /** Skip tips and Stop side by side in the top corner, the only parts that take touches. */
+        private val buttons = LinearLayout(service).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(skipButton)
+            addView(stopButton, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                marginStart = (8 * density).toInt()
+            })
+        }
+
+        private fun pill(label: Int, onTap: () -> Unit) = TextView(service).apply {
+            setText(label)
             textSize = 16f
             setTextColor(Ink.toArgb())
             val padH = (16 * density).toInt()
@@ -385,7 +442,7 @@ object PhoneControl {
                 cornerRadius = 20 * density
                 setStroke((2 * density).toInt(), EyesFoundDot.toArgb())
             }
-            setOnClickListener { onStopTapped() }
+            setOnClickListener { onTap() }
         }
 
         fun show() {
@@ -401,7 +458,7 @@ object PhoneControl {
                 PixelFormat.TRANSLUCENT,
             ).apply { layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS }
             runCatching { windows.addView(view, params) }.onFailure { AppLog.write("control", "overlay not shown: $it") }
-            val stopParams = WindowManager.LayoutParams(
+            val buttonParams = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
@@ -412,21 +469,28 @@ object PhoneControl {
                 x = (12 * density).toInt()
                 y = (STOP_TOP_DP * density).toInt()
             }
-            runCatching { windows.addView(stopButton, stopParams) }
+            runCatching { windows.addView(buttons, buttonParams) }
                 .onSuccess { AppLog.write("control", "Stop button shown, top right") }
                 .onFailure { AppLog.write("control", "Stop button not shown: $it") }
         }
 
         fun hide() {
             runCatching { windows.removeView(view) }
-            runCatching { windows.removeView(stopButton) }
+            runCatching { windows.removeView(buttons) }
         }
 
-        /** True when ([x], [y]) on the screen is on the Stop button, which takes touches. */
-        fun coversStop(x: Float, y: Float): Boolean {
-            if (!stopButton.isAttachedToWindow) return false
-            val at = IntArray(2).also(stopButton::getLocationOnScreen)
-            return x >= at[0] && x < at[0] + stopButton.width && y >= at[1] && y < at[1] + stopButton.height
+        /** The big card and the grey screen, with Skip tips; or only the box and a small line. */
+        fun showTips(on: Boolean) {
+            view.tips = on
+            view.invalidate()
+            skipButton.visibility = if (on) View.VISIBLE else View.GONE
+        }
+
+        /** True when ([x], [y]) on the screen is on Skip tips or Stop, which take touches. */
+        fun coversButtons(x: Float, y: Float): Boolean {
+            if (!buttons.isAttachedToWindow) return false
+            val at = IntArray(2).also(buttons::getLocationOnScreen)
+            return x >= at[0] && x < at[0] + buttons.width && y >= at[1] && y < at[1] + buttons.height
         }
 
         fun light(lit: Lit?) {
@@ -437,6 +501,7 @@ object PhoneControl {
 
     private class HighlightView(context: Context) : View(context) {
         var lit: Lit? = null
+        var tips = true
         private val density = context.resources.displayMetrics.density
         private val green = EyesFoundDot.toArgb()
         private val box = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -457,6 +522,7 @@ object PhoneControl {
             textSize = 17 * density
         }
         private val small = Paint(body).apply { textSize = 14 * density }
+        private val smallTitle = Paint(title).apply { textSize = 17 * density }
 
         /**
          * Everything but the lit part is dimmed, so it is plain what is lit; a group's buttons are
@@ -470,6 +536,7 @@ object PhoneControl {
                 offset(-location[0].toFloat(), -location[1].toFloat())
             }
             val litRect = now.box?.let { local(it).apply { inset(-6 * density, -6 * density) } }
+            if (!tips) return drawSmall(canvas, now, litRect, ::local)
             val dimmed = Path().apply {
                 fillType = Path.FillType.EVEN_ODD
                 addRect(0f, 0f, width.toFloat(), height.toFloat(), Path.Direction.CW)
@@ -510,6 +577,36 @@ object PhoneControl {
             }
         }
 
+        /**
+         * Without the tips: no grey screen, the green box, and one small line with what is lit
+         * and what a close does, at the end of the screen away from the lit part.
+         */
+        private fun drawSmall(canvas: Canvas, now: Lit, litRect: RectF?, local: (Box) -> RectF) {
+            now.parts.forEach { canvas.drawRoundRect(local(it), 8 * density, 8 * density, part) }
+            litRect?.let { canvas.drawRoundRect(it, 14 * density, 14 * density, box) }
+            val margin = 16 * density
+            val textWidth = width - 4 * margin
+            val label = fit(now.label, smallTitle, textWidth)
+            val action = fit(now.action, small, textWidth)
+            val pillHeight = smallTitle.textSize + small.textSize + 8 * density + 2 * margin
+            val top = if (litRect != null && litRect.centerY() > height / 2) CARD_TOP_DP * density else height - pillHeight - 56 * density
+            val area = RectF(margin, top, width - margin, top + pillHeight)
+            canvas.drawRoundRect(area, 20 * density, 20 * density, card)
+            canvas.drawRoundRect(area, 20 * density, 20 * density, part)
+            var y = area.top + margin + smallTitle.textSize
+            canvas.drawText(label, area.left + margin, y, smallTitle)
+            y += 8 * density + small.textSize
+            canvas.drawText(action, area.left + margin, y, small)
+        }
+
+        /** [text] cut with "…" to fit one line of [width]. */
+        private fun fit(text: String, paint: Paint, width: Float): String {
+            if (paint.measureText(text) <= width) return text
+            var cut = text
+            while (cut.isNotEmpty() && paint.measureText("$cut…") > width) cut = cut.dropLast(1)
+            return "$cut…"
+        }
+
         private fun wrap(text: String, paint: Paint, width: Float): List<String> {
             val out = mutableListOf<String>()
             var line = ""
@@ -538,8 +635,11 @@ object PhoneControl {
     private const val RETURN_MS = 700L
     private const val TAP_MS = 60L
 
-    /** How long after a tap or Back the buttons on screen are compared with before. */
-    private const val CHANGE_CHECK_MS = 1_000L
+    /**
+     * How long after a tap or Back the buttons on screen are compared with before. At 1 s it said
+     * "looked the same" for taps that opened Contacts and File Manager 1.1 s later (09:40:48).
+     */
+    private const val CHANGE_CHECK_MS = 2_500L
     private const val MAX_DEPTH = 40
     private const val MAX_LABEL = 40
 }

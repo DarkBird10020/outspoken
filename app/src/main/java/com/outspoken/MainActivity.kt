@@ -779,7 +779,7 @@ class MainActivity : ComponentActivity() {
         cameraLifecycle.controlOn(true)
         gazeStepper.restGaze?.let { controlStepper.restAt(it, gazeStepper.restIrisDrop) }
         controlEyes.reset()
-        if (!PhoneControl.start(onStop = ::phoneControlStopped, onType = ::typeFromControl, goHome = goHome)) phoneControlStopped()
+        if (!PhoneControl.start(onStop = ::phoneControlStopped, onType = ::typeFromControl, onTipsDone = ::controlTipsDone, goHome = goHome)) phoneControlStopped()
     }
 
     /**
@@ -792,6 +792,14 @@ class MainActivity : ComponentActivity() {
         val keyguard = getSystemService(android.app.KeyguardManager::class.java)
         return tuning.phoneControl && SosAccessibility.running != null && cameraGranted && screen == Screen.Conversation &&
             !isFinishing && !isChangingConfigurations && power.isInteractive && keyguard?.isKeyguardLocked != true
+    }
+
+    /** Skip tips was tapped, or an app was opened by eye: the tips stay off from now on. */
+    private fun controlTipsDone() {
+        if (!tuning.controlTips) return
+        val next = tuning.copy(controlTips = false)
+        applyTuning(next)
+        tuningStore.save(next)
     }
 
     private fun phoneControlStopped() {
@@ -1064,6 +1072,8 @@ class MainActivity : ComponentActivity() {
         controlStepper.settings = next.activeGaze
         controlEyes.upMovesNext = !next.downMoves
         PhoneControl.moveHint = controlMoveHint(next.moveByEyes, upMovesNext = !next.downMoves)
+        PhoneControl.tips = next.controlTips
+        PhoneControl.endsInApp = next.controlEndsInApp
         controlEyes.moveByEyes = next.moveByEyes
         controlEyes.scanMs = next.scanMs
         controlEyes.helpConfirm = next.helpConfirm

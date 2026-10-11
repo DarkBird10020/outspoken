@@ -96,6 +96,13 @@ class TuningDefaultsTest {
     }
 
     @Test
+    fun `phone control shows its tips until they are done, and stays on in the app opened`() {
+        assertEquals(true, Tuning().controlTips)
+        // Ending it in the app would leave the person with no way back by eye and no help hold.
+        assertEquals(false, Tuning().controlEndsInApp)
+    }
+
+    @Test
     fun `cards start in English`() {
         assertEquals(com.outspoken.conversation.AppLanguage.English, Tuning().language)
         assertEquals(true, Tuning().autoLanguage)

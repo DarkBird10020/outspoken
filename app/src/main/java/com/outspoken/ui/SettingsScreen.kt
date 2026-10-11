@@ -246,6 +246,10 @@ private fun SosCard(
         ToggleRow("No SIM: then a WhatsApp call", tuning.sosWhatsAppCall) { onChange(tuning.copy(sosWhatsAppCall = it)) }
         // Not in the design (a design gap): phone control, which uses the same helper.
         ToggleRow("Phone card: use other apps by eye", tuning.phoneControl) { onChange(tuning.copy(phoneControl = it)) }
+        if (tuning.phoneControl) {
+            ToggleRow("Phone control: tips card over apps", tuning.controlTips) { onChange(tuning.copy(controlTips = it)) }
+            ToggleRow("Phone control: end once an app opens", tuning.controlEndsInApp) { onChange(tuning.copy(controlEndsInApp = it)) }
+        }
         if ((tuning.sosWhatsApp || tuning.sosWhatsAppCall || tuning.phoneControl) && !whatsAppHelperOn) {
             PillButton("Turn on Outspoken in Accessibility", onOpenAccessibility, Modifier.fillMaxWidth())
         }

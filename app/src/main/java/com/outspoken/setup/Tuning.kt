@@ -84,6 +84,16 @@ data class Tuning(
      * carer turns it on; it needs the Outspoken helper on in Accessibility.
      */
     val phoneControl: Boolean = false,
+    /**
+     * Phone control's tips: the grey screen and the big card over other apps. On until Skip tips
+     * is tapped or an app is first opened by eye (owner: the "tutorial" never ended).
+     */
+    val controlTips: Boolean = true,
+    /**
+     * Phone control ends once an app is opened by eye (owner request). Off by default: the
+     * person could then neither come back by eye nor call for help from that app.
+     */
+    val controlEndsInApp: Boolean = false,
 ) {
     /** The person's languages with the starting one first; never empty. */
     val chosenLanguages: List<AppLanguage> get() = (listOf(language) + languages).distinct()
@@ -163,6 +173,8 @@ class TuningStore(context: Context) {
             sosWhatsAppCall = prefs.getBoolean("sosWhatsAppCall", default.sosWhatsAppCall),
             helpConfirm = prefs.getBoolean("helpConfirm", default.helpConfirm),
             phoneControl = prefs.getBoolean("phoneControl", default.phoneControl),
+            controlTips = prefs.getBoolean("controlTips", default.controlTips),
+            controlEndsInApp = prefs.getBoolean("controlEndsInApp", default.controlEndsInApp),
             // Saved as the signs switched off, so a sign added later starts on.
             handSigns = HandSign.entries.toSet() -
                 prefs.getStringSet("handSignsOff", emptySet()).orEmpty().mapNotNull(HandSign::fromKey).toSet(),
@@ -217,6 +229,8 @@ class TuningStore(context: Context) {
             .putBoolean("sosWhatsAppCall", tuning.sosWhatsAppCall)
             .putBoolean("helpConfirm", tuning.helpConfirm)
             .putBoolean("phoneControl", tuning.phoneControl)
+            .putBoolean("controlTips", tuning.controlTips)
+            .putBoolean("controlEndsInApp", tuning.controlEndsInApp)
             .putStringSet("handSignsOff", (HandSign.entries - tuning.handSigns).map { it.key }.toSet())
             .putFloat("lookStrength", tuning.gaze.lookStrength)
             .putFloat("downStrength", tuning.gaze.downStrength ?: NOT_SET)
