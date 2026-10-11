@@ -1,11 +1,14 @@
 package com.outspoken
 
+import android.graphics.Bitmap
 import android.Manifest
 import com.outspoken.suggest.mostlyLatin
 import com.outspoken.listen.mostlyDevanagari
 import com.outspoken.ui.ProfileScreen
 import com.outspoken.ui.ProfileEditScreen
 import com.outspoken.profile.ProfileStore
+import com.outspoken.profile.FaceBox
+import com.outspoken.profile.faceCrop
 import com.outspoken.profile.PatientProfile
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
@@ -100,9 +103,12 @@ import com.outspoken.ui.TranscriptUi
 import com.outspoken.ui.describeStats
 import com.outspoken.ui.liveStatsLine
 import com.outspoken.ui.theme.OutspokenTheme
+import kotlin.coroutines.resume
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -195,6 +201,10 @@ class MainActivity : ComponentActivity() {
     /** What the person told the app about themselves; goes into every model prompt. Never logged. */
     private var profile by mutableStateOf(PatientProfile())
     private var profilePhoto by mutableStateOf<ImageBitmap?>(null)
+
+    /** Seconds left before the selfie, 0 while the camera takes it, null when none is wanted. */
+    private var selfieCountdown by mutableStateOf<Int?>(null)
+    private var selfieJob: Job? = null
 
     private val photoPicker =
         registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let(::savePhoto) }
@@ -439,7 +449,9 @@ class MainActivity : ComponentActivity() {
                         onBack = { show(Screen.Conversation) },
                         onSettings = { show(Screen.Settings) },
                         onEdit = { show(Screen.ProfileEdit) },
-                        onPhoto = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        onPickPhoto = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        onTakeSelfie = ::takeSelfie,
+                        selfieCountdown = selfieCountdown,
                     )
                 }
             } else if (screen == Screen.ProfileEdit) {
@@ -1048,12 +1060,62 @@ class MainActivity : ComponentActivity() {
     private fun savePhoto(uri: Uri) {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                profileStore.savePhoto(uri)
+                val saved = profileStore.savePhoto(uri)
                 val photo = profileStore.photo()?.asImageBitmap()
                 launch(Dispatchers.Main) { profilePhoto = photo }
-                AppLog.write("profile", "photo saved")
+                AppLog.write("profile", "photo saved, $saved")
             } catch (e: Exception) {
                 AppLog.write("profile", "could not save the photo: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Counts down so the person can look at the phone, then keeps the eye camera's next frame,
+     * cut around the face, as the profile photo (owner request: no way to take a selfie).
+     */
+    private fun takeSelfie() {
+        if (!cameraGranted) {
+            AppLog.write("profile", "selfie not taken: no camera permission")
+            return
+        }
+        if (selfieJob?.isActive == true) return
+        selfieJob = lifecycleScope.launch {
+            try {
+                for (left in SELFIE_COUNTDOWN downTo 1) {
+                    selfieCountdown = left
+                    delay(1_000)
+                }
+                selfieCountdown = 0
+                val shot = withTimeoutOrNull(SELFIE_WAIT_MS) {
+                    suspendCancellableCoroutine<Pair<Bitmap, FaceBox?>> { waiting ->
+                        eyeReader.captureSelfie { frame, face -> if (waiting.isActive) waiting.resume(frame to face) }
+                        waiting.invokeOnCancellation { eyeReader.cancelSelfie() }
+                    }
+                }
+                if (shot == null) {
+                    AppLog.write("profile", "selfie not taken: no camera frame in $SELFIE_WAIT_MS ms")
+                    return@launch
+                }
+                val (frame, face) = shot
+                val photo = withContext(Dispatchers.IO) {
+                    try {
+                        val crop = faceCrop(frame.width, frame.height, face)
+                        val saved = profileStore.savePhoto(Bitmap.createBitmap(frame, crop.left, crop.top, crop.width, crop.height))
+                        AppLog.write(
+                            "profile",
+                            "selfie saved, ${if (face == null) "no face found so the middle was kept" else "cut around the face"}, " +
+                                "camera picture ${frame.width}x${frame.height}, kept ${crop.width}x${crop.height}, saved $saved",
+                        )
+                        profileStore.photo()?.asImageBitmap()
+                    } catch (e: Exception) {
+                        AppLog.write("profile", "could not save the selfie: ${e.message}")
+                        null
+                    }
+                }
+                photo?.let { profilePhoto = it }
+            } finally {
+                selfieCountdown = null
             }
         }
     }
@@ -1258,6 +1320,11 @@ class MainActivity : ComponentActivity() {
         val LISTENING_SCREENS = setOf(Screen.Conversation, Screen.Transcript, Screen.Stats)
         const val DOWNLOAD_CHECK_MS = 3_000L
         const val TTS_SETTINGS = "com.android.settings.TTS_SETTINGS"
+        const val SELFIE_COUNTDOWN = 3
+
+        /** The camera gives a frame about every 50 ms; none in this long means it is not running. */
+        const val SELFIE_WAIT_MS = 2_000L
+
         const val CLOSES_MISSED_HINT = "Closes are not being read. Wearing glasses? Tap here to calibrate with them on."
         const val CUE_MS = 200
         const val CUE_VOLUME = 80

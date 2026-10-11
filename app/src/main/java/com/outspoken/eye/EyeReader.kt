@@ -17,6 +17,7 @@ import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarker
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarkerResult
 import com.outspoken.log.AppLog
 import com.outspoken.log.EyeSummary
+import com.outspoken.profile.FaceBox
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,6 +48,14 @@ class EyeReader(context: Context, private val onSample: (EyeSample) -> Unit) : I
     private val _fps = MutableStateFlow(0f)
     val fps: StateFlow<Float> = _fps.asStateFlow()
 
+    /** Wanted by [captureSelfie]; answered on the main thread with the next frame and its face. */
+    @Volatile
+    private var selfieWanted: ((Bitmap, FaceBox?) -> Unit)? = null
+
+    /** The frame kept for the selfie, by its time, until the face landmarker has looked at it. */
+    @Volatile
+    private var selfieFrame: Pair<Long, Bitmap>? = null
+
     private val fpsMeter = FpsMeter()
     private val summary = EyeSummary()
     private var lastFrameMs = 0L
@@ -71,6 +80,9 @@ class EyeReader(context: Context, private val onSample: (EyeSample) -> Unit) : I
         } else {
             Bitmap.createBitmap(frame, 0, 0, frame.width, frame.height, Matrix().apply { postRotate(rotation.toFloat()) }, false)
         }
+        if (selfieWanted != null && selfieFrame == null) {
+            selfieFrame = timeMs to upright.copy(Bitmap.Config.ARGB_8888, false)
+        }
         try {
             model.detectAsync(BitmapImageBuilder(upright).build(), timeMs)
         } catch (e: RuntimeException) {
@@ -78,6 +90,21 @@ class EyeReader(context: Context, private val onSample: (EyeSample) -> Unit) : I
             if (!closed) AppLog.write("eyes", "frame not analysed: $e")
         }
         alsoFrame?.invoke(upright, timeMs)
+    }
+
+    /**
+     * Takes the next camera frame as a photo, with where the face is in it (null when no face was
+     * found), so the profile can show the person without another camera app. The front camera
+     * already runs for the eyes.
+     */
+    fun captureSelfie(onCaptured: (Bitmap, FaceBox?) -> Unit) {
+        selfieFrame = null
+        selfieWanted = onCaptured
+    }
+
+    fun cancelSelfie() {
+        selfieWanted = null
+        selfieFrame = null
     }
 
     fun close() {
@@ -128,6 +155,21 @@ class EyeReader(context: Context, private val onSample: (EyeSample) -> Unit) : I
             )
         }
         mainExecutor.execute { publish(sample, width, height) }
+        deliverSelfie(timeMs, points)
+    }
+
+    private fun deliverSelfie(timeMs: Long, points: List<NormalizedLandmark>?) {
+        val (frameMs, frame) = selfieFrame ?: return
+        if (frameMs > timeMs) return
+        val onCaptured = selfieWanted ?: return
+        selfieWanted = null
+        selfieFrame = null
+        // The face landmarker can drop a frame under load; then the face from a later one is
+        // close enough, the person holds still for the photo.
+        val face = points?.let { list ->
+            FaceBox(list.minOf { it.x() }, list.minOf { it.y() }, list.maxOf { it.x() }, list.maxOf { it.y() })
+        }
+        mainExecutor.execute { onCaptured(frame, face) }
     }
 
     private fun publish(sample: EyeSample, width: Int, height: Int) {

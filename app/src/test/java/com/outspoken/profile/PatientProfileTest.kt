@@ -56,7 +56,7 @@ class PatientProfileTest {
     fun `the prompt names the person, their people, likes and health`() {
         val text = profilePrompt(PatientProfile.SAMPLE)!!
         assertTrue(text.contains("- Full name: Ramesh Iyer."))
-        assertTrue(text.contains("- Family and friends call them Ramu."))
+        assertTrue(text.contains("- Nickname: Ramu. It is the Person's own name, never someone else's."))
         assertTrue(text.contains("- Asked their name, one reply gives the full name: \"My name is Ramesh Iyer\"."))
         assertTrue(text.contains("- 62 years old, male, lives in Bengaluru, used to work as school teacher, speaks English, Hindi."))
         assertTrue(text.contains("People close to them: wife Meera, son Arjun, friend Kabir, day nurse Sister Anita."))
@@ -79,5 +79,28 @@ class PatientProfileTest {
         assertEquals(listOf("Chai, no sugar", "Cricket"), splitList("Chai, no sugar\n\n  Cricket \n"))
         assertEquals(listOf(Person("Wife", "Meera"), Person("", "Kabir")), parsePeople("Wife: Meera\nKabir\n"))
         assertEquals("Wife: Meera\nKabir", peopleText(listOf(Person("Wife", "Meera"), Person("", "Kabir"))))
+    }
+
+    @Test
+    fun `a comma typed after an item is dropped, also from a profile saved before`() {
+        assertEquals(listOf("North Indian foods", "eSports gaming"), splitList("North Indian foods ,\neSports gaming;"))
+        val saved = decodeProfile("like=North Indian foods ,\nlike=Chai, no sugar\nallergy=Peanuts,\n")
+        assertEquals(listOf("North Indian foods", "Chai, no sugar"), saved.likes)
+        assertEquals(listOf("Peanuts"), saved.allergies)
+    }
+
+    @Test
+    fun `languages typed without spaces are shown and sent with them`() {
+        assertEquals("hindi, english", languagesText("hindi,english"))
+        assertEquals("Hindi, English, Marathi", languagesText(" Hindi ;English/ Marathi,"))
+        assertTrue(profilePrompt(PatientProfile(languages = "hindi,english"))!!.contains("speaks hindi, english."))
+    }
+
+    @Test
+    fun `gender is read in English or Hindi`() {
+        assertEquals(Gender.Male, genderOf(" Male "))
+        assertEquals(Gender.Female, genderOf("महिला"))
+        assertEquals(Gender.Unknown, genderOf(""))
+        assertEquals(Gender.Unknown, genderOf("prefer not to say"))
     }
 }

@@ -1,6 +1,9 @@
 package com.outspoken.suggest
 
 import com.outspoken.conversation.AppLanguage
+import com.outspoken.profile.Gender
+import com.outspoken.profile.PatientProfile
+import com.outspoken.profile.genderOf
 import com.outspoken.profile.profilePrompt
 
 /** Turns older than this are left out to keep the prompt, and so the reply time, short. */
@@ -12,7 +15,7 @@ fun buildPrompt(request: SuggestionRequest): String = buildString {
     appendLine("You suggest replies for a person in bed who cannot move or speak, cared for by family or a nurse (the Visitor). They pick one by blinking, and the phone says it aloud.")
     appendLine("Write 4 different replies they may want to say next.")
     appendLine("Each reply: first person, plain everyday words, at most 8 words, said by the Person, never by the Visitor.")
-    if (request.language == AppLanguage.Hindi) appendLine(HINDI_LINE)
+    if (request.language == AppLanguage.Hindi) appendLine(hindiLine(request.profile))
     appendLine("Answer with only a JSON list of 4 strings.")
     appendLine()
     // One worked example: small models copy the shape of an example far more reliably than they
@@ -57,12 +60,23 @@ const val EXAMPLE_ANSWER_HINDI = """["हाँ, कृपया", "थोड़
  * Asked of the model for Hindi cards: the instructions stay in English, the words it writes do
  * not. On the phone the Hindi cards told the visitor what to do in the curt तुम form ("हाँ, बस चुप
  * रहो", "थक गया हूँ, आराम करो", 18:01:11 to 18:01:30), where the English ones were the person's own
- * needs, and used the masculine "गया" and "रहा" whoever is speaking; Hindi verbs show gender, and
- * the app does not know the person's.
+ * needs, and used the masculine "गया" and "रहा" whoever is speaking; Hindi verbs show gender.
  */
-const val HINDI_LINE = "Write in Hindi, in Devanagari script, the everyday Hindi a family in India speaks. " +
-    "To ask the Visitor for something, be polite: कृपया and the आप form, never तुम commands like \"चुप रहो\" or \"आराम करो\". " +
-    "Avoid words that show the Person's gender: \"मुझे थकान है\", not \"मैं थक गया हूँ\"."
+const val HINDI_BASE = "Write in Hindi, in Devanagari script, the everyday Hindi a family in India speaks. " +
+    "To ask the Visitor for something, be polite: कृपया and the आप form, never तुम commands like \"चुप रहो\" or \"आराम करो\"."
+
+/** For when the profile does not say the person's gender. */
+const val HINDI_LINE = "$HINDI_BASE Avoid words that show the Person's gender: \"मुझे थकान है\", not \"मैं थक गया हूँ\"."
+
+/**
+ * The Hindi line for the person's gender. With it in the profile, the Hindi cards can speak as
+ * them ("मैं थक गई हूँ") instead of working round the verb.
+ */
+fun hindiLine(profile: PatientProfile?): String = when (genderOf(profile?.gender.orEmpty())) {
+    Gender.Male -> "$HINDI_BASE The Person is a man: use the masculine forms, \"मैं थक गया हूँ\"."
+    Gender.Female -> "$HINDI_BASE The Person is a woman: use the feminine forms, \"मैं थक गई हूँ\"."
+    Gender.Unknown -> HINDI_LINE
+}
 
 /**
  * Whether [text] asks for a yes or a no, from its first word. Heard speech comes without a

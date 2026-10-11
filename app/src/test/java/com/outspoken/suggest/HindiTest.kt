@@ -1,6 +1,7 @@
 package com.outspoken.suggest
 
 import com.outspoken.conversation.AppLanguage
+import com.outspoken.profile.PatientProfile
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -14,6 +15,19 @@ class HindiTest {
 
     private class FakeModel(private val answer: String) : TextModel {
         override suspend fun generate(prompt: String) = Generation(answer, tokensPerSecond = 50f)
+    }
+
+    @Test
+    fun `Hindi cards use the person's gender when the profile has it`() {
+        fun prompt(gender: String) = buildPrompt(
+            SuggestionRequest(heardInHindi, hourOfDay = 10, language = AppLanguage.Hindi, profile = PatientProfile(gender = gender)),
+        )
+        assertTrue(prompt("male").contains("The Person is a man") && prompt("male").contains("थक गया"))
+        assertTrue(prompt("Female").contains("The Person is a woman") && prompt("Female").contains("थक गई"))
+        assertFalse(prompt("male").contains("Avoid words that show"))
+        assertTrue(prompt("").contains(HINDI_LINE))
+        val words = buildWordPrompt(WordRequest(heardInHindi, "मैं", language = AppLanguage.Hindi, profile = PatientProfile(gender = "female")))
+        assertTrue(words.contains("The Person is a woman"))
     }
 
     @Test
