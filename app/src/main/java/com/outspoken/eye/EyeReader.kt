@@ -64,6 +64,7 @@ class EyeReader(context: Context, private val onSample: (EyeSample) -> Unit) : I
     private var lastDetectLogMs = 0L
 
     override fun analyze(image: ImageProxy) {
+        framesIn++
         val model = landmarker
         if (model == null || closed) {
             image.close()
@@ -202,8 +203,13 @@ class EyeReader(context: Context, private val onSample: (EyeSample) -> Unit) : I
         )
     }
 
-    private companion object {
-        const val MODEL = "face_landmarker.task"
-        const val DETECT_LOG_EVERY_MS = 5_000L
+    companion object {
+        private const val MODEL = "face_landmarker.task"
+        private const val DETECT_LOG_EVERY_MS = 5_000L
+
+        /** Frames handed over by the camera, read by phone control to tell a stopped camera from a lost face. */
+        @Volatile
+        var framesIn = 0L
+            private set
     }
 }

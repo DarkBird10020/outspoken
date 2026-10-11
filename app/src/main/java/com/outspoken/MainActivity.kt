@@ -789,6 +789,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         AppLog.write("app", "resumed")
         visible = true
+        if (::camera.isInitialized) camera.resumePreview()
         watchDownloads()
         watchTemperature()
         if (::sos.isInitialized) sosAllowed = sos.allowed()
@@ -800,6 +801,7 @@ class MainActivity : ComponentActivity() {
         super.onPause()
         AppLog.write("app", "paused")
         visible = false
+        if (::camera.isInitialized) camera.pausePreview()
         updateListening()
     }
 

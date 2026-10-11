@@ -16,6 +16,7 @@ import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.compose.ui.graphics.toArgb
+import com.outspoken.eye.EyeReader
 import com.outspoken.help.SosAccessibility
 import com.outspoken.log.AppLog
 import com.outspoken.ui.theme.EyesFoundDot
@@ -41,13 +42,21 @@ object PhoneControl {
     @Volatile
     private var lastEyesMs = 0L
     private var eyesLost = false
+    private var cameraFramesAtCheck = 0L
     private val eyesWatch = object : Runnable {
         override fun run() {
             if (!on) return
+            val cameraFrames = EyeReader.framesIn - cameraFramesAtCheck
+            cameraFramesAtCheck = EyeReader.framesIn
             val lost = typing.not() && android.os.SystemClock.elapsedRealtime() - lastEyesMs > EYES_LOST_MS
             if (lost != eyesLost) {
                 eyesLost = lost
-                AppLog.write("control", if (lost) "no eye frames for ${EYES_LOST_MS / 1000} s: the camera is not running" else "eye frames again")
+                AppLog.write(
+                    "control",
+                    if (!lost) "eye frames again"
+                    else if (cameraFrames == 0L) "no eye frames for ${EYES_LOST_MS / 1000} s: the camera sends no frames"
+                    else "no eye frames for ${EYES_LOST_MS / 1000} s: the camera sent $cameraFrames frames in the last second but none reached phone control",
+                )
                 draw()
             }
             main.postDelayed(this, EYES_CHECK_MS)
@@ -82,6 +91,7 @@ object PhoneControl {
         if (goHome) service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
         lastEyesMs = android.os.SystemClock.elapsedRealtime()
         eyesLost = false
+        cameraFramesAtCheck = EyeReader.framesIn
         main.postDelayed(eyesWatch, EYES_CHECK_MS)
         screenChanged()
         return true
