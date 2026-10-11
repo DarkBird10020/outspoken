@@ -315,6 +315,7 @@ class MainActivity : ComponentActivity() {
             onHearing = { hearingText = it.ifBlank { null } },
         )
         listener.wish = speechWish(tuning)
+        lifecycleScope.launch { SosAccessibility.connected.collect { whatsAppHelperOn = it } }
         camera = FrontCamera(this, cameraLifecycle)
         lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
@@ -762,7 +763,6 @@ class MainActivity : ComponentActivity() {
         watchDownloads()
         watchTemperature()
         if (::sos.isInitialized) sosAllowed = sos.allowed()
-        whatsAppHelperOn = SosAccessibility.running != null
         if (::speaker.isInitialized) speaker.checkVoice()
         updateListening()
     }

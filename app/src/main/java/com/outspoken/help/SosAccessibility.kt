@@ -12,6 +12,7 @@ import com.outspoken.control.Box
 import com.outspoken.control.PhoneControl
 import com.outspoken.control.Target
 import com.outspoken.log.AppLog
+import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
  * The accessibility helper, for what the person in bed cannot press:
@@ -23,6 +24,7 @@ class SosAccessibility : AccessibilityService() {
 
     override fun onServiceConnected() {
         running = this
+        connected.value = true
         AppLog.write("help", "WhatsApp helper on (Accessibility)")
     }
 
@@ -33,7 +35,10 @@ class SosAccessibility : AccessibilityService() {
     override fun onInterrupt() = Unit
 
     override fun onUnbind(intent: Intent?): Boolean {
-        if (running === this) running = null
+        if (running === this) {
+            running = null
+            connected.value = false
+        }
         PhoneControl.stop("the accessibility helper went off")
         AppLog.write("help", "WhatsApp helper off")
         return super.onUnbind(intent)
@@ -104,6 +109,13 @@ class SosAccessibility : AccessibilityService() {
         @Volatile
         var running: SosAccessibility? = null
             private set
+
+        /**
+         * Whether the helper is on, as it changes. It connects a moment after Outspoken opens
+         * (07:59:52.010, after 07:59:51.766), so a look at [running] then said "off" and Settings
+         * asked for it to be turned on although it was.
+         */
+        val connected = MutableStateFlow(false)
 
         private const val MAX_DEPTH = 40
 
