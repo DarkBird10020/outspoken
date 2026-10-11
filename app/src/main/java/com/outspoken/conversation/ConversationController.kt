@@ -132,6 +132,13 @@ class ConversationController(
         scanner.pause(0)
     }
 
+    /** The help alarm waits for a confirming close after the hold; off, the hold alone raises it. */
+    var helpConfirm: Boolean
+        get() = help.confirm
+        set(value) {
+            help.confirm = value
+        }
+
     fun onSample(sample: EyeSample) {
         val nowMs = advance(sample.timeMs)
         val event = detector.onSample(sample)

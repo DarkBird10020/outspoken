@@ -16,6 +16,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.telephony.SmsManager
 import android.telephony.SubscriptionManager
+import android.telephony.TelephonyManager
 import androidx.core.content.ContextCompat
 import com.outspoken.log.AppLog
 
@@ -62,6 +63,21 @@ class SosCaller(private val activity: Activity, private val onStatus: (String) -
      */
     fun hasSim(): Boolean = SubscriptionManager.isValidSubscriptionId(SubscriptionManager.getDefaultSubscriptionId())
 
+    /**
+     * The phone's region, for a number saved without a country code, and where it came from: the
+     * mobile network's, else the SIM's, else the phone's language region ("English (India)").
+     */
+    private fun region(): Pair<String, String>? {
+        val telephony = activity.getSystemService(TelephonyManager::class.java)
+        telephony?.networkCountryIso?.takeIf { it.isNotBlank() }?.let { return it.uppercase() to "the mobile network" }
+        telephony?.simCountryIso?.takeIf { it.isNotBlank() }?.let { return it.uppercase() to "the SIM" }
+        activity.resources.configuration.locales[0].country.takeIf { it.isNotBlank() }?.let { return it to "the phone's language" }
+        return null
+    }
+
+    /** The number WhatsApp gets: as saved with "+", else with the phone's country code added. */
+    fun whatsAppNumberFor(number: String): String? = whatsAppNumber(number, region()?.first?.let(::callingCode))
+
     /** Whether WhatsApp is on this phone (either app). */
     fun hasWhatsApp(): Boolean = WHATSAPP_PACKAGES.any { pkg ->
         runCatching { activity.packageManager.getPackageInfo(pkg, 0) }.isSuccess
@@ -102,10 +118,14 @@ class SosCaller(private val activity: Activity, private val onStatus: (String) -
     /** Opens the WhatsApp chat with the message typed in; the accessibility helper presses the buttons. */
     private fun whatsApp(number: String, message: String, text: Boolean, call: Boolean) {
         val who = maskedNumber(number)
-        val waNumber = whatsAppNumber(number) ?: run {
-            AppLog.write("help", "WhatsApp SOS to $who skipped: the number has no country code (+91 …), so WhatsApp cannot find it")
-            onStatus("No SIM, and the SOS number needs its country code for WhatsApp")
+        val waNumber = whatsAppNumberFor(number) ?: run {
+            AppLog.write("help", "WhatsApp SOS to $who skipped: the number has no country code and the phone's region is not known, so WhatsApp cannot find it")
+            onStatus("No SIM, and the SOS number needs its country code (+91 …) for WhatsApp")
             return
+        }
+        if (!number.startsWith("+")) {
+            val (code, from) = region() ?: ("" to "")
+            AppLog.write("help", "WhatsApp SOS to $who: country code ${callingCode(code)} added, region $code from $from")
         }
         val link = Uri.parse(whatsAppChatLink(waNumber, if (text) message else ""))
         val app = WHATSAPP_PACKAGES.firstOrNull { pkg ->

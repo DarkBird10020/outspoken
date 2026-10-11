@@ -85,6 +85,20 @@ class ConversationHelpTest {
     }
 
     @Test
+    fun `with no confirm one hold raises the alarm and says no card`() {
+        controller.helpConfirm = false
+        frames(300, open = 0.95f)
+        frames(2_300, open = 0.05f)
+        frames(500, open = 0.95f)
+        assertEquals(listOf(HelpStep.Alarm), steps)
+        assertTrue("said $said", said.isEmpty())
+        // A normal close afterwards still picks.
+        frames(600, open = 0.05f)
+        frames(300, open = 0.95f)
+        assertEquals(1, said.size)
+    }
+
+    @Test
     fun `a normal pick does not raise the alarm`() {
         frames(300, open = 0.95f)
         frames(600, open = 0.05f)

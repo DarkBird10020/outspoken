@@ -54,7 +54,6 @@ import com.outspoken.help.HelpAlarm
 import com.outspoken.help.HelpStep
 import com.outspoken.help.SosAccessibility
 import com.outspoken.help.SosCaller
-import com.outspoken.help.whatsAppNumber
 import com.outspoken.help.isEmergencyNumber
 import com.outspoken.help.maskedNumber
 import com.outspoken.help.sosMessage
@@ -724,6 +723,7 @@ class MainActivity : ComponentActivity() {
         }
         blinkDetector.settings = next.blink
         checkBlink.settings = next.blink
+        controller.helpConfirm = next.helpConfirm
         scanner.intervalMs = next.scanMs
         gazeStepper.settings = next.activeGaze
         checkStepper.settings = next.activeGaze
@@ -900,10 +900,11 @@ class MainActivity : ComponentActivity() {
         val doing = listOfNotNull("message".takeIf { tuning.sosWhatsApp }, "call".takeIf { tuning.sosWhatsAppCall })
         return when {
             doing.isEmpty() -> "This phone has no SIM, so the help alarm cannot text or call $who. WhatsApp can, below."
-            whatsAppNumber(number) == null -> "No SIM. For WhatsApp, save the number with its country code, like +91 98765 43210."
+            sos.whatsAppNumberFor(number) == null -> "No SIM. For WhatsApp, save the number with its country code, like +91 98765 43210."
             !sos.hasWhatsApp() -> "No SIM, and WhatsApp is not on this phone."
             !whatsAppHelperOn -> "No SIM. Turn on Outspoken in Accessibility, so it can press Send in WhatsApp."
-            else -> "No SIM: the help alarm sends $who a WhatsApp ${doing.joinToString(" and then a ")}."
+            // The whole number, so a carer can see the country code WhatsApp will use.
+            else -> "No SIM: the help alarm sends +${sos.whatsAppNumberFor(number)} a WhatsApp ${doing.joinToString(" and then a ")}."
         }
     }
 
