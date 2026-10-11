@@ -36,6 +36,7 @@ sealed interface ScanAction {
  * One thing lit by the scan, to draw: its box (null for the menu entries), what it is, what a
  * close does to it, where it is in the list ([step] of [of]) and, for a group, its buttons' boxes.
  * The owner could not tell what was being chosen from a box and "5 buttons" (08:10 run).
+ * [moves] says how to move on, from the eye settings ([controlMoveHint]).
  */
 data class Lit(
     val box: Box?,
@@ -44,7 +45,19 @@ data class Lit(
     val step: Int = 0,
     val of: Int = 0,
     val parts: List<Box> = emptyList(),
+    val moves: String = "",
 )
+
+/**
+ * How the lit part moves on, for the card over the other app, as the main page's hint says it.
+ * The card always read "look down: next · look up: back", also when a look down could not move
+ * and a look up was the only way on (08:28 run).
+ */
+fun controlMoveHint(moveByEyes: Boolean, upMovesNext: Boolean): String = when {
+    !moveByEyes -> "it moves on by itself"
+    upMovesNext -> "look up: next"
+    else -> "look down: next  ·  look up: back"
+}
 
 /**
  * Another app's buttons, chosen by eye the way the reply cards are: look down for the next, up
@@ -74,7 +87,7 @@ class ScreenScan(private val groupSize: Int = GROUP_SIZE) {
     fun show(screen: List<Target>) {
         targets = screen
         order = readingOrder(screen)
-        groups = order.chunked(groupSize)
+        groups = evenGroups(order, groupSize)
         level = Level.Top
         position = 0
     }
@@ -114,6 +127,24 @@ class ScreenScan(private val groupSize: Int = GROUP_SIZE) {
             }
         }
         return null
+    }
+
+    /**
+     * Where the scan is, for the log: the menu's entries by name, the other app's buttons only by
+     * their place, never by what they say. The 08:28 run could not show what a close had opened.
+     */
+    fun where(): String = when (val at = level) {
+        Level.Top -> when (val entry = topEntries().getOrNull(position)) {
+            TopEntry.Menu -> "Menu"
+            is TopEntry.Group -> "group ${entry.index + 1} of ${groups.size}, ${groups[entry.index].size} buttons"
+            is TopEntry.Single -> "button $position of ${order.size}"
+            null -> "nothing"
+        }
+        is Level.Group -> {
+            val group = groups[at.index]
+            if (position == group.size) "back to all groups" else "button ${position + 1} of ${group.size} in group ${at.index + 1}"
+        }
+        Level.Menu -> MenuAction.entries.getOrNull(position)?.let { "menu: ${it.label}" } ?: "menu: back to the app"
     }
 
     /** What to draw now. */
@@ -174,6 +205,23 @@ class ScreenScan(private val groupSize: Int = GROUP_SIZE) {
         /** A group's lit label names this many of its buttons. */
         const val NAMES_SHOWN = 3
         const val PRESS = "Close the eyes to press it"
+
+        /**
+         * [items] in groups of at most [size], as even as they can be: 36 buttons make four of 5
+         * and four of 4, not seven of 5 and a last group of one, which took a close to open and
+         * another to come back for a single button.
+         */
+        fun evenGroups(items: List<Int>, size: Int): List<List<Int>> {
+            if (items.isEmpty()) return emptyList()
+            val count = (items.size + size - 1) / size
+            val base = items.size / count
+            val extra = items.size % count
+            var start = 0
+            return List(count) { i ->
+                val end = start + base + if (i < extra) 1 else 0
+                items.subList(start, end).also { start = end }
+            }
+        }
 
         /**
          * Top to bottom, and left to right within a row. Buttons whose middles are within half

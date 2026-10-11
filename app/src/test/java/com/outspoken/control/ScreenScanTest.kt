@@ -1,6 +1,7 @@
 package com.outspoken.control
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -38,20 +39,67 @@ class ScreenScanTest {
         val scan = ScreenScan(groupSize = 5)
         val chats = (0 until 12).map { button(0, 100 + it * 100, "Chat $it") }
         scan.show(chats)
-        // Menu, then three groups of up to five.
+        // Menu, then three groups of up to five, shared evenly: four each.
         scan.next()
         // The group names its first buttons and says what a close does.
         assertEquals("Chat 0, Chat 1, Chat 2, …", scan.lit()?.label)
-        assertEquals("Close the eyes to open these 5", scan.lit()?.action)
-        assertEquals(Box(0, 100, 100, 580), scan.lit()?.box)
-        assertEquals(5, scan.lit()?.parts?.size)
+        assertEquals("Close the eyes to open these 4", scan.lit()?.action)
+        assertEquals(Box(0, 100, 100, 480), scan.lit()?.box)
+        assertEquals(4, scan.lit()?.parts?.size)
         assertEquals(2, scan.lit()?.step)
         assertEquals(4, scan.lit()?.of)
         scan.next()
         assertNull(scan.select())
-        assertEquals("Chat 5", scan.lit()?.label)
+        assertEquals("Chat 4", scan.lit()?.label)
         scan.next()
-        assertEquals(ScanAction.Press(6), scan.select())
+        assertEquals(ScanAction.Press(5), scan.select())
+    }
+
+    @Test
+    fun `buttons are shared evenly between the groups, so none is left with one`() {
+        val scan = ScreenScan(groupSize = 5)
+        // The launcher in the 08:28 run: 36 buttons made seven groups of 5 and a last one of 1.
+        scan.show((0 until 36).map { button(0, 100 + it * 100, "App $it") })
+        assertEquals(9, scan.lit()?.of)
+        scan.previous()
+        assertEquals("Close the eyes to open these 4", scan.lit()?.action)
+        scan.next()
+        scan.next()
+        assertEquals("Close the eyes to open these 5", scan.lit()?.action)
+    }
+
+    @Test
+    fun `the log names where the scan is, never what the other app's buttons say`() {
+        val scan = ScreenScan(groupSize = 5)
+        scan.show((0 until 12).map { button(0, 100 + it * 100, "Chat with Meera $it") })
+        val seen = mutableListOf(scan.where())
+        scan.next()
+        seen += scan.where()
+        scan.select()
+        seen += scan.where()
+        scan.previous()
+        seen += scan.where()
+        scan.select()
+        seen += scan.where()
+        scan.select()
+        seen += scan.where()
+        assertEquals(
+            listOf("Menu", "group 1 of 3, 4 buttons", "button 1 of 4 in group 1", "back to all groups", "Menu", "menu: Back"),
+            seen,
+        )
+        assertFalse(seen.any { "Meera" in it })
+
+        scan.show(listOf(button(0, 100, "Send"), button(0, 300, "Call")))
+        scan.next()
+        assertEquals("button 1 of 2", scan.where())
+    }
+
+    @Test
+    fun `the card says how to move the way the eye settings do`() {
+        assertEquals("look down: next  ·  look up: back", controlMoveHint(moveByEyes = true, upMovesNext = false))
+        // Looking down off, or no look down line from calibration: a look up moves on (08:28 run).
+        assertEquals("look up: next", controlMoveHint(moveByEyes = true, upMovesNext = true))
+        assertEquals("it moves on by itself", controlMoveHint(moveByEyes = false, upMovesNext = true))
     }
 
     @Test

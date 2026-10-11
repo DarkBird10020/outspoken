@@ -58,6 +58,16 @@ class ControlEyesTest {
     }
 
     @Test
+    fun `frames of a close where an eye reads just over the shut line do not move`() {
+        frames(500)
+        // Lids part way through a close: the reading pokes over the shut line (0.3) but not up to
+        // the open line, so the close goes on, and the gaze reads where the lids are, low. On the
+        // phone two such frames moved the rest (08:28:56.964, 08:29:31.235).
+        val out = frames(100, open = 0.05f, gazeY = 0.6f) + frames(600, open = 0.4f, gazeY = 0.6f) + frames(300)
+        assertEquals(listOf(ControlInput.Select), out)
+    }
+
+    @Test
     fun `with blink only the lit button moves on by itself`() {
         eyes.moveByEyes = false
         eyes.scanMs = 1_000

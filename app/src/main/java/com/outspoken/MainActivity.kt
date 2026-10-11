@@ -47,6 +47,7 @@ import com.outspoken.control.ControlInput
 import com.outspoken.control.ControlService
 import com.outspoken.control.EyeCameraLifecycle
 import com.outspoken.control.PhoneControl
+import com.outspoken.control.controlMoveHint
 import com.outspoken.blink.BlinkSettings
 import com.outspoken.conversation.AppLanguage
 import com.outspoken.conversation.ConversationController
@@ -866,6 +867,7 @@ class MainActivity : ComponentActivity() {
         controlBlink.settings = next.blink
         controlStepper.settings = next.activeGaze
         controlEyes.upMovesNext = !next.downMoves
+        PhoneControl.moveHint = controlMoveHint(next.moveByEyes, upMovesNext = !next.downMoves)
         controlEyes.moveByEyes = next.moveByEyes
         controlEyes.scanMs = next.scanMs
         controlEyes.helpConfirm = next.helpConfirm

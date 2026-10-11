@@ -38,6 +38,17 @@ object PhoneControl {
     private var onType: (() -> Unit)? = null
     private val refresh = Runnable { readScreen() }
 
+    /** How to move on, shown on the card; set from the eye settings ([controlMoveHint]). */
+    @Volatile
+    var moveHint = controlMoveHint(moveByEyes = true, upMovesNext = false)
+
+    /** A short word on the card after a choice that did nothing, for [NOTICE_MS]. */
+    private var notice: String? = null
+    private val noticeOff = Runnable {
+        notice = null
+        draw()
+    }
+
     /** When the last eye frame came, to tell the person when the camera has stopped. */
     @Volatile
     private var lastEyesMs = 0L
@@ -103,6 +114,8 @@ object PhoneControl {
         typing = false
         main.removeCallbacks(refresh)
         main.removeCallbacks(eyesWatch)
+        main.removeCallbacks(noticeOff)
+        notice = null
         overlay?.hide()
         overlay = null
         nodes = emptyList()
@@ -124,9 +137,13 @@ object PhoneControl {
 
     fun select() {
         if (!on) return
+        val chosen = scan.where()
         when (val action = scan.select()) {
-            null -> draw()
-            is ScanAction.Press -> press(action.target)
+            null -> {
+                AppLog.write("control", "chose $chosen, now lit: ${scan.where()}")
+                draw()
+            }
+            is ScanAction.Press -> press(action.target, chosen)
             is ScanAction.Menu -> menu(action.action)
         }
     }
@@ -134,17 +151,27 @@ object PhoneControl {
     private fun moved(step: () -> Unit) {
         if (!on) return
         step()
+        AppLog.write("control", "lit: ${scan.where()}")
         draw()
     }
 
     private fun draw() {
         val lit = scan.lit()
-        val shown = if (eyesLost) {
-            (lit ?: Lit(null, "")).copy(label = "Eyes not read", action = "The camera has stopped: open Outspoken")
-        } else {
-            lit
+        val waiting = notice
+        val shown = when {
+            eyesLost -> (lit ?: Lit(null, "")).copy(label = "Eyes not read", action = "The camera has stopped: open Outspoken")
+            waiting != null -> (lit ?: Lit(null, "")).copy(action = waiting)
+            else -> lit
         }
-        overlay?.light(shown)
+        overlay?.light(shown?.copy(moves = moveHint))
+    }
+
+    /** Says on the card, for a few seconds, why a choice did nothing. */
+    private fun tell(text: String) {
+        notice = text
+        main.removeCallbacks(noticeOff)
+        main.postDelayed(noticeOff, NOTICE_MS)
+        draw()
     }
 
     private fun readScreen() {
@@ -161,13 +188,14 @@ object PhoneControl {
         draw()
     }
 
-    private fun press(target: Int) {
+    private fun press(target: Int, place: String) {
         val service = SosAccessibility.running ?: return
         val node = nodes.getOrNull(target) ?: return
         var clickable: AccessibilityNodeInfo? = node
         while (clickable != null && !clickable.isClickable) clickable = clickable.parent
         val pressed = clickable?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true || tap(service, node)
-        AppLog.write("control", if (pressed) "pressed a button" else "could not press the button")
+        AppLog.write("control", if (pressed) "pressed $place" else "could not press $place")
+        if (!pressed) tell("Could not press it")
         screenChanged()
     }
 
@@ -217,6 +245,7 @@ object PhoneControl {
         walk(root, 0)
         val scrolled = best?.performAction(action) == true
         AppLog.write("control", if (scrolled) "scrolled" else "nothing to scroll here")
+        if (!scrolled) tell("Nothing to scroll here")
     }
 
     /**
@@ -228,6 +257,7 @@ object PhoneControl {
         val root = service.rootInActiveWindow ?: return false
         if (textBox(root) == null) {
             AppLog.write("control", "type: no text box on this screen")
+            tell("No text box here: open a chat first")
             return false
         }
         typing = true
@@ -368,8 +398,7 @@ object PhoneControl {
                 body to now.action,
                 small to listOfNotNull(
                     "${now.step} of ${now.of}".takeIf { now.of > 0 },
-                    "look down: next",
-                    "look up: back",
+                    now.moves.ifEmpty { null },
                 ).joinToString("  ·  "),
             ).filter { it.second.isNotEmpty() }
             val wrapped = lines.flatMap { (paint, text) -> wrap(text, paint, textWidth).map { paint to it } }
@@ -408,6 +437,7 @@ object PhoneControl {
     }
 
     private const val SETTLE_MS = 400L
+    private const val NOTICE_MS = 3_000L
     private const val EYES_CHECK_MS = 1_000L
     private const val EYES_LOST_MS = 3_000L
 

@@ -67,7 +67,12 @@ class ControlEyes(
         }
         help.onEyes(shutSince, nowMs, faceSeen = detector.tracking)?.let { out += ControlInput.Help(it) }
         if (moveByEyes) {
-            gaze.onSample(sample.gaze, !detector.eitherEyeShut(sample), nowMs, sample.irisY)?.let { step ->
+            // A frame of a close counts as shut here even when one eye's raw reading pokes over the
+            // line: closing lids read as a look down, and two such frames put the rest back where
+            // the lids were (08:28:56.964, 41 ms after "eyes shut"; 08:29:31.235, 26 ms after), so
+            // the next look at the screen read as a look up and stepped back (08:29:31.697).
+            val eyesOpen = shutSince == null && !detector.eitherEyeShut(sample)
+            gaze.onSample(sample.gaze, eyesOpen, nowMs, sample.irisY)?.let { step ->
                 lastLookMs = nowMs
                 lastLookDown = step == GazeStep.Next
                 out += if (step == GazeStep.Next || upMovesNext) ControlInput.Next else ControlInput.Previous
