@@ -89,6 +89,7 @@ class Speaker(
             return
         }
         tts.voice = voice
+        AppLog.write("speech", "offline \"$language\" voices: " + voices.joinToString { "${it.name} (${it.locale}, quality ${it.quality}, latency ${it.latency})" })
         AppLog.write("speech", "voice ${voice.name}, ${voices.size} offline \"$language\" voices")
     }
 
