@@ -134,7 +134,11 @@ class ConversationController(
 
     fun onSample(sample: EyeSample) {
         val nowMs = advance(sample.timeMs)
-        when (val event = detector.onSample(sample)) {
+        val event = detector.onSample(sample)
+        val shutSince = detector.shutSinceMs
+        if (shutSince != null && !eyesWereShut) undoLookBeforeClose(shutSince, nowMs)
+        eyesWereShut = shutSince != null
+        when (event) {
             is BlinkEvent.Blink -> onBlink(event, nowMs)
             BlinkEvent.FaceFound -> {
                 scanner.resume(nowMs)
@@ -173,6 +177,7 @@ class ConversationController(
             if (step != null) {
                 beforeLook = cursor
                 lastLookMs = nowMs
+                lastLookDown = step == GazeStep.Next
                 val forward = step == GazeStep.Next || upMovesNext
                 moveCursor(if (forward) cursor + 1 else cursor - 1, nowMs)
             }
@@ -515,6 +520,25 @@ class ConversationController(
     /** Moves the eye-mode highlight, wrapping round the ends of the list. */
     private var lastLookMs = Long.MIN_VALUE / 2
     private var beforeLook = 0
+    private var lastLookDown = false
+    private var eyesWereShut = false
+
+    /**
+     * Takes back a look down that came just before the eyes shut: lids dropping to close read as
+     * a look down. On the phone the eyes shut 38 to 155 ms after such a step, too soon to have
+     * seen the new card, and the card below was said: "Just tired today." (17:36:37), "Just quiet
+     * for a bit." (17:51:02), More options (05:47:37) and a card said a moment before
+     * (06:32:46).
+     */
+    private fun undoLookBeforeClose(shutSinceMs: Long, nowMs: Long) {
+        val after = shutSinceMs - lastLookMs
+        if (!lastLookDown || after !in 0..CLOSE_UNDO_MS) return
+        log.write("gaze", "look down undone: the eyes shut $after ms after it, the close starting, back to ${cards.getOrNull(beforeLook)?.let(::label)}")
+        moveCursor(beforeLook, nowMs)
+        // The close chooses the card lit when it began; that is the one before the look.
+        previousCursor = cursor
+        lastLookMs = Long.MIN_VALUE / 2
+    }
 
     private fun moveCursor(position: Int, nowMs: Long) {
         val size = cards.size
@@ -556,6 +580,12 @@ class ConversationController(
 
         /** Looks are ignored this long after one eye stops reading lower than the other. */
         const val AFTER_WINK_MS = 800L
+
+        /**
+         * A look down this soon before the eyes shut was the close starting. Nobody sees a new
+         * card and decides in under about 200 ms; on the phone such closes came 38 to 155 ms after.
+         */
+        const val CLOSE_UNDO_MS = 200L
 
         /** A look this soon before a wink was the wink starting, not a look. */
         const val LOOK_UNDO_MS = 1_000L

@@ -555,9 +555,9 @@ class Listener(
     @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     private fun languageHeard(results: Bundle) {
         val tag = results.getString(SpeechRecognizer.DETECTED_LANGUAGE) ?: return
-        votes.add(tag)
         val switch = switchName(results.getInt(SpeechRecognizer.LANGUAGE_SWITCH_RESULT, 0))
         val level = results.getInt(SpeechRecognizer.LANGUAGE_DETECTION_CONFIDENCE_LEVEL)
+        if (level >= SpeechRecognizer.LANGUAGE_DETECTION_CONFIDENCE_LEVEL_CONFIDENT) votes.addSure(tag) else votes.add(tag)
         if (level < SpeechRecognizer.LANGUAGE_DETECTION_CONFIDENCE_LEVEL_CONFIDENT && switch == null) {
             unsureLanguages[tag] = (unsureLanguages[tag] ?: 0) + 1
             return
