@@ -75,6 +75,15 @@ import com.outspoken.setup.ModelChoice
 import com.outspoken.setup.ModelShelf
 import com.outspoken.ui.ModelRow
 import com.outspoken.speech.Speaker
+import com.outspoken.speech.KokoroVoice
+import com.outspoken.speech.NaturalSpeaker
+import com.outspoken.speech.NaturalState
+import com.outspoken.speech.NaturalVoices
+import com.outspoken.setup.VoicePack
+import com.outspoken.setup.VoiceShelf
+import com.outspoken.ui.VoicePageUi
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import com.outspoken.practice.PracticeController
 import com.outspoken.stats.PitStats
 import com.outspoken.stats.ThermalSensor
@@ -165,7 +174,7 @@ class MainActivity : ComponentActivity() {
     /** The blink practice was opened from its lesson, so Back returns there and not to the main page. */
     private var practiceFromLesson = false
     private val controller = ConversationController(
-        speak = { say(it) },
+        speak = { sayCard(it) },
         detector = blinkDetector,
         scanner = scanner,
         log = AppLog,
@@ -307,10 +316,19 @@ class MainActivity : ComponentActivity() {
         handReader = HandReader(this, ::onHandReading)
         handReader.enabled = tuning.handGestures
         eyeReader.alsoFrame = handReader::onFrame
-        speaker = Speaker(this, onVoice = { voiceMissing = !it }) {
-            heardFilter.onSpeechDone(now())
-            listener.resume()
-            controller.onSpeechDone(now())
+        speaker = Speaker(this, onVoice = { voiceMissing = !it }) { speechDone() }
+        voiceShelf = VoiceShelf(this)
+        naturalInUse = voiceShelf.useNatural && voiceShelf.unpacked()
+        voiceChoice = NaturalVoices.byId(voiceShelf.voiceId) ?: NaturalVoices.default
+        voiceSpeed = voiceShelf.speed
+        AppLog.write("speech", "voice for the cards: ${if (naturalInUse) "natural (${voiceChoice.label}, ${voiceSpeed}x)" else "the phone's own"}")
+        if (naturalInUse) natural.load(voiceShelf.folder)
+        lifecycleScope.launch {
+            natural.state.collect { if (it is NaturalState.Ready) prepareCards() }
+        }
+        // The cards on screen are said in the natural voice ahead of time, while the person chooses.
+        lifecycleScope.launch {
+            controller.ui.map { it.replies }.distinctUntilChanged().collect { prepareCards() }
         }
         speaker.language = cardLanguage.voice
         alarm = HelpAlarm(this)
@@ -533,6 +551,8 @@ class MainActivity : ComponentActivity() {
             } else if (screen == Screen.Models) {
                 BackHandler { show(Screen.Settings) }
                 val modelState by OnDeviceModel.state.collectAsStateWithLifecycle()
+                // Read so the page redraws when the natural voice loads or fails.
+                natural.state.collectAsStateWithLifecycle().value
                 OutspokenTheme {
                     ModelsScreen(
                         ui = ModelPageUi(
@@ -552,6 +572,23 @@ class MainActivity : ComponentActivity() {
                         onShareLogs = ::shareLogs,
                         onSaveLogs = { logSaver.launch("outspoken-logs.txt") },
                         onBack = { show(Screen.Conversation) },
+                        voice = voicePageUi(),
+                        onPhoneVoice = ::usePhoneVoice,
+                        onNaturalVoice = ::useNaturalVoice,
+                        onPickVoice = { v ->
+                            voiceChoice = v
+                            voiceShelf.voiceId = v.id
+                            AppLog.write("speech", "natural voice ${v.label} picked")
+                            prepareCards()
+                        },
+                        onSample = ::sayVoiceSample,
+                        onSpeed = { speed ->
+                            if (speed != voiceSpeed) {
+                                voiceSpeed = speed
+                                voiceShelf.speed = speed
+                                prepareCards()
+                            }
+                        },
                     )
                 }
             } else if (screen == Screen.Practice) {
@@ -856,6 +893,7 @@ class MainActivity : ComponentActivity() {
         AppLog.write("app", "closed")
         power.removeThermalStatusListener(thermalWatch)
         speaker.shutdown()
+        natural.shutdown()
         listener.release()
         alarm.stop()
         cue?.release()
@@ -1062,9 +1100,140 @@ class MainActivity : ComponentActivity() {
 
     /** Everything the phone says goes through here, so the microphone does not take it for a question. */
     private fun say(text: String) {
+        natural.stop()
         heardFilter.onSpeechStart(text)
         listener.pause()
         speaker.speak(text)
+    }
+
+    private fun speechDone() {
+        heardFilter.onSpeechDone(now())
+        listener.resume()
+        controller.onSpeechDone(now())
+    }
+
+    private val natural = NaturalSpeaker(AppLog)
+    private lateinit var voiceShelf: VoiceShelf
+    private var naturalInUse by mutableStateOf(false)
+    private var voiceChoice by mutableStateOf(NaturalVoices.default)
+    private var voiceSpeed by mutableStateOf(1f)
+
+    /** How far the natural voice's archive is unpacked, 0 to 100; null when it is not being unpacked. */
+    private var unpacking by mutableStateOf<Int?>(null)
+
+    /** The natural voice for [text], or null for the phone's own (see [NaturalVoices.voiceFor]). */
+    private fun naturalVoiceFor(text: String) =
+        NaturalVoices.voiceFor(text, cardLanguage.voice, voiceChoice, naturalInUse, natural.ready)
+
+    /**
+     * A sentence the person chose. Said in the natural voice when it is on and speaks the card's
+     * language, and in the phone's own voice otherwise, or if the natural voice cannot say it.
+     */
+    private fun sayCard(text: String) {
+        val voice = naturalVoiceFor(text) ?: return say(text)
+        heardFilter.onSpeechStart(text)
+        listener.pause()
+        natural.speak(text, voice, voiceSpeed) { spoken ->
+            mainExecutor.execute {
+                if (spoken) {
+                    speechDone()
+                } else {
+                    AppLog.write("speech", "natural voice failed, the phone's voice says it")
+                    say(text)
+                }
+            }
+        }
+    }
+
+    private fun prepareCards() {
+        val replies = controller.ui.value.replies
+        replies.groupBy { naturalVoiceFor(it) }.forEach { (voice, texts) ->
+            if (voice != null) natural.prepare(texts, voice, voiceSpeed)
+        }
+    }
+
+    private fun useNaturalVoice() {
+        when {
+            naturalInUse -> Unit
+            voiceShelf.unpacked() -> {
+                voiceShelf.useNatural = true
+                naturalInUse = true
+                AppLog.write("speech", "natural voice picked")
+                natural.load(voiceShelf.folder)
+            }
+            unpacking != null -> Unit
+            voiceShelf.archive() != null -> unpackVoice()
+            !voiceShelf.canSeeFiles() -> modelShelf.askToSeeDownloads()
+            else -> {
+                AppLog.write("speech", "natural voice: download ${VoicePack.ARCHIVE} in the browser")
+                if (!voiceShelf.download()) AppLog.write("speech", "no browser on this phone to download the natural voice with")
+            }
+        }
+    }
+
+    private fun usePhoneVoice() {
+        if (!naturalInUse) return
+        voiceShelf.useNatural = false
+        naturalInUse = false
+        AppLog.write("speech", "phone voice picked, natural voice unloaded")
+        natural.unload()
+    }
+
+    /** Unpacks the downloaded archive once, then switches the natural voice on. */
+    private fun unpackVoice() {
+        val archive = voiceShelf.archive() ?: return
+        if (unpacking != null) return
+        unpacking = 0
+        AppLog.write("speech", "unpacking the natural voice from ${archive.name}")
+        lifecycleScope.launch {
+            val started = now()
+            val files = withContext(Dispatchers.IO) {
+                try {
+                    voiceShelf.unpack(archive) { percent -> runOnUiThread { unpacking = percent } }
+                } catch (e: Exception) {
+                    AppLog.write("speech", "could not unpack the natural voice: ${e.message}")
+                    null
+                }
+            }
+            unpacking = null
+            if (files != null) {
+                AppLog.write("speech", "natural voice unpacked, $files files in ${(now() - started) / 1000} s")
+                voiceShelf.waiting = false
+                useNaturalVoice()
+            }
+        }
+    }
+
+    private fun sayVoiceSample(voice: KokoroVoice) {
+        if (!natural.ready) return
+        val text = if (voice.language == "hi") "नमस्ते, मैं आपसे बात करने के लिए तैयार हूँ।" else "Hello. I am ready to talk with you."
+        AppLog.write("speech", "sample of ${voice.label}")
+        natural.stop()
+        natural.speak(text, voice, voiceSpeed) {}
+    }
+
+    private fun voicePageUi() = VoicePageUi(
+        naturalInUse = naturalInUse,
+        naturalReady = voiceShelf.unpacked(),
+        busy = unpacking != null || natural.state.value is NaturalState.Loading,
+        naturalLine = naturalLine(),
+        voice = voiceChoice,
+        speed = voiceSpeed,
+    )
+
+    private fun naturalLine(): String {
+        unpacking?.let { return "unpacking, $it%. Keep the app open" }
+        return when (val state = natural.state.value) {
+            NaturalState.Loading -> "loading"
+            is NaturalState.Ready -> "in use, loaded in ${"%.1f".format(Locale.US, state.loadMs / 1000f)} s"
+            is NaturalState.Failed -> "could not load: ${state.reason}"
+            NaturalState.Off -> when {
+                voiceShelf.unpacked() -> "downloaded"
+                !voiceShelf.canSeeFiles() -> "tap Download, then allow access to Downloads"
+                voiceShelf.waiting -> "downloading in the browser, sets itself up when done"
+                else -> "not downloaded"
+            }
+        }
     }
 
     private fun askForMicrophone() {
@@ -1394,6 +1563,7 @@ class MainActivity : ComponentActivity() {
         downloadWatch = lifecycleScope.launch {
             while (visible) {
                 canSeeDownloads = modelShelf.canSeeDownloads()
+                if (unpacking == null && !voiceShelf.unpacked() && voiceShelf.archive() != null) unpackVoice()
                 val waiting = modelShelf.waitingFor
                 if (waiting != null && modelShelf.installed(waiting) != null) {
                     AppLog.write("model", "${waiting.title} downloaded")

@@ -257,6 +257,9 @@ Outspoken is built on these open-source projects:
 - [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM), runs the Gemma model on the phone, Apache 2.0. Brings in [Gson](https://github.com/google/gson), Apache 2.0
 - [MediaPipe Tasks Vision](https://github.com/google-ai-edge/mediapipe), Apache 2.0, with the [Face Landmarker model](https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker) (`app/src/main/assets/face_landmarker.task`), Apache 2.0, and the [Gesture Recognizer model](https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer) (`app/src/main/assets/gesture_recognizer.task`, from Google's [MediaPipe samples](https://github.com/google-ai-edge/mediapipe-samples/tree/main/examples/gesture_recognizer/android)), Apache 2.0
 - [Gemma 4](https://ai.google.dev/gemma) models from [litert-community](https://huggingface.co/litert-community), downloaded on the phone, under the Gemma terms of use
+- [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx), runs the natural voice on the phone, Apache 2.0. Brings in [ONNX Runtime](https://github.com/microsoft/onnxruntime), MIT, and [espeak-ng](https://github.com/espeak-ng/espeak-ng), GPL 3.0, which reads out words the voice's word list does not have
+- [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) v1.0, the natural voice, Apache 2.0, in k2-fsa's [sherpa-onnx build](https://github.com/k2-fsa/sherpa-onnx/releases/tag/tts-models), downloaded on the phone
+- [Apache Commons Compress](https://commons.apache.org/proper/commons-compress/), unpacks the natural voice on the phone, Apache 2.0
 
 Fonts:
 

@@ -86,6 +86,8 @@ dependencies {
 
     implementation(libs.mediapipe.tasks.vision)
     implementation(libs.litertlm.android)
+    implementation(libs.sherpa.onnx) { artifact { type = "aar" } }
+    implementation(libs.commons.compress)
 
     testImplementation(libs.junit)
 }
