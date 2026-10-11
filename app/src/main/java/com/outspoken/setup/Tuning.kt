@@ -110,6 +110,15 @@ data class Tuning(
      */
     val downMoves: Boolean
         get() = activeGaze.downStrength != null || activeGaze.irisDownStrength != null
+
+    /**
+     * Blink, look and scan settings back to the defaults, keeping languages, SOS, hand signs and
+     * the help alarm. A look hold left at 1000 ms on the phone (07:34 run on 2026-10-11) made the
+     * eyes seem broken and calibration did not undo it.
+     */
+    fun withEyeDefaults(): Tuning = Tuning().let {
+        copy(blink = it.blink, scanMs = it.scanMs, moveByEyes = it.moveByEyes, winks = it.winks, gaze = it.gaze, lookDown = it.lookDown)
+    }
 }
 
 /** Longest shortest-blink the practice round may set. */

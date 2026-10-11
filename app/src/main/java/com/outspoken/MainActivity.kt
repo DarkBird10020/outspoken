@@ -578,6 +578,12 @@ class MainActivity : ComponentActivity() {
                             tuningStore.clear()
                             applyTuning(Tuning())
                         },
+                        onEyeReset = {
+                            val next = tuning.withEyeDefaults()
+                            AppLog.write("settings", "eye settings reset to defaults, languages and SOS kept: $next")
+                            applyTuning(next)
+                            tuningStore.save(next)
+                        },
                         onAsk = { question ->
                             controller.onHeard(question, now())
                             show(Screen.Conversation)
