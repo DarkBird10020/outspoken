@@ -350,7 +350,7 @@ object Lessons {
             ),
             LessonStep(
                 "Step 2: open, then blink",
-                "After the beep, open your eyes, then within five seconds blink on purpose once, or close them again. " +
+                "After the beep, open your eyes, then within five seconds blink twice quickly, or close them again for a moment. " +
                     "This second step means resting or sleeping with your eyes closed never raises the alarm: eyes shut for more " +
                     "than ten seconds count as rest, and so does a confirm close that stays shut.",
             ),

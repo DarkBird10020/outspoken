@@ -11,15 +11,21 @@ enum class HelpStep {
 }
 
 /**
- * The help alarm (PRD F8): eyes held shut for [holdMs], then opened, then closed again on purpose
- * within [confirmWithinMs], as one deliberate blink or a longer close that opens again. Built so
+ * The help alarm (PRD F8): eyes held shut for [holdMs], then opened, then a confirm within
+ * [confirmWithinMs]: one deliberate close that opens again, or two quick blinks in a row. Built so
  * sleep does not call for help (owner: "like someone is sleeping, it will trigger on its own"):
  * - eyes shut longer than [restMs] are rest or sleep, not a hold, and arm nothing;
  * - a confirming close that stays shut past [confirmMaxMs] is dozing off again, not a confirm;
- * - a close that starts within [minOpenMs] of the eyes opening is a flicker, not a confirm;
+ * - a long close that starts within [minOpenMs] of the eyes opening is a flicker, not a confirm;
+ * - quick blinks count only in a pair no more than [twoBlinksWithinMs] apart, each shut at least
+ *   [minQuickBlinkMs] after at least [minQuickOpenMs] open; blinking now and then is not a pair;
  * - the face going out of view cancels it all; before, that read as the eyes opening.
  * Deliberate calls on the phone held 2.6 to 7.9 s, opened 0.3 s or more before the confirm, and
- * confirmed with closes of 0.4 to 2 s (18:26 to 06:58 runs).
+ * confirmed with closes of 0.4 to 2 s (18:26 to 06:58 runs). Later the owner found it hard
+ * (logs-60_1): after the hold they blinked quickly two to four times, closes of 95 to 330 ms with
+ * 70 to 200 ms open between, and none counted. Two calls failed (07:37:09, 07:44:29) and two took
+ * 8 and 6 s (07:37:30, 07:44:49). Such a pair now confirms. A 567 ms close 142 ms after opening
+ * (07:37:53) was taken for a flicker at 250 ms; a flicker is now under [minOpenMs], 120 ms.
  *
  * With [confirm] off, the hold alone raises the alarm (a Settings switch).
  */
@@ -29,8 +35,11 @@ class HelpTrigger(
     private val log: EventLog = EventLog.None,
     private val restMs: Long = 10_000,
     private val confirmMaxMs: Long = 5_000,
-    private val minOpenMs: Long = 250,
+    private val minOpenMs: Long = 120,
     private val minConfirmMs: Long = 400,
+    private val minQuickBlinkMs: Long = 80,
+    private val minQuickOpenMs: Long = 60,
+    private val twoBlinksWithinMs: Long = 700,
 ) {
     var confirm = true
 
@@ -43,6 +52,10 @@ class HelpTrigger(
     private var armedAtMs = 0L
     private var openSinceMs = 0L
     private var confirmStartMs = 0L
+    private var openBeforeConfirmMs = 0L
+
+    /** When the last quick blink after the hold ended, waiting for a second one. */
+    private var quickBlinkEndMs: Long? = null
     private var wasShut = false
 
     val armed get() = stage == Stage.Armed || stage == Stage.Confirming
@@ -78,6 +91,7 @@ class HelpTrigger(
                     stage = Stage.Armed
                     armedAtMs = nowMs
                     openSinceMs = nowMs
+                    quickBlinkEndMs = null
                 }
                 nowMs - shutSinceMs > restMs -> {
                     stage = Stage.Resting
@@ -92,14 +106,11 @@ class HelpTrigger(
                 }
                 shutSinceMs == null -> if (opened) openSinceMs = nowMs
                 shutSinceMs == usedClose -> Unit
-                shutSinceMs - openSinceMs < minOpenMs -> {
-                    // Eyes open for a moment only: a flicker, which sleep can give, not a confirm.
-                    usedClose = shutSinceMs
-                    log.write("help", "eyes open only ${shutSinceMs - openSinceMs} ms before closing again: not a confirm")
-                }
                 else -> {
+                    // How long it lasts decides what it is: a long close or a quick blink.
                     usedClose = shutSinceMs
                     confirmStartMs = shutSinceMs
+                    openBeforeConfirmMs = shutSinceMs - openSinceMs
                     stage = Stage.Confirming
                 }
             }
@@ -109,16 +120,7 @@ class HelpTrigger(
                     log.write("help", "eyes shut again over ${confirmMaxMs / 1000} s: back to rest, no alarm")
                 }
                 shutSinceMs != null -> Unit
-                nowMs - confirmStartMs >= minConfirmMs -> {
-                    stage = Stage.Idle
-                    log.write("help", "confirmed by closing the eyes again, alarm")
-                    return HelpStep.Alarm
-                }
-                else -> {
-                    // A normal blink: still waiting for the confirm.
-                    stage = Stage.Armed
-                    openSinceMs = nowMs
-                }
+                else -> return closeEnded(nowMs)
             }
         }
         return null
@@ -129,9 +131,37 @@ class HelpTrigger(
      * it is the confirm, and then the blink picks nothing.
      */
     fun onBlink(blinkStartMs: Long): HelpStep? {
-        if (stage != Stage.Confirming || blinkStartMs != confirmStartMs) return null
+        if (stage != Stage.Confirming || blinkStartMs != confirmStartMs || openBeforeConfirmMs < minOpenMs) return null
         stage = Stage.Idle
         log.write("help", "confirmed, alarm")
         return HelpStep.Alarm
+    }
+
+    /** The eyes opened after a close begun while armed. */
+    private fun closeEnded(nowMs: Long): HelpStep? {
+        val shutFor = nowMs - confirmStartMs
+        stage = Stage.Armed
+        openSinceMs = nowMs
+        when {
+            shutFor >= minConfirmMs && openBeforeConfirmMs < minOpenMs -> {
+                // Eyes open for a moment only: a flicker, which sleep can give, not a confirm.
+                log.write("help", "eyes open only $openBeforeConfirmMs ms before closing again: not a confirm")
+            }
+            shutFor >= minConfirmMs -> {
+                stage = Stage.Idle
+                log.write("help", "confirmed by closing the eyes again, alarm")
+                return HelpStep.Alarm
+            }
+            shutFor >= minQuickBlinkMs && openBeforeConfirmMs >= minQuickOpenMs -> {
+                val last = quickBlinkEndMs
+                if (last != null && confirmStartMs - last <= twoBlinksWithinMs) {
+                    stage = Stage.Idle
+                    log.write("help", "confirmed with two quick blinks ${confirmStartMs - last} ms apart, alarm")
+                    return HelpStep.Alarm
+                }
+                quickBlinkEndMs = nowMs
+            }
+        }
+        return null
     }
 }

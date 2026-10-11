@@ -74,6 +74,20 @@ class ConversationHelpTest {
     }
 
     @Test
+    fun `hold, open, two quick blinks raise the alarm without saying a card`() {
+        // Phone, 07:44:29: after the hold the owner blinked quickly, and none of it counted.
+        frames(300, open = 0.95f)
+        frames(2_300, open = 0.05f)
+        frames(600, open = 0.95f)
+        frames(200, open = 0.05f)
+        frames(100, open = 0.95f)
+        frames(240, open = 0.05f)
+        frames(300, open = 0.95f)
+        assertEquals(listOf(HelpStep.HoldReached, HelpStep.Alarm), steps)
+        assertTrue("said $said", said.isEmpty())
+    }
+
+    @Test
     fun `hold, open, hold again raises the alarm without saying a card`() {
         frames(300, open = 0.95f)
         frames(2_300, open = 0.05f)

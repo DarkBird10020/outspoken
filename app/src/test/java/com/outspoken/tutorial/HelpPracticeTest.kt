@@ -48,7 +48,7 @@ class HelpPracticeTest {
         frames(2_200, open = 0.05f)
         assertEquals(HelpStage.OpenAndBlink, ui.stage)
         assertEquals(1, cues)
-        assertEquals("Now open your eyes, then blink once.", said.last())
+        assertEquals("Now open your eyes, then blink twice quickly.", said.last())
     }
 
     @Test
