@@ -14,12 +14,17 @@ enum class HelpStep {
  * The help alarm (PRD F8): eyes held shut for [holdMs], then opened, then closed again on purpose
  * within [confirmWithinMs], as one deliberate blink or a longer hold. The second step keeps a long
  * rest with the eyes closed from raising the alarm on its own.
+ *
+ * With [confirm] off, the hold alone raises the alarm (owner decision, 2026-10-11: "I need one
+ * only"; the confirm took a second close, 06:58:47 to 06:58:53).
  */
 class HelpTrigger(
     private val holdMs: Long = 2_000,
     private val confirmWithinMs: Long = 5_000,
     private val log: EventLog = EventLog.None,
 ) {
+    var confirm = true
+
     private var holdReported = false
     private var armedAtMs: Long? = null
 
@@ -56,6 +61,12 @@ class HelpTrigger(
         if (shutSinceMs != null) {
             if (!holdReported && nowMs - shutSinceMs >= holdMs) {
                 holdReported = true
+                if (!confirm) {
+                    // This close raised the alarm: it is no pick, and opening the eyes arms nothing.
+                    confirmedByClose = true
+                    log.write("help", "eyes held shut ${holdMs / 1000} s, alarm")
+                    return HelpStep.Alarm
+                }
                 log.write("help", "eyes held shut ${holdMs / 1000} s, open them and blink to call for help")
                 return HelpStep.HoldReached
             }
