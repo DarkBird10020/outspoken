@@ -45,9 +45,12 @@ class Board(private var defaultPhrases: List<String> = PhraseBank.phrases) {
     val replies: List<String>
         get() = if (showingYesNo) yesNo else pages[page]
 
+    /** The Phone card, for phone control, after the fixed cards; off unless the carer turns it on. */
+    var phone = false
+
     /** Cards in scan order. */
     val cards: List<Int>
-        get() = replies.indices.toList() + listOf(MORE_OPTIONS, YES_NO, SAY_ANYTHING)
+        get() = replies.indices.toList() + listOf(MORE_OPTIONS, YES_NO, SAY_ANYTHING) + listOfNotNull(PHONE.takeIf { phone })
 
     /** Returns the sentence to say, or null when the card only changed what is shown. */
     fun choose(card: Int): String? = when (card) {
@@ -60,8 +63,8 @@ class Board(private var defaultPhrases: List<String> = PhraseBank.phrases) {
             showingYesNo = true
             null
         }
-        // Opens the sentence builder; the controller handles it.
-        SAY_ANYTHING -> null
+        // Opens the sentence builder, or phone control; the controller handles them.
+        SAY_ANYTHING, PHONE -> null
         else -> replies.getOrNull(card)
     }
 
@@ -77,5 +80,6 @@ class Board(private var defaultPhrases: List<String> = PhraseBank.phrases) {
         const val MORE_OPTIONS = 4
         const val YES_NO = 5
         const val SAY_ANYTHING = 6
+        const val PHONE = 7
     }
 }

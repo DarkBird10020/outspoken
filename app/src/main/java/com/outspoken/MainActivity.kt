@@ -38,8 +38,15 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.outspoken.blink.BlinkDetector
+import com.outspoken.control.ControlEyes
+import com.outspoken.control.ControlInput
+import com.outspoken.control.ControlService
+import com.outspoken.control.EyeCameraLifecycle
+import com.outspoken.control.PhoneControl
 import com.outspoken.blink.BlinkSettings
 import com.outspoken.conversation.AppLanguage
 import com.outspoken.conversation.ConversationController
@@ -51,6 +58,7 @@ import com.outspoken.hand.HandReader
 import com.outspoken.hand.HandReading
 import com.outspoken.help.HelpAlarm
 import com.outspoken.help.HelpStep
+import com.outspoken.help.HelpTrigger
 import com.outspoken.help.SosAccessibility
 import com.outspoken.help.SosCaller
 import com.outspoken.help.isEmergencyNumber
@@ -146,7 +154,16 @@ class MainActivity : ComponentActivity() {
         requestReplies = ::requestReplies,
         requestWords = ::requestWords,
         onHelp = ::onHelpStep,
+        onPhone = ::startPhoneControl,
     )
+
+    /** Phone control reads the eyes with its own detector, stepper and help hold. */
+    private val controlBlink = BlinkDetector(log = AppLog)
+    private val controlStepper = GazeStepper(log = AppLog)
+    private val controlEyes = ControlEyes(controlBlink, controlStepper, HelpTrigger(log = AppLog), AppLog)
+
+    /** The front camera runs while Outspoken is on screen, and while phone control is on. */
+    private val cameraLifecycle = EyeCameraLifecycle()
     private val analyzerExecutor = Executors.newSingleThreadExecutor()
 
     private var cameraGranted by mutableStateOf(false)
@@ -253,7 +270,7 @@ class MainActivity : ComponentActivity() {
         )
 
         eyeReader = EyeReader(this) { sample ->
-            when (screen) {
+            if (PhoneControl.on) onControlSample(sample) else when (screen) {
                 Screen.Practice -> practiceController.onSample(sample)
                 Screen.Calibrate -> onCalibrationSample(sample)
                 Screen.EyeCheck -> {
@@ -298,7 +315,16 @@ class MainActivity : ComponentActivity() {
             onHearing = { hearingText = it.ifBlank { null } },
         )
         listener.wish = speechWish(tuning)
-        camera = FrontCamera(this, this)
+        camera = FrontCamera(this, cameraLifecycle)
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                cameraLifecycle.appShown(true)
+                // Outspoken in front again (its icon, or the alarm): its own pages take the eyes.
+                PhoneControl.stop("Outspoken is in front")
+            }
+
+            override fun onStop(owner: LifecycleOwner) = cameraLifecycle.appShown(false)
+        })
         cameraGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
         AppLog.write("app", "camera permission ${if (cameraGranted) "already granted" else "requested"}")
@@ -562,6 +588,7 @@ class MainActivity : ComponentActivity() {
                         onMic = ::switchMic,
                         topics = cardLanguage.topics,
                         fixedCards = cardLanguage.fixedCards,
+                        phoneCard = if (tuning.phoneControl) "Phone" else null,
                         onPractice = {
                             practiceController.reset()
                             show(Screen.Practice)
@@ -589,6 +616,49 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * Phone control (owner request): the phone's home screen opens, and the eyes choose its apps
+     * and their buttons. The camera keeps running through a camera service started now, while
+     * Outspoken is on screen, as Android requires.
+     */
+    private fun startPhoneControl() {
+        if (SosAccessibility.running == null) {
+            AppLog.write("control", "phone control not started: the Outspoken helper is off in Accessibility")
+            say("Phone control needs the Outspoken helper. Turn it on in Accessibility settings.")
+            return
+        }
+        ControlService.start(this)
+        cameraLifecycle.controlOn(true)
+        gazeStepper.restGaze?.let { controlStepper.restAt(it, gazeStepper.restIrisDrop) }
+        controlEyes.reset()
+        if (!PhoneControl.start(onStop = ::phoneControlStopped, onType = ::typeFromControl)) phoneControlStopped()
+    }
+
+    private fun phoneControlStopped() {
+        ControlService.stop(this)
+        cameraLifecycle.controlOn(false)
+    }
+
+    private fun onControlSample(sample: EyeSample) {
+        for (input in controlEyes.onSample(sample)) when (input) {
+            ControlInput.Next -> PhoneControl.next()
+            ControlInput.Previous -> PhoneControl.previous()
+            ControlInput.Select -> PhoneControl.select()
+            is ControlInput.Help -> {
+                // Help is called from any app: Outspoken comes back for the alarm screen.
+                if (input.step == HelpStep.Alarm) {
+                    PhoneControl.backToOutspoken()
+                    PhoneControl.stop("help called")
+                }
+                onHelpStep(input.step)
+            }
+        }
+    }
+
+    private fun typeFromControl() {
+        AppLog.write("control", "typing into other apps is not built yet")
     }
 
     /** Spoken steps that set the look and blink lines from this person's eyes (PRD F6). */
@@ -699,6 +769,8 @@ class MainActivity : ComponentActivity() {
         alarm.stop()
         cue?.release()
         sos.release()
+        PhoneControl.stop("app closed")
+        cameraLifecycle.close()
         // Closed on the camera thread, after any frame already being analysed, so no frame reaches
         // a closed face tracker.
         analyzerExecutor.execute {
@@ -731,6 +803,13 @@ class MainActivity : ComponentActivity() {
         controller.upMovesNext = !next.lookDown
         if (controller.moveByEyes != next.moveByEyes) controller.moveByEyes = next.moveByEyes
         controller.winks = next.winks
+        controller.phoneCard = next.phoneControl
+        controlBlink.settings = next.blink
+        controlStepper.settings = next.activeGaze
+        controlEyes.upMovesNext = !next.lookDown
+        controlEyes.moveByEyes = next.moveByEyes
+        controlEyes.scanMs = next.scanMs
+        controlEyes.helpConfirm = next.helpConfirm
     }
 
     private fun statsUi(nowMs: Long, model: ModelState, phoneTemp: Float?) = StatsUi(

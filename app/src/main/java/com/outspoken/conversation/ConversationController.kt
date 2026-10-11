@@ -45,9 +45,22 @@ class ConversationController(
     private val requestWords: (requestId: Int, turns: List<Turn>, sentence: String) -> Boolean = { _, _, _ -> false },
     private val help: HelpTrigger = HelpTrigger(log = log),
     private val onHelp: (HelpStep) -> Unit = {},
+    /** The Phone card was chosen: phone control starts. */
+    private val onPhone: () -> Unit = {},
     private val replyWaitMs: Long = 2_500,
     private val maxSpeakMs: Long = 10_000,
 ) {
+    /** Shows the Phone card after the fixed cards (phone control, turned on by the carer). */
+    var phoneCard: Boolean
+        get() = board.phone
+        set(value) {
+            if (board.phone == value) return
+            board.phone = value
+            moveCursor(0, clockMs)
+            scanner.restart(board.cards, clockMs)
+            publish(clockMs)
+        }
+
     /** True: the highlight only moves when the eyes look down or up. False: it moves on a timer. */
     var moveByEyes = false
         set(value) {
@@ -383,6 +396,11 @@ class ConversationController(
             openBuilder(nowMs)
             return
         }
+        if (card == Board.PHONE) {
+            log.write("scan", "phone control chosen")
+            onPhone()
+            return
+        }
         val sentence = board.choose(card)
         if (sentence == null) {
             log.write("scan", "cards now ${board.replies}")
@@ -574,6 +592,7 @@ class ConversationController(
             Board.MORE_OPTIONS -> "More options"
             Board.YES_NO -> "Yes / No"
             Board.SAY_ANYTHING -> "Say anything"
+            Board.PHONE -> "Phone"
             else -> "\"${board.replies.getOrNull(card)}\""
         }
     }

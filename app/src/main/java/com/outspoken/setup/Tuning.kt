@@ -79,6 +79,11 @@ data class Tuning(
      * decision: with the hold alone, sleep could call for help. Off, the hold alone raises it.
      */
     val helpConfirm: Boolean = true,
+    /**
+     * The Phone card on the main page: other apps used by eye (owner request). Off until the
+     * carer turns it on; it needs the Outspoken helper on in Accessibility.
+     */
+    val phoneControl: Boolean = false,
 ) {
     /** The person's languages with the starting one first; never empty. */
     val chosenLanguages: List<AppLanguage> get() = (listOf(language) + languages).distinct()
@@ -149,6 +154,7 @@ class TuningStore(context: Context) {
             sosWhatsApp = prefs.getBoolean("sosWhatsApp", default.sosWhatsApp),
             sosWhatsAppCall = prefs.getBoolean("sosWhatsAppCall", default.sosWhatsAppCall),
             helpConfirm = prefs.getBoolean("helpConfirm", default.helpConfirm),
+            phoneControl = prefs.getBoolean("phoneControl", default.phoneControl),
             // Saved as the signs switched off, so a sign added later starts on.
             handSigns = HandSign.entries.toSet() -
                 prefs.getStringSet("handSignsOff", emptySet()).orEmpty().mapNotNull(HandSign::fromKey).toSet(),
@@ -202,6 +208,7 @@ class TuningStore(context: Context) {
             .putBoolean("sosWhatsApp", tuning.sosWhatsApp)
             .putBoolean("sosWhatsAppCall", tuning.sosWhatsAppCall)
             .putBoolean("helpConfirm", tuning.helpConfirm)
+            .putBoolean("phoneControl", tuning.phoneControl)
             .putStringSet("handSignsOff", (HandSign.entries - tuning.handSigns).map { it.key }.toSet())
             .putFloat("lookStrength", tuning.gaze.lookStrength)
             .putFloat("downStrength", tuning.gaze.downStrength ?: NOT_SET)

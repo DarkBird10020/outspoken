@@ -244,7 +244,9 @@ private fun SosCard(
         // Not in the design (a design gap): WhatsApp for a phone with no SIM.
         ToggleRow("No SIM: WhatsApp message instead", tuning.sosWhatsApp) { onChange(tuning.copy(sosWhatsApp = it)) }
         ToggleRow("No SIM: then a WhatsApp call", tuning.sosWhatsAppCall) { onChange(tuning.copy(sosWhatsAppCall = it)) }
-        if ((tuning.sosWhatsApp || tuning.sosWhatsAppCall) && !whatsAppHelperOn) {
+        // Not in the design (a design gap): phone control, which uses the same helper.
+        ToggleRow("Phone card: use other apps by eye", tuning.phoneControl) { onChange(tuning.copy(phoneControl = it)) }
+        if ((tuning.sosWhatsApp || tuning.sosWhatsAppCall || tuning.phoneControl) && !whatsAppHelperOn) {
             PillButton("Turn on Outspoken in Accessibility", onOpenAccessibility, Modifier.fillMaxWidth())
         }
         if (tuning.sosNumber.isNotEmpty()) PillButton("Test: text and call now", onTest, Modifier.fillMaxWidth())

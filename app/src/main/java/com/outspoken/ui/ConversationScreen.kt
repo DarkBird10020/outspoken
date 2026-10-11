@@ -85,6 +85,8 @@ fun ConversationScreen(
     topics: List<Pair<String, String>> = QuickTopics.all,
     /** Labels of the three fixed cards: more options, yes / no, say anything. */
     fixedCards: List<String> = AppLanguage.English.fixedCards,
+    /** The Phone card's label, for phone control; null hides it. */
+    phoneCard: String? = null,
 ) {
     DesignScreen(Modifier.dottedCanvas(), gap = 14.dp) {
         Row(
@@ -150,6 +152,12 @@ fun ConversationScreen(
             }
             FixedCard(fixedCards[2], ui.highlighted == Board.SAY_ANYTHING, Modifier.weight(1f), size = 16) {
                 onSelect(Board.SAY_ANYTHING)
+            }
+            // Not in the design (a design gap): phone control's card, in the same row and style.
+            phoneCard?.let { label ->
+                FixedCard(label, ui.highlighted == Board.PHONE, Modifier.weight(1f), size = 16) {
+                    onSelect(Board.PHONE)
+                }
             }
         }
         // Not in the design yet (listed as a design gap): one-tap questions for the visitor when
