@@ -17,7 +17,7 @@ class FaceCropTest {
         assertEquals(PHOTO_FRAME_ASPECT, crop.width.toFloat() / crop.height, 0.01f)
         assertTrue(crop.left <= 0.35f * width && crop.left + crop.width >= 0.65f * width)
         assertTrue(crop.top <= 0.30f * height && crop.top + crop.height >= 0.55f * height)
-        assertEquals((0.425f * height).toInt(), crop.top + crop.height / 2, 2)
+        assertEquals(0.425f * height, crop.top + crop.height / 2f, 2f)
     }
 
     @Test

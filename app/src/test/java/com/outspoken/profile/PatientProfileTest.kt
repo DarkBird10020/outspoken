@@ -93,7 +93,7 @@ class PatientProfileTest {
     fun `languages typed without spaces are shown and sent with them`() {
         assertEquals("hindi, english", languagesText("hindi,english"))
         assertEquals("Hindi, English, Marathi", languagesText(" Hindi ;English/ Marathi,"))
-        assertTrue(profilePrompt(PatientProfile(languages = "hindi,english"))!!.contains("speaks hindi, english."))
+        assertTrue(profilePrompt(PatientProfile(languages = "hindi,english"))!!.contains("Speaks hindi, english."))
     }
 
     @Test
