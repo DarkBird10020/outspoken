@@ -25,7 +25,6 @@ class FrontCamera(private val context: Context, private val owner: LifecycleOwne
         .build()
     private var provider: ProcessCameraProvider? = null
     private var previewView: PreviewView? = null
-    private var watched: CameraInfo? = null
 
     /** The app is behind another one; a preview asked for now waits for [resumePreview]. */
     private var hidden = false
@@ -82,6 +81,7 @@ class FrontCamera(private val context: Context, private val owner: LifecycleOwne
 
     /** Logs when the camera opens, closes or fails, so a stop in the background shows its cause. */
     private fun watchState(info: CameraInfo) {
+        // Once per process: the camera outlives the activity, and a second watcher doubled every line.
         if (watched === info) return
         watched = info
         info.cameraState.observeForever { state ->
@@ -91,6 +91,8 @@ class FrontCamera(private val context: Context, private val owner: LifecycleOwne
     }
 
     private companion object {
+        var watched: CameraInfo? = null
+
         fun errorText(code: Int) = when (code) {
             CameraState.ERROR_CAMERA_IN_USE -> "another app has the camera"
             CameraState.ERROR_MAX_CAMERAS_IN_USE -> "too many cameras open"

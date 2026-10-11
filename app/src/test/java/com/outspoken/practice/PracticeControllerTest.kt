@@ -107,4 +107,13 @@ class PracticeControllerTest {
         blink(100)
         assertEquals(100f, controller.accuracyPercent!!, 0.01f)
     }
+
+    @Test
+    fun `a caught star keeps settings changed since the app started`() {
+        val changed = controller.tuning.copy(phoneControl = true, helpConfirm = false)
+        controller.useTuning(changed)
+        blink(450)
+        assertEquals(true, calibratedTuning!!.phoneControl)
+        assertEquals(false, calibratedTuning!!.helpConfirm)
+    }
 }
