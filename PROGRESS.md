@@ -47,17 +47,17 @@ The practice round only taught blinking. The star button now opens a Lessons pag
 - [ ] **Lessons follow the phone's settings.** "Moving the highlight" teaches looking up (the default), looking down and up when that is on, winks when they are on, or the timed scan at its speed in Blink only. The main page lesson quotes the same hint line as the main page; the hand signs lesson says whether they are on. Code: `tutorial/Lessons.kt` (`EyeControls`).
 - [ ] **Practice: moving.** Four cards with a star on one; move the highlight with the eyes as on the main page and close the eyes on the star. Three stars finish it; choices off the star are counted and said ("That was ... Move to ..."). After each choice the highlight goes back to the first card, as on the main page. In Blink only the highlight scans by itself. The help hold never chooses. It uses the eye check page's own stepper and detector, so it never moves the main page's highlight or its resting point. Code: `tutorial/MovePractice.kt`, `ui/TutorialScreen.kt` (`MovePracticeScreen`).
 - [ ] **Practice: calling for help.** The same two steps as the real alarm, read by the same `HelpTrigger`: hold the eyes shut 2 s (the hold bar fills, then the beep), open, then blink within 5 s. It only says "Well done": no alarm, no texts, no calls. Too slow after the beep starts it again. Its log lines are under "tutorial: help practice", so they never read as a real call for help. Code: `tutorial/HelpPractice.kt`, `ui/TutorialScreen.kt` (`HelpPracticeScreen`).
-- [ ] **The blink practice is the "Blink to choose" lesson's practice.** Opened from the lesson, Back returns to the lesson. Catching three stars finishes the lesson. First launch still opens the blink practice directly, as before. Changed on purpose: the star button used to open the blink practice; it now opens the Lessons page, where the blink practice is lesson 3. No test changed.
+- [ ] **The blink practice is the "Blink to choose" lesson's practice.** Opened from the lesson, Back returns to the lesson. Catching three stars finishes the lesson. First launch still opens the blink practice directly, as before. Changed on purpose: the star button used to open the blink practice; it now opens the Lessons page, where the blink practice is lesson 4. No test changed.
 
 How to test on the phone:
 1. Tap the star on the main page. The Lessons page shows 17 lessons and "Continue: Welcome to Outspoken".
 2. Open a lesson, step through with Next and Back, tap Read aloud. Finish it: back on the Lessons page it has a green tick and the count goes up.
-3. Lesson 4, Moving the highlight: the text matches the current setting (try once with "Looking down also moves" on). Tap Practise moving, reach three stars with the eyes. Check the main page highlight did not move.
+3. Lesson 5, Moving the highlight: the text matches the current setting (try once with "Looking down also moves" on). Tap Practise moving, reach three stars with the eyes. Check the main page highlight did not move.
 4. Lesson 7, Calling for help: Practise calling for help. Hold the eyes shut until the beep, open, blink. No alarm sounds and the SOS contact gets nothing.
-5. Lesson 3, Blink to choose: Practise blinking opens the star round; Back returns to the lesson.
+5. Lesson 4, Blink to choose: Practise blinking opens the star round; Back returns to the lesson.
 
 Unit tests:
-- `LessonsTest`: unique ids that never change, every lesson has words and at least three steps, the practice lessons, the order of the groups, moving taught for looks up, looks down, winks and Blink only, the hand signs lesson, "Continue".
+- `LessonsTest`: unique ids that never change, every lesson has words and at least three steps, the practice lessons, the lessons in group order so the numbers count up, moving taught for looks up, looks down, winks and Blink only, the hand signs lesson, "Continue".
 - `MovePracticeTest`: the first star, a look moves the highlight, reaching a star, a wrong choice, three stars finish, looking down on, the help hold chooses nothing, Blink only.
 - `HelpPracticeTest`: the hold bar fills, the beep after 2 s, hold then blink finishes with no help call in the log, too slow starts again, a normal blink does nothing.
 
@@ -852,7 +852,7 @@ Status: built, pass test not run yet. Calibration, listening and the practice ro
 - [ ] **Does not hear itself.** Listening pauses while the phone speaks (replies and calibration prompts), drops anything heard in the 1.5 s after, and drops text that matches what the phone just said. Code: `listen/HeardFilter.kt`.
 - [ ] **Typed question and topic buttons** (F7 fallback). On the eye check page: type the visitor's question and tap Ask, or tap a topic (Pain, Comfort, Food and drink, Feelings, Family). Either goes to the conversation like a spoken question. Code: `ui/EyeCheckScreen.kt` (`AskBox`), `listen/QuickTopics.kt`.
 - [ ] **Microphone permission** asked once after the camera. The eye check page shows what the listener is doing ("listening on the phone", "no microphone permission", "wants the internet: download the offline English speech pack").
-- [ ] **Practice round** (F6). Built: see "Tutorial onboarding and accuracy fixes" and "Choosing reliably" above. Opened from the "Blink to choose" lesson (star button, then lesson 3); see "Lessons for the whole app".
+- [ ] **Practice round** (F6). Built: see "Tutorial onboarding and accuracy fixes" and "Choosing reliably" above. Opened from the "Blink to choose" lesson (star button, then lesson 4); see "Lessons for the whole app".
 
 How to test on the phone:
 1. Turn on airplane mode. Open the app and allow the microphone.

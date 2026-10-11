@@ -54,9 +54,9 @@ object Lessons {
     fun all(controls: EyeControls = EyeControls()): List<Lesson> = listOf(
         welcome,
         setUp,
+        mainPage(controls),
         blink,
         move(controls),
-        mainPage(controls),
         sayAnything(controls),
         help,
         hands(controls),

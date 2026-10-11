@@ -28,7 +28,7 @@ class LessonsTest {
     fun `the saved ids of finished lessons stay the same`() {
         assertEquals(
             listOf(
-                "welcome", "setup", "blink", "move", "main-page", "say-anything", "help", "hand-signs", "listening",
+                "welcome", "setup", "main-page", "blink", "move", "say-anything", "help", "hand-signs", "listening",
                 "language", "profile", "sos", "eye-check", "tuning", "model", "stats", "logs",
             ),
             lessons.map { it.id },
@@ -44,10 +44,8 @@ class LessonsTest {
     }
 
     @Test
-    fun `the lessons start with those for everyone and the speaker's come before the carer's`() {
-        assertEquals(Audience.Everyone, lessons.first().audience)
-        val firstCarer = lessons.indexOfFirst { it.audience == Audience.Carer }
-        assertTrue(lessons.drop(firstCarer).none { it.audience == Audience.Speaker })
+    fun `the lessons are in their groups' order, so the numbers on the lessons page count up`() {
+        assertEquals(lessons.sortedBy { it.audience.ordinal }, lessons)
     }
 
     @Test
@@ -85,7 +83,7 @@ class LessonsTest {
     @Test
     fun `continue opens the first lesson not yet finished`() {
         assertEquals("welcome", Lessons.nextUnfinished(lessons, emptySet())?.id)
-        assertEquals("blink", Lessons.nextUnfinished(lessons, setOf("welcome", "setup", "move"))?.id)
+        assertEquals("main-page", Lessons.nextUnfinished(lessons, setOf("welcome", "setup", "move"))?.id)
         assertNull(Lessons.nextUnfinished(lessons, lessons.map { it.id }.toSet()))
     }
 }
