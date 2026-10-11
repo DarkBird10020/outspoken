@@ -131,12 +131,8 @@ object PhoneControl {
         onStop?.invoke()
     }
 
-    /** Events from the app in front, counted to tell whether a press changed anything. */
-    private var screenEvents = 0L
-
     /** Something on screen changed; read it again once it settles. */
     fun screenChanged() {
-        screenEvents++
         if (!on || typing) return
         main.removeCallbacks(refresh)
         main.postDelayed(refresh, SETTLE_MS)
@@ -200,63 +196,52 @@ object PhoneControl {
     }
 
     /**
-     * Presses the button with an accessibility click; when the screen has not changed
-     * [CLICK_CHECK_MS] later, taps its middle the way a finger would. The launcher took eight
-     * clicks in the 09:00 run ("pressed button 1 of 4 in group 6", 09:00:20 to 09:00:57) and no
-     * app opened, as some screens accept a click and do nothing with it.
+     * Presses the button by tapping its middle, as a finger would. The launcher took every
+     * accessibility click and opened nothing: 13 clicks on its icons in the 09:34 run ("pressed
+     * button 1 of 5 in group 3 (TextView)" four times from 09:34:57, then buttons 2 to 5) and 8
+     * in the 09:00 run. The check meant to tap after a click that changed nothing never fired, as
+     * the status bar sends events all the time. A click is now the fallback, for a tap Android
+     * will not make or one that would land on the Stop button.
      */
     private fun press(target: Int, place: String) {
         val service = SosAccessibility.running ?: return
         val node = nodes.getOrNull(target) ?: return
         val what = "$place (${node.className?.toString()?.substringAfterLast('.') ?: "view"})"
-        val app = service.rootInActiveWindow?.packageName
-        var clickable: AccessibilityNodeInfo? = node
-        while (clickable != null && !clickable.isClickable) clickable = clickable.parent
-        val clicked = clickable?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
-        screenChanged()
-        if (!clicked) {
-            AppLog.write("control", "$what took no click; tapping it")
-            tap(node, what)
-            return
-        }
-        AppLog.write("control", "pressed $what")
-        val before = screenEvents
-        main.postDelayed({
-            // Only on the same app: a tap on a new screen would press whatever is there.
-            val same = SosAccessibility.running?.rootInActiveWindow?.packageName == app
-            if (on && !typing && screenEvents == before && same) {
-                AppLog.write("control", "nothing changed ${CLICK_CHECK_MS} ms after the click; tapping it")
-                tap(node, what)
-            }
-        }, CLICK_CHECK_MS)
-    }
-
-    /** A tap at the middle of [node], as a finger would; the log says whether Android did it. */
-    private fun tap(node: AccessibilityNodeInfo, what: String) {
-        val service = SosAccessibility.running ?: return
         node.refresh()
         val bounds = Rect().also(node::getBoundsInScreen)
-        if (bounds.isEmpty) {
-            AppLog.write("control", "could not tap $what: it is no longer on screen")
-            tell("Could not press it")
-            return
-        }
-        val path = Path().apply { moveTo(bounds.exactCenterX(), bounds.exactCenterY()) }
+        val x = bounds.exactCenterX()
+        val y = bounds.exactCenterY()
+        if (bounds.isEmpty || overlay?.coversStop(x, y) == true) return click(node, what)
+        val before = shownKey
+        val path = Path().apply { moveTo(x, y) }
         val gesture = GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, TAP_MS)).build()
         val sent = service.dispatchGesture(gesture, object : AccessibilityService.GestureResultCallback() {
             override fun onCompleted(gestureDescription: GestureDescription?) {
                 AppLog.write("control", "tapped $what")
+                main.postDelayed({
+                    if (on && !typing && shownKey == before) AppLog.write("control", "the screen looked the same ${CHANGE_CHECK_MS} ms after tapping $what")
+                }, CHANGE_CHECK_MS)
             }
 
             override fun onCancelled(gestureDescription: GestureDescription?) {
-                AppLog.write("control", "the tap on $what was cancelled")
-                tell("Could not press it")
+                AppLog.write("control", "the tap on $what was cancelled; clicking it instead")
+                click(node, what)
             }
         }, null)
         if (!sent) {
-            AppLog.write("control", "could not tap $what: Android refused the gesture")
-            tell("Could not press it")
+            AppLog.write("control", "Android refused the tap on $what; clicking it instead")
+            click(node, what)
         }
+        screenChanged()
+    }
+
+    /** An accessibility click on [node], or the nearest one above it that takes clicks. */
+    private fun click(node: AccessibilityNodeInfo, what: String) {
+        var clickable: AccessibilityNodeInfo? = node
+        while (clickable != null && !clickable.isClickable) clickable = clickable.parent
+        val clicked = clickable?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
+        AppLog.write("control", if (clicked) "clicked $what" else "could not press $what")
+        if (!clicked) tell("Could not press it")
         screenChanged()
     }
 
@@ -276,15 +261,16 @@ object PhoneControl {
             }
         }
         screenChanged()
-        // Back on the home screen does nothing, and the owner kept choosing it to get out.
+        // Back on the home screen does nothing, and the owner kept choosing it to get out. The
+        // buttons on screen tell whether it went anywhere.
         if (action == MenuAction.Back) {
-            val before = screenEvents
+            val before = shownKey
             main.postDelayed({
-                if (on && !typing && screenEvents == before) {
+                if (on && !typing && shownKey == before) {
                     AppLog.write("control", "back changed nothing")
                     tell("Nothing to go back to. To end this: Stop, first in the menu")
                 }
-            }, CLICK_CHECK_MS)
+            }, CHANGE_CHECK_MS)
         }
     }
 
@@ -436,6 +422,13 @@ object PhoneControl {
             runCatching { windows.removeView(stopButton) }
         }
 
+        /** True when ([x], [y]) on the screen is on the Stop button, which takes touches. */
+        fun coversStop(x: Float, y: Float): Boolean {
+            if (!stopButton.isAttachedToWindow) return false
+            val at = IntArray(2).also(stopButton::getLocationOnScreen)
+            return x >= at[0] && x < at[0] + stopButton.width && y >= at[1] && y < at[1] + stopButton.height
+        }
+
         fun light(lit: Lit?) {
             view.lit = lit
             view.invalidate()
@@ -545,8 +538,8 @@ object PhoneControl {
     private const val RETURN_MS = 700L
     private const val TAP_MS = 60L
 
-    /** How long a click has to change the screen before the button is tapped instead. */
-    private const val CLICK_CHECK_MS = 800L
+    /** How long after a tap or Back the buttons on screen are compared with before. */
+    private const val CHANGE_CHECK_MS = 1_000L
     private const val MAX_DEPTH = 40
     private const val MAX_LABEL = 40
 }
