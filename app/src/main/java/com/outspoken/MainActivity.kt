@@ -38,8 +38,16 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.outspoken.blink.BlinkDetector
+import com.outspoken.control.ControlEyes
+import com.outspoken.control.ControlInput
+import com.outspoken.control.ControlService
+import com.outspoken.control.EyeCameraLifecycle
+import com.outspoken.control.PhoneControl
+import com.outspoken.control.controlMoveHint
 import com.outspoken.blink.BlinkSettings
 import com.outspoken.conversation.AppLanguage
 import com.outspoken.conversation.ConversationController
@@ -51,6 +59,7 @@ import com.outspoken.hand.HandReader
 import com.outspoken.hand.HandReading
 import com.outspoken.help.HelpAlarm
 import com.outspoken.help.HelpStep
+import com.outspoken.help.HelpTrigger
 import com.outspoken.help.SosAccessibility
 import com.outspoken.help.SosCaller
 import com.outspoken.help.isEmergencyNumber
@@ -180,7 +189,16 @@ class MainActivity : ComponentActivity() {
         requestReplies = ::requestReplies,
         requestWords = ::requestWords,
         onHelp = ::onHelpStep,
+        onPhone = ::startPhoneControl,
     )
+
+    /** Phone control reads the eyes with its own detector, stepper and help hold. */
+    private val controlBlink = BlinkDetector(log = AppLog)
+    private val controlStepper = GazeStepper(log = AppLog)
+    private val controlEyes = ControlEyes(controlBlink, controlStepper, HelpTrigger(log = AppLog), AppLog)
+
+    /** The front camera runs while Outspoken is on screen, and while phone control is on. */
+    private val cameraLifecycle = EyeCameraLifecycle()
     private val analyzerExecutor = Executors.newSingleThreadExecutor()
 
     private var cameraGranted by mutableStateOf(false)
@@ -289,7 +307,7 @@ class MainActivity : ComponentActivity() {
         )
 
         eyeReader = EyeReader(this) { sample ->
-            when (screen) {
+            if (PhoneControl.on && !PhoneControl.typing) onControlSample(sample) else when (screen) {
                 Screen.Practice -> practiceController.onSample(sample)
                 Screen.MovePractice -> movePractice.onSample(sample)
                 Screen.HelpPractice -> helpPractice.onSample(sample)
@@ -345,7 +363,33 @@ class MainActivity : ComponentActivity() {
             onHearing = { hearingText = it.ifBlank { null } },
         )
         listener.wish = speechWish(tuning)
-        camera = FrontCamera(this, this)
+        lifecycleScope.launch { SosAccessibility.connected.collect { whatsAppHelperOn = it } }
+        camera = FrontCamera(this, cameraLifecycle)
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                cameraLifecycle.appShown(true)
+                // Outspoken in front again (its icon, or the alarm): its own pages take the eyes.
+                // Not while it is writing a sentence for the app below.
+                if (!PhoneControl.typing) PhoneControl.stop("Outspoken is in front")
+                // Started now, while Outspoken is on screen, so phone control can take over in
+                // another app: Android lets the camera service start only then.
+                if (tuning.phoneControl && SosAccessibility.running != null && cameraGranted) ControlService.start(this@MainActivity)
+            }
+
+            override fun onStop(owner: LifecycleOwner) {
+                // Phone control claims the camera before Outspoken lets it go. The other way round
+                // it stopped for a moment and could not open again from the background: no eye
+                // frame came after 08:10:39.788 while control was on, until Outspoken was back.
+                val takeOver = !PhoneControl.on && phoneControlOnLeaving()
+                if (takeOver) cameraLifecycle.controlOn(true)
+                cameraLifecycle.appShown(false)
+                when {
+                    PhoneControl.on -> Unit
+                    takeOver -> startPhoneControl(goHome = false)
+                    else -> ControlService.stop(this@MainActivity)
+                }
+            }
+        })
         cameraGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
         AppLog.write("app", "camera permission ${if (cameraGranted) "already granted" else "requested"}")
@@ -355,7 +399,7 @@ class MainActivity : ComponentActivity() {
             calibrationDue = true
             lifecycleScope.launch {
                 delay(CALIBRATION_START_DELAY_MS)
-                startCalibration()
+                startCalibrationAtLaunch()
             }
         } else {
             cameraPermission.launch(Manifest.permission.CAMERA)
@@ -698,6 +742,7 @@ class MainActivity : ComponentActivity() {
                         onMic = ::switchMic,
                         topics = cardLanguage.topics,
                         fixedCards = cardLanguage.fixedCards,
+                        phoneCard = if (tuning.phoneControl) "Phone" else null,
                         onPractice = { show(Screen.Tutorial) },
                         onStats = { show(Screen.Stats) },
                         onEyeCheck = { show(Screen.EyeCheck) },
@@ -724,11 +769,72 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Phone control (owner request): the phone's home screen opens, and the eyes choose its apps
+     * and their buttons. The camera keeps running through a camera service started now, while
+     * Outspoken is on screen, as Android requires.
+     */
+    private fun startPhoneControl(goHome: Boolean = true) {
+        if (SosAccessibility.running == null) {
+            AppLog.write("control", "phone control not started: the Outspoken helper is off in Accessibility")
+            say("Phone control needs the Outspoken helper. Turn it on in Accessibility settings.")
+            return
+        }
+        // From the Phone card Outspoken is still on screen; on leaving, the service already runs.
+        if (goHome) ControlService.start(this)
+        cameraLifecycle.controlOn(true)
+        gazeStepper.restGaze?.let { controlStepper.restAt(it, gazeStepper.restIrisDrop) }
+        controlEyes.reset()
+        if (!PhoneControl.start(onStop = ::phoneControlStopped, onType = ::typeFromControl, onTipsDone = ::controlTipsDone, goHome = goHome)) phoneControlStopped()
+    }
+
+    /**
+     * Phone control takes over when the main page is left for another app (Home, a recent app),
+     * with the Phone card on and the helper on. In the 08:05 run the helper was turned on and
+     * the phone went to another app (08:05:02), but control waited for the Phone card, which was
+     * never chosen. Not from the carer's pages, the alarm, or a screen turned off.
+     */
+    private fun phoneControlOnLeaving(): Boolean {
+        val keyguard = getSystemService(android.app.KeyguardManager::class.java)
+        return tuning.phoneControl && SosAccessibility.running != null && cameraGranted && screen == Screen.Conversation &&
+            !isFinishing && !isChangingConfigurations && power.isInteractive && keyguard?.isKeyguardLocked != true
+    }
+
+    /** Skip tips was tapped, or an app was opened by eye: the tips stay off from now on. */
+    private fun controlTipsDone() {
+        if (!tuning.controlTips) return
+        val next = tuning.copy(controlTips = false)
+        applyTuning(next)
+        tuningStore.save(next)
+    }
+
+    private fun phoneControlStopped() {
+        ControlService.stop(this)
+        cameraLifecycle.controlOn(false)
+    }
+
+    private fun onControlSample(sample: EyeSample) {
+        PhoneControl.eyesRead()
+        for (input in controlEyes.onSample(sample)) when (input) {
+            ControlInput.Next -> PhoneControl.next()
+            ControlInput.Previous -> PhoneControl.previous()
+            ControlInput.Select -> PhoneControl.select()
+            is ControlInput.Help -> {
+                // Help is called from any app: Outspoken comes back for the alarm screen.
+                if (input.step == HelpStep.Alarm) {
+                    PhoneControl.backToOutspoken()
+                    PhoneControl.stop("help called")
+                }
+                onHelpStep(input.step)
+            }
+        }
+    }
+
     /** The lessons, written for how the eyes control the app on this phone now. */
     private fun lessons() = Lessons.all(
         EyeControls(
             moveByEyes = tuning.moveByEyes,
-            lookDown = tuning.lookDown,
+            lookDown = tuning.downMoves,
             winks = tuning.winks,
             handSigns = tuning.handGestures,
             scanMs = tuning.scanMs,
@@ -758,7 +864,7 @@ class MainActivity : ComponentActivity() {
             }
             Practice.Move -> {
                 movePractice.moveByEyes = tuning.moveByEyes
-                movePractice.upMovesNext = !tuning.lookDown
+                movePractice.upMovesNext = !tuning.downMoves
                 movePractice.winks = tuning.winks
                 movePractice.scanMs = tuning.scanMs
                 show(Screen.MovePractice)
@@ -770,6 +876,36 @@ class MainActivity : ComponentActivity() {
                 helpPractice.start(now())
             }
         }
+    }
+
+    /**
+     * "Type" in phone control: Say anything opens here, and Speak puts the sentence in the other
+     * app's text box instead of saying it. Outspoken then steps back behind that app.
+     */
+    private fun typeFromControl() {
+        if (!PhoneControl.startTyping()) return
+        show(Screen.Conversation)
+        controller.typeSentence(now()) { text ->
+            // Phone control ended meanwhile (the help alarm): Outspoken stays in front.
+            if (!PhoneControl.on) return@typeSentence
+            AppLog.write("control", if (text == null) "type: left without a sentence" else "type: sentence ready")
+            controlEyes.reset()
+            moveTaskToBack(true)
+            PhoneControl.finishTyping(text)
+        }
+    }
+
+    /**
+     * The start calibration, unless the person has already gone to another app. Started behind
+     * phone control it spoke its steps over the other app and its page took the camera: the Phone
+     * card at 08:28:41.664, "calibration started" at 08:28:41.893, then "no eye frames for 3 s".
+     */
+    private fun startCalibrationAtLaunch() {
+        if (visible && !PhoneControl.on) return startCalibration()
+        calibrationDue = false
+        val why = if (PhoneControl.on) "phone control is on" else "Outspoken is not on screen"
+        AppLog.write("calibration", "start calibration not run: $why; the last lines stay")
+        updateListening()
     }
 
     private fun leavePractice() {
@@ -858,8 +994,8 @@ class MainActivity : ComponentActivity() {
 
     private fun eyeHint(tuning: Tuning) = when {
         !tuning.moveByEyes -> "Close your eyes when your choice lights up."
-        tuning.lookDown && tuning.winks -> "Look up or down, or wink, to move.  Close both eyes: choose."
-        tuning.lookDown -> "Look up or down to move.  Close both eyes: choose."
+        tuning.downMoves && tuning.winks -> "Look up or down, or wink, to move.  Close both eyes: choose."
+        tuning.downMoves -> "Look up or down to move.  Close both eyes: choose."
         tuning.winks -> "Look up or wink to move (left wink down, right wink up).  Close both eyes: choose."
         else -> "Look up to move to the next card.  Close both eyes: choose."
     }
@@ -876,10 +1012,10 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         AppLog.write("app", "resumed")
         visible = true
+        if (::camera.isInitialized) camera.resumePreview()
         watchDownloads()
         watchTemperature()
         if (::sos.isInitialized) sosAllowed = sos.allowed()
-        whatsAppHelperOn = SosAccessibility.running != null
         if (::speaker.isInitialized) speaker.checkVoice()
         updateListening()
     }
@@ -888,6 +1024,7 @@ class MainActivity : ComponentActivity() {
         super.onPause()
         AppLog.write("app", "paused")
         visible = false
+        if (::camera.isInitialized) camera.pausePreview()
         updateListening()
     }
 
@@ -901,6 +1038,9 @@ class MainActivity : ComponentActivity() {
         alarm.stop()
         cue?.release()
         sos.release()
+        PhoneControl.stop("app closed")
+        ControlService.stop(this)
+        cameraLifecycle.close()
         // Closed on the camera thread, after any frame already being analysed, so no frame reaches
         // a closed face tracker.
         analyzerExecutor.execute {
@@ -930,9 +1070,19 @@ class MainActivity : ComponentActivity() {
         scanner.intervalMs = next.scanMs
         gazeStepper.settings = next.activeGaze
         checkStepper.settings = next.activeGaze
-        controller.upMovesNext = !next.lookDown
+        controller.upMovesNext = !next.downMoves
         if (controller.moveByEyes != next.moveByEyes) controller.moveByEyes = next.moveByEyes
         controller.winks = next.winks
+        controller.phoneCard = next.phoneControl
+        controlBlink.settings = next.blink
+        controlStepper.settings = next.activeGaze
+        controlEyes.upMovesNext = !next.downMoves
+        PhoneControl.moveHint = controlMoveHint(next.moveByEyes, upMovesNext = !next.downMoves)
+        PhoneControl.tips = next.controlTips
+        PhoneControl.endsInApp = next.controlEndsInApp
+        controlEyes.moveByEyes = next.moveByEyes
+        controlEyes.scanMs = next.scanMs
+        controlEyes.helpConfirm = next.helpConfirm
     }
 
     private fun statsUi(nowMs: Long, model: ModelState, phoneTemp: Float?) = StatsUi(
@@ -1026,6 +1176,7 @@ class MainActivity : ComponentActivity() {
         when (step) {
             HelpStep.HoldReached -> cue?.startTone(ToneGenerator.TONE_PROP_BEEP2, CUE_MS)
             HelpStep.Alarm -> {
+                PhoneControl.stop("help called")
                 alarm.start()
                 show(Screen.Help)
                 triggerSos()

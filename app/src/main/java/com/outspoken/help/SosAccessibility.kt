@@ -2,34 +2,89 @@ package com.outspoken.help
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
+import android.graphics.Rect
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import com.outspoken.control.Box
+import com.outspoken.control.PhoneControl
+import com.outspoken.control.Target
 import com.outspoken.log.AppLog
+import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
- * The accessibility helper: while an SOS goes out over WhatsApp it presses Send, then the voice
- * call button, as the person in bed cannot. It looks only at WhatsApp's screens (see
- * `res/xml/sos_accessibility.xml`) and only while an SOS is going out. The log gets the view ids
- * of WhatsApp's buttons, never what the screen says.
+ * The accessibility helper, for what the person in bed cannot press:
+ * - while an SOS goes out over WhatsApp, Send and then the voice call button;
+ * - while phone control is on, the buttons of the app in front, chosen by eye ([PhoneControl]).
+ * It reads screens only for these. The log gets view ids and counts, never what a screen says.
  */
 class SosAccessibility : AccessibilityService() {
 
     override fun onServiceConnected() {
         running = this
+        connected.value = true
         AppLog.write("help", "WhatsApp helper on (Accessibility)")
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent) = Unit
+    override fun onAccessibilityEvent(event: AccessibilityEvent) {
+        if (PhoneControl.on && event.packageName?.toString() != packageName) PhoneControl.screenChanged()
+    }
 
     override fun onInterrupt() = Unit
 
     override fun onUnbind(intent: Intent?): Boolean {
-        if (running === this) running = null
+        if (running === this) {
+            running = null
+            connected.value = false
+        }
+        PhoneControl.stop("the accessibility helper went off")
         AppLog.write("help", "WhatsApp helper off")
         return super.onUnbind(intent)
+    }
+
+    /**
+     * The buttons of the app in front, for phone control; null while there is no window to read.
+     * None while Outspoken itself is in front. A button covering most of the screen is a
+     * background, not something to choose.
+     */
+    fun screenButtons(): List<Pair<AccessibilityNodeInfo, Target>>? {
+        val root = rootInActiveWindow ?: return null
+        if (root.packageName?.toString() == packageName) return emptyList()
+        val screen = resources.displayMetrics
+        val screenArea = screen.widthPixels.toLong() * screen.heightPixels
+        val found = mutableListOf<Pair<AccessibilityNodeInfo, Target>>()
+        val seen = mutableSetOf<Rect>()
+        fun walk(node: AccessibilityNodeInfo, depth: Int) {
+            if (depth > MAX_DEPTH) return
+            if (node.isClickable && node.isEnabled && node.isVisibleToUser) {
+                val r = Rect().also(node::getBoundsInScreen)
+                val area = r.width().toLong() * r.height()
+                if (!r.isEmpty && area < screenArea * MAX_SCREEN_SHARE && seen.add(r)) {
+                    found += node to Target(Box(r.left, r.top, r.right, r.bottom), label(node))
+                }
+            }
+            for (i in 0 until node.childCount) node.getChild(i)?.let { walk(it, depth + 1) }
+        }
+        walk(root, 0)
+        return found
+    }
+
+    /** What a button says: its description, its text, the first text inside it, else its id. */
+    private fun label(node: AccessibilityNodeInfo): String {
+        node.contentDescription?.toString()?.takeIf { it.isNotBlank() }?.let { return it }
+        node.text?.toString()?.takeIf { it.isNotBlank() }?.let { return it }
+        fun inner(n: AccessibilityNodeInfo, depth: Int): String? {
+            if (depth > 4) return null
+            for (i in 0 until n.childCount) {
+                val child = n.getChild(i) ?: continue
+                (child.contentDescription ?: child.text)?.toString()?.takeIf { it.isNotBlank() }?.let { return it }
+                inner(child, depth + 1)?.let { return it }
+            }
+            return null
+        }
+        return inner(node, 0) ?: node.viewIdResourceName?.substringAfter(":id/")?.replace('_', ' ') ?: "Button"
     }
 
     /** The clickable buttons on the active window, when it is WhatsApp's. */
@@ -55,7 +110,17 @@ class SosAccessibility : AccessibilityService() {
         var running: SosAccessibility? = null
             private set
 
+        /**
+         * Whether the helper is on, as it changes. It connects a moment after Outspoken opens
+         * (07:59:52.010, after 07:59:51.766), so a look at [running] then said "off" and Settings
+         * asked for it to be turned on although it was.
+         */
+        val connected = MutableStateFlow(false)
+
         private const val MAX_DEPTH = 40
+
+        /** A clickable part this big is the page behind the buttons. */
+        private const val MAX_SCREEN_SHARE = 0.8
     }
 }
 

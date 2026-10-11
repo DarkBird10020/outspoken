@@ -45,9 +45,22 @@ class ConversationController(
     private val requestWords: (requestId: Int, turns: List<Turn>, sentence: String) -> Boolean = { _, _, _ -> false },
     private val help: HelpTrigger = HelpTrigger(log = log),
     private val onHelp: (HelpStep) -> Unit = {},
+    /** The Phone card was chosen: phone control starts. */
+    private val onPhone: () -> Unit = {},
     private val replyWaitMs: Long = 2_500,
     private val maxSpeakMs: Long = 10_000,
 ) {
+    /** Shows the Phone card after the fixed cards (phone control, turned on by the carer). */
+    var phoneCard: Boolean
+        get() = board.phone
+        set(value) {
+            if (board.phone == value) return
+            board.phone = value
+            moveCursor(0, clockMs)
+            scanner.restart(board.cards, clockMs)
+            publish(clockMs)
+        }
+
     /** True: the highlight only moves when the eyes look down or up. False: it moves on a timer. */
     var moveByEyes = false
         set(value) {
@@ -383,6 +396,11 @@ class ConversationController(
             openBuilder(nowMs)
             return
         }
+        if (card == Board.PHONE) {
+            log.write("scan", "phone control chosen")
+            onPhone()
+            return
+        }
         val sentence = board.choose(card)
         if (sentence == null) {
             log.write("scan", "cards now ${board.replies}")
@@ -401,6 +419,20 @@ class ConversationController(
         publish(nowMs)
     }
 
+    /** Where a sentence built for another app goes, instead of being said; null for none. */
+    private var typeInto: ((String?) -> Unit)? = null
+
+    /**
+     * Opens "Say anything" to write into another app's text box (phone control): Speak hands the
+     * sentence to [onDone] instead of saying it, and leaving without one hands it null.
+     */
+    fun typeSentence(timeMs: Long, onDone: (String?) -> Unit) {
+        val nowMs = advance(timeMs)
+        typeInto = onDone
+        openBuilder(nowMs)
+        publish(nowMs)
+    }
+
     private fun openBuilder(nowMs: Long) {
         builder = SentenceBuilder(CommonWords.forLanguage(language))
         log.write("scan", "say anything opened")
@@ -408,12 +440,27 @@ class ConversationController(
         restartBuilderCards(nowMs)
     }
 
-    private fun closeBuilder(nowMs: Long, why: String) {
+    private fun closeBuilder(nowMs: Long, why: String, typed: String? = null) {
         builder = null
         latestWordRequest++
         log.write("scan", "say anything closed, $why")
         moveCursor(0, nowMs)
         scanner.restart(board.cards, nowMs)
+        typeInto?.let { done ->
+            typeInto = null
+            done(typed)
+        }
+    }
+
+    /** Says the sentence, or hands it to the app being typed into. */
+    private fun finishSentence(text: String, nowMs: Long, why: String) {
+        if (typeInto != null) {
+            log.write("scan", "sentence of ${text.length} characters typed into the other app")
+            closeBuilder(nowMs, "typed", typed = text)
+            return
+        }
+        closeBuilder(nowMs, why)
+        say(text, nowMs)
     }
 
     private fun chooseInBuilder(sentence: SentenceBuilder, card: Int, nowMs: Long) {
@@ -426,15 +473,11 @@ class ConversationController(
                 askWords()
             }
             SentenceBuilder.SPEAK -> {
-                val text = sentence.sentence
-                closeBuilder(nowMs, "spoken")
-                say(text, nowMs)
+                finishSentence(sentence.sentence, nowMs, "spoken")
                 return
             }
             SentenceBuilder.FINISH -> {
-                val text = sentence.completion ?: return
-                closeBuilder(nowMs, "finished by the model")
-                say(text, nowMs)
+                finishSentence(sentence.completion ?: return, nowMs, "finished by the model")
                 return
             }
             else -> {
@@ -574,6 +617,7 @@ class ConversationController(
             Board.MORE_OPTIONS -> "More options"
             Board.YES_NO -> "Yes / No"
             Board.SAY_ANYTHING -> "Say anything"
+            Board.PHONE -> "Phone"
             else -> "\"${board.replies.getOrNull(card)}\""
         }
     }

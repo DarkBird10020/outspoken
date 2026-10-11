@@ -79,6 +79,22 @@ data class Tuning(
      * decision: with the hold alone, sleep could call for help. Off, the hold alone raises it.
      */
     val helpConfirm: Boolean = true,
+    /**
+     * The Phone card on the main page: other apps used by eye (owner request). Off until the
+     * carer turns it on; it needs the Outspoken helper on in Accessibility.
+     */
+    val phoneControl: Boolean = false,
+    /**
+     * Phone control's tips: the grey screen and the big card over other apps. Off: the owner
+     * wants no tutorial over other apps ("don't give the tutorial", 9:57). Settings turns them
+     * on; they end again with Skip tips or the first app opened by eye.
+     */
+    val controlTips: Boolean = false,
+    /**
+     * Phone control ends once an app is opened by eye (owner request). Off by default: the
+     * person could then neither come back by eye nor call for help from that app.
+     */
+    val controlEndsInApp: Boolean = false,
 ) {
     /** The person's languages with the starting one first; never empty. */
     val chosenLanguages: List<AppLanguage> get() = (listOf(language) + languages).distinct()
@@ -86,6 +102,14 @@ data class Tuning(
     /** The gaze settings the stepper uses: the look down lines only when looking down is on. */
     val activeGaze: GazeSettings
         get() = if (lookDown) gaze else gaze.copy(downStrength = null, irisDownStrength = null)
+
+    /**
+     * A look down can move the highlight: the switch is on and there is a look down line. A
+     * calibration that sees no look down turns both lines off and leaves the switch on (08:00:23,
+     * "look down off, iris look down off"); a look up then has to move on, or nothing goes forward.
+     */
+    val downMoves: Boolean
+        get() = activeGaze.downStrength != null || activeGaze.irisDownStrength != null
 
     /**
      * Blink, look and scan settings back to the defaults, keeping languages, SOS, hand signs and
@@ -158,6 +182,9 @@ class TuningStore(context: Context) {
             sosWhatsApp = prefs.getBoolean("sosWhatsApp", default.sosWhatsApp),
             sosWhatsAppCall = prefs.getBoolean("sosWhatsAppCall", default.sosWhatsAppCall),
             helpConfirm = prefs.getBoolean("helpConfirm", default.helpConfirm),
+            phoneControl = prefs.getBoolean("phoneControl", default.phoneControl),
+            controlTips = prefs.getBoolean("controlTips", default.controlTips),
+            controlEndsInApp = prefs.getBoolean("controlEndsInApp", default.controlEndsInApp),
             // Saved as the signs switched off, so a sign added later starts on.
             handSigns = HandSign.entries.toSet() -
                 prefs.getStringSet("handSignsOff", emptySet()).orEmpty().mapNotNull(HandSign::fromKey).toSet(),
@@ -211,6 +238,9 @@ class TuningStore(context: Context) {
             .putBoolean("sosWhatsApp", tuning.sosWhatsApp)
             .putBoolean("sosWhatsAppCall", tuning.sosWhatsAppCall)
             .putBoolean("helpConfirm", tuning.helpConfirm)
+            .putBoolean("phoneControl", tuning.phoneControl)
+            .putBoolean("controlTips", tuning.controlTips)
+            .putBoolean("controlEndsInApp", tuning.controlEndsInApp)
             .putStringSet("handSignsOff", (HandSign.entries - tuning.handSigns).map { it.key }.toSet())
             .putFloat("lookStrength", tuning.gaze.lookStrength)
             .putFloat("downStrength", tuning.gaze.downStrength ?: NOT_SET)

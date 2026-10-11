@@ -17,6 +17,9 @@
         android:required="false" />
 
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Phone control: the eyes are read while another app is in front. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <!-- SOS contact: the help alarm texts and calls one number saved in Settings, over the phone
@@ -65,6 +68,11 @@
         <uses-native-library
             android:name="libOpenCL.so"
             android:required="false" />
+
+        <service
+            android:name=".control.ControlService"
+            android:exported="false"
+            android:foregroundServiceType="camera" />
 
         <!-- Presses Send and the call button in WhatsApp for an SOS on a phone with no SIM, as the
              person in bed cannot. Turned on by the carer in Accessibility settings. -->

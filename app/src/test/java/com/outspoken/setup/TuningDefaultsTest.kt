@@ -3,6 +3,7 @@ package com.outspoken.setup
 import com.outspoken.blink.BlinkDetector
 import com.outspoken.blink.BlinkEvent
 import com.outspoken.eye.EyeSample
+import com.outspoken.scan.GazeSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -81,6 +82,25 @@ class TuningDefaultsTest {
     fun `hand signs are off until switched on, with every sign ready`() {
         assertEquals(false, Tuning().handGestures)
         assertEquals(com.outspoken.hand.HandSign.entries.toSet(), Tuning().handSigns)
+    }
+
+    @Test
+    fun `with no look down line from calibration a look down cannot move, so a look up moves on`() {
+        // 08:00:23: "look down off, iris look down off", with the switch left on. From then on no
+        // look moved forward, on the main page or in phone control.
+        val noLine = Tuning(lookDown = true, gaze = GazeSettings(lookStrength = 0.2f, downStrength = null, irisDownStrength = null))
+        assertEquals(false, noLine.downMoves)
+        assertEquals(true, Tuning(lookDown = true).downMoves)
+        assertEquals(true, Tuning(lookDown = true, gaze = GazeSettings(lookStrength = 0.2f, downStrength = 0.12f)).downMoves)
+        assertEquals(false, Tuning(lookDown = false).downMoves)
+    }
+
+    @Test
+    fun `phone control shows no tips unless turned on, and stays on in the app opened`() {
+        // The owner wants no tutorial over other apps (9:57).
+        assertEquals(false, Tuning().controlTips)
+        // Ending it in the app would leave the person with no way back by eye and no help hold.
+        assertEquals(false, Tuning().controlEndsInApp)
     }
 
     @Test

@@ -33,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -85,6 +86,8 @@ fun ConversationScreen(
     topics: List<Pair<String, String>> = QuickTopics.all,
     /** Labels of the three fixed cards: more options, yes / no, say anything. */
     fixedCards: List<String> = AppLanguage.English.fixedCards,
+    /** The Phone card's label, for phone control; null hides it. */
+    phoneCard: String? = null,
 ) {
     DesignScreen(Modifier.dottedCanvas(), gap = 14.dp) {
         Row(
@@ -150,6 +153,12 @@ fun ConversationScreen(
             }
             FixedCard(fixedCards[2], ui.highlighted == Board.SAY_ANYTHING, Modifier.weight(1f), size = 16) {
                 onSelect(Board.SAY_ANYTHING)
+            }
+            // Not in the design (a design gap): phone control's card, in the same row and style.
+            phoneCard?.let { label ->
+                FixedCard(label, ui.highlighted == Board.PHONE, Modifier.weight(1f), size = 16) {
+                    onSelect(Board.PHONE)
+                }
             }
         }
         // Not in the design yet (listed as a design gap): one-tap questions for the visitor when
@@ -308,10 +317,19 @@ private fun FixedCard(text: String, highlighted: Boolean, modifier: Modifier, si
             .height(60.dp)
             .surface(if (highlighted) Surfaces.Pink else Surfaces.Glass, RoundedCornerShape(30.dp))
             .clip(RoundedCornerShape(30.dp))
-            .clickable(role = Role.Button, onClick = onClick),
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, style = type(size, 500), maxLines = 1)
+        // With the Phone card four share the row, and one line at 16 sp cut "More options" to
+        // "More" and "Say anything" to "Say" (owner's screenshot, 10:07). Two lines, centred,
+        // shrinking to fit.
+        BasicText(
+            text,
+            style = type(size, 500, lineHeight = 1.1f, align = TextAlign.Center),
+            maxLines = 2,
+            autoSize = TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = size.sp, stepSize = 1.sp),
+        )
     }
 }
 
