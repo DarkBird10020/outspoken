@@ -10,12 +10,16 @@ import android.graphics.Path
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.graphics.RectF
+import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
+import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.TextView
 import androidx.compose.ui.graphics.toArgb
+import com.outspoken.R
 import com.outspoken.eye.EyeReader
 import com.outspoken.help.SosAccessibility
 import com.outspoken.log.AppLog
@@ -97,7 +101,7 @@ object PhoneControl {
         this.onStop = onStop
         this.onType = onType
         on = true
-        overlay = Overlay(service).also { it.show() }
+        overlay = Overlay(service) { stop("stopped by hand with the Stop button") }.also { it.show() }
         AppLog.write("control", "phone control on${if (goHome) ", home screen" else ", in the app opened"}")
         if (goHome) service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
         lastEyesMs = android.os.SystemClock.elapsedRealtime()
@@ -316,11 +320,28 @@ object PhoneControl {
     /**
      * The highlight over other apps: a green box round the lit button, and a label at the foot
      * of the screen with what is lit and how to move. It keeps the screen on, as Outspoken does.
-     * Not in the design (a design gap): the theme's green and ink.
+     * A Stop button in the top corner takes a touch, so a carer can end phone control by hand:
+     * the owner could not find a way out and chose the menu's Home four times (08:50:49 to
+     * 08:50:56), which keeps control on. Not in the design (a design gap): the theme's green and ink.
      */
-    private class Overlay(private val service: AccessibilityService) {
+    private class Overlay(private val service: AccessibilityService, private val onStopTapped: () -> Unit) {
         private val windows = service.getSystemService(WindowManager::class.java)
         private val view = HighlightView(service)
+        private val density = service.resources.displayMetrics.density
+        private val stopButton = TextView(service).apply {
+            setText(R.string.control_stop)
+            textSize = 16f
+            setTextColor(Ink.toArgb())
+            val padH = (16 * density).toInt()
+            val padV = (10 * density).toInt()
+            setPadding(padH, padV, padH, padV)
+            background = GradientDrawable().apply {
+                setColor(android.graphics.Color.WHITE)
+                cornerRadius = 20 * density
+                setStroke((2 * density).toInt(), EyesFoundDot.toArgb())
+            }
+            setOnClickListener { onStopTapped() }
+        }
 
         fun show() {
             val params = WindowManager.LayoutParams(
@@ -335,10 +356,23 @@ object PhoneControl {
                 PixelFormat.TRANSLUCENT,
             ).apply { layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS }
             runCatching { windows.addView(view, params) }.onFailure { AppLog.write("control", "overlay not shown: $it") }
+            val stopParams = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT,
+            ).apply {
+                gravity = Gravity.TOP or Gravity.END
+                x = (12 * density).toInt()
+                y = (STOP_TOP_DP * density).toInt()
+            }
+            runCatching { windows.addView(stopButton, stopParams) }.onFailure { AppLog.write("control", "Stop button not shown: $it") }
         }
 
         fun hide() {
             runCatching { windows.removeView(view) }
+            runCatching { windows.removeView(stopButton) }
         }
 
         fun light(lit: Lit?) {
@@ -407,7 +441,8 @@ object PhoneControl {
             // The card goes in the middle for the menu, else at whichever end the lit part is not.
             val top = when {
                 litRect == null -> (height - cardHeight) / 2
-                litRect.centerY() > height / 2 -> 56 * density
+                // Below the Stop button.
+                litRect.centerY() > height / 2 -> CARD_TOP_DP * density
                 else -> height - cardHeight - 56 * density
             }
             val area = RectF(margin, top, width - margin, top + cardHeight)
@@ -438,6 +473,10 @@ object PhoneControl {
 
     private const val SETTLE_MS = 400L
     private const val NOTICE_MS = 3_000L
+
+    /** The Stop button's place from the top of the screen, and the card's top below it. */
+    private const val STOP_TOP_DP = 40
+    private const val CARD_TOP_DP = 100
     private const val EYES_CHECK_MS = 1_000L
     private const val EYES_LOST_MS = 3_000L
 

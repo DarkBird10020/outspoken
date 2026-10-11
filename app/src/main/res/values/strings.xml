@@ -1,5 +1,6 @@
 <resources>
     <string name="app_name">Outspoken</string>
     <string name="sos_helper_label">Outspoken helper</string>
+    <string name="control_stop">✕  Stop phone control</string>
     <string name="sos_helper_description">Presses buttons for a person who cannot touch the phone. When the help alarm sounds on a phone with no SIM, it sends the SOS on WhatsApp and presses Send and the call button. With phone control on, it lights the buttons of the app in front one at a time and presses the one chosen by eye. It reads screens only for these, and the screen\'s text never leaves the phone.</string>
 </resources>
