@@ -32,6 +32,20 @@ class LanguageVotesTest {
     }
 
     @Test
+    fun `a short sentence with one sure guess names that language`() {
+        // 06:32:12 on the phone: "language heard: hi-in, fairly sure", then "Tumhare kya Halchal hai".
+        val votes = LanguageVotes()
+        votes.addSure("hi-IN")
+        repeat(2) { votes.add("en-in") }
+        assertEquals("hi", votes.dominant())
+        // Enough guesses that agree still decide.
+        repeat(10) { votes.add("en-in") }
+        assertEquals("en", votes.dominant())
+        votes.clear()
+        assertNull(votes.dominant())
+    }
+
+    @Test
     fun `clear starts the next sentence afresh`() {
         val votes = LanguageVotes()
         repeat(10) { votes.add("hi-in") }

@@ -64,6 +64,8 @@ fun SettingsScreen(
     onTestSos: () -> Unit,
     whatsAppHelperOn: Boolean = false,
     onOpenAccessibility: () -> Unit = {},
+    /** What the last test did, while Settings stays open. */
+    sosTestResult: String? = null,
     handReading: HandReading,
     onTuningChange: (Tuning) -> Unit,
     onTuningReset: () -> Unit,
@@ -85,7 +87,7 @@ fun SettingsScreen(
         AskCard(listenLine, onAsk)
         Segmented("Look up to move", "Blink only", tuning.moveByEyes) { onTuningChange(tuning.copy(moveByEyes = it)) }
         LanguageCard(tuning, missingVoice, onInstallVoice, onTuningChange)
-        SosCard(tuning, sosLine, onSaveSos, onTestSos, whatsAppHelperOn, onOpenAccessibility, onTuningChange)
+        SosCard(tuning, sosLine, onSaveSos, onTestSos, whatsAppHelperOn, onOpenAccessibility, sosTestResult, onTuningChange)
         TuningCard(tuning, onTuningChange)
         HandCard(tuning, handReading, onTuningChange)
         // Not in the settings design (listed as a design gap): the way to the profile page.
@@ -204,6 +206,7 @@ private fun SosCard(
     onTest: () -> Unit,
     whatsAppHelperOn: Boolean,
     onOpenAccessibility: () -> Unit,
+    testResult: String?,
     onChange: (Tuning) -> Unit,
 ) {
     var typed by remember(tuning.sosNumber) { mutableStateOf(tuning.sosNumber) }
@@ -234,6 +237,8 @@ private fun SosCard(
             }
             PillButton("Save", { onSave(typed) }, Modifier.width(72.dp), style = Surfaces.StartButton, height = 52, size = 16, weight = 600)
         }
+        // Not in the design (a design gap): the PRD's confirm close; off, sleep could call for help.
+        ToggleRow("Help: after the 2 s hold, a blink to confirm", tuning.helpConfirm) { onChange(tuning.copy(helpConfirm = it)) }
         ToggleRow("Text them when help is called", tuning.sosText) { onChange(tuning.copy(sosText = it)) }
         ToggleRow("Then call them", tuning.sosCall) { onChange(tuning.copy(sosCall = it)) }
         // Not in the design (a design gap): WhatsApp for a phone with no SIM.
@@ -243,19 +248,64 @@ private fun SosCard(
             PillButton("Turn on Outspoken in Accessibility", onOpenAccessibility, Modifier.fillMaxWidth())
         }
         if (tuning.sosNumber.isNotEmpty()) PillButton("Test: text and call now", onTest, Modifier.fillMaxWidth())
+        // Not in the design (a design gap): what the test did.
+        if (testResult != null) Text("Test: $testResult", style = type(13, color = InkSoft))
     }
 }
 
-/** Not in the design (a design gap): the language of the cards, the voice and listening. */
+/**
+ * Not in the design (a design gap): the person's languages and the one the app starts in. The
+ * cards, the voice, listening and the model follow whichever of them the visitor speaks.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LanguageCard(tuning: Tuning, missingVoice: String?, onInstallVoice: () -> Unit, onChange: (Tuning) -> Unit) {
+    val chosen = tuning.chosenLanguages
     GlassCard(gap = 14) {
-        Text("Language", style = type(15, 500))
-        Segmented(AppLanguage.English.label, AppLanguage.Hindi.label, tuning.language == AppLanguage.English) { english ->
-            onChange(tuning.copy(language = if (english) AppLanguage.English else AppLanguage.Hindi))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+            Text("Languages", style = type(15, 500))
+            Text("${chosen.size} chosen", style = type(13, color = InkSoft))
         }
-        ToggleRow("Follow the visitor: cards switch to the language they speak", tuning.autoLanguage) {
-            onChange(tuning.copy(autoLanguage = it))
+        Text("Tap every language spoken around the person. Its speech pack and voice download on the phone.", style = type(13, color = InkSoft))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            AppLanguage.entries.forEach { language ->
+                val on = language in chosen
+                PillButton(
+                    if (language.label == language.englishName) language.label else "${language.label} · ${language.englishName.substringBefore(" (")}",
+                    {
+                        val next = if (on) chosen - language else chosen + language
+                        // At least one language stays; the starting one moves to the first left.
+                        if (next.isNotEmpty()) {
+                            val start = if (tuning.language in next) tuning.language else next.first()
+                            onChange(tuning.copy(language = start, languages = next))
+                        }
+                    },
+                    style = if (on) Surfaces.OfflinePill else Surfaces.Glass,
+                    height = 40,
+                    size = 14,
+                    weight = if (on) 600 else 500,
+                    sidePadding = 14,
+                )
+            }
+        }
+        if (chosen.size > 1) {
+            Text("Start in", style = type(13, color = InkSoft))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                chosen.forEach { language ->
+                    PillButton(
+                        language.label,
+                        { onChange(tuning.copy(language = language)) },
+                        style = if (language == tuning.language) Surfaces.StartButton else Surfaces.Glass,
+                        height = 40,
+                        size = 14,
+                        weight = if (language == tuning.language) 600 else 500,
+                        sidePadding = 14,
+                    )
+                }
+            }
+            ToggleRow("Follow the visitor: cards switch to the language they speak", tuning.autoLanguage) {
+                onChange(tuning.copy(autoLanguage = it))
+            }
         }
         if (missingVoice != null) {
             Text("No offline $missingVoice voice on this phone yet", style = type(13, color = InkSoft))

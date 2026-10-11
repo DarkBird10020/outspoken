@@ -39,12 +39,15 @@ class HelpPractice(
     private var wasArmed = false
     private var clockMs = 0L
 
+    /** As in Settings: off, the hold alone would call for help, and the practice ends there. */
+    var confirm = true
+
     private val _ui = MutableStateFlow(HelpPracticeUi(stage, 0f, note, faceFound = false))
     val ui: StateFlow<HelpPracticeUi> = _ui.asStateFlow()
 
     fun start(timeMs: Long) {
         val nowMs = advance(timeMs)
-        trigger = HelpTrigger(holdMs = HOLD_MS, log = practiceLog)
+        trigger = HelpTrigger(holdMs = HOLD_MS, log = practiceLog).also { it.confirm = confirm }
         stage = HelpStage.CloseEyes
         note = CLOSE_NOTE
         wasArmed = false
@@ -58,7 +61,7 @@ class HelpPractice(
         val event = detector.onSample(sample)
         if (stage != HelpStage.Done) {
             if (event is BlinkEvent.Blink) trigger.onBlink(event.startMs)?.let(::onStep)
-            trigger.onEyes(detector.shutSinceMs, nowMs, detector.settings.maxBlinkMs)?.let(::onStep)
+            trigger.onEyes(detector.shutSinceMs, nowMs, faceSeen = detector.tracking)?.let(::onStep)
         }
         if (stage == HelpStage.OpenAndBlink) {
             if (trigger.armed) {

@@ -351,7 +351,8 @@ object Lessons {
             LessonStep(
                 "Step 2: open, then blink",
                 "After the beep, open your eyes, then within five seconds blink on purpose once, or close them again. " +
-                    "This second step means simply resting with your eyes closed never raises the alarm.",
+                    "This second step means resting or sleeping with your eyes closed never raises the alarm: eyes shut for more " +
+                    "than ten seconds count as rest, and so does a confirm close that stays shut.",
             ),
             LessonStep(
                 "What happens",
@@ -364,7 +365,8 @@ object Lessons {
             ),
             LessonStep(
                 "Practice is safe",
-                "The practice round goes through the same two steps but sounds no alarm and contacts nobody.",
+                "The practice round goes through the same two steps but sounds no alarm and contacts nobody. " +
+                    "If the carer has switched the confirm blink off in Settings, the two second hold alone calls for help, in practice too.",
             ),
         ),
     )
@@ -439,24 +441,31 @@ object Lessons {
 
     private val language = Lesson(
         id = "language",
-        title = "English and Hindi",
-        summary = "Choose the language of the cards and voice, or let it follow the visitor.",
+        title = "Languages",
+        summary = "Pick the languages spoken around the person; the cards follow the visitor.",
         audience = Audience.Carer,
         opens = Destination.Settings,
         steps = listOf(
             LessonStep(
-                "Choosing a language",
-                "In Settings, the Language card switches between English and हिन्दी. The cards, topic buttons and the voice all change together.",
+                "17 languages",
+                "Outspoken speaks English, Hindi, Bengali, Marathi, Tamil, Telugu, Kannada, Gujarati, Malayalam, Urdu, Spanish, French, " +
+                    "German, Portuguese, Arabic, Chinese and Japanese. The cards, topic buttons, voice and replies all use the language chosen.",
+            ),
+            LessonStep(
+                "Choosing them",
+                "In Settings, under Languages, tap every language spoken around the person, then pick the one the app starts in. " +
+                    "At least one always stays chosen.",
             ),
             LessonStep(
                 "Follow the visitor",
-                "With Follow the visitor on, the phone starts in English and switches the cards to the language the visitor speaks. " +
-                    "Each visitor can speak their own language.",
+                "With Follow the visitor on, the cards switch to whichever chosen language the visitor speaks, " +
+                    "so each visitor can speak their own language.",
             ),
             LessonStep(
-                "The offline voice",
-                "Speaking a language needs its offline voice on the phone. If it is missing, Settings shows a button to download it; " +
-                    "the phone's voice engine fetches it, not this app.",
+                "Speech packs and voices",
+                "Each language needs its offline speech pack, to listen, and its offline voice, to speak. If one is missing, " +
+                    "Settings offers its download; the phone fetches it, not this app. The natural voice speaks English only; " +
+                    "other languages use the phone's voice.",
             ),
         ),
     )

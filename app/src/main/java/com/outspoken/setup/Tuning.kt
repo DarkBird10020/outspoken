@@ -57,11 +57,13 @@ data class Tuning(
     /** Cards, phrase bank, topic buttons, voice and listening in English or Hindi (owner request). */
     val language: AppLanguage = AppLanguage.English,
     /**
-     * The cards follow the language the visitor speaks, English or Hindi, and the recogniser may
+     * The cards follow the language the visitor speaks, among [languages], and the recogniser may
      * switch between them (owner request: detect the language). [language] is where it starts.
      * On by default, as the owner asked for it and did not find the switch in the 16:37 run.
      */
     val autoLanguage: Boolean = true,
+    /** The languages the person and their visitors speak, in order; [language] is one of them. */
+    val languages: List<AppLanguage> = listOf(AppLanguage.English, AppLanguage.Hindi),
     /** SOS contact the help alarm texts and then calls (owner request); empty for none. */
     val sosNumber: String = "",
     val sosText: Boolean = true,
@@ -72,7 +74,15 @@ data class Tuning(
      */
     val sosWhatsApp: Boolean = false,
     val sosWhatsAppCall: Boolean = false,
+    /**
+     * The help alarm waits for a confirm close after the 2 s hold (PRD F8). On by default, owner
+     * decision: with the hold alone, sleep could call for help. Off, the hold alone raises it.
+     */
+    val helpConfirm: Boolean = true,
 ) {
+    /** The person's languages with the starting one first; never empty. */
+    val chosenLanguages: List<AppLanguage> get() = (listOf(language) + languages).distinct()
+
     /** The gaze settings the stepper uses: the look down lines only when looking down is on. */
     val activeGaze: GazeSettings
         get() = if (lookDown) gaze else gaze.copy(downStrength = null, irisDownStrength = null)
@@ -132,11 +142,13 @@ class TuningStore(context: Context) {
             handGestures = prefs.getBoolean("handGestures", default.handGestures),
             language = AppLanguage.fromName(prefs.getString("language", default.language.name)),
             autoLanguage = prefs.getBoolean("autoLanguage", default.autoLanguage),
+            languages = AppLanguage.listFromNames(prefs.getString("languages", null)).ifEmpty { default.languages },
             sosNumber = prefs.getString("sosNumber", default.sosNumber).orEmpty(),
             sosText = prefs.getBoolean("sosText", default.sosText),
             sosCall = prefs.getBoolean("sosCall", default.sosCall),
             sosWhatsApp = prefs.getBoolean("sosWhatsApp", default.sosWhatsApp),
             sosWhatsAppCall = prefs.getBoolean("sosWhatsAppCall", default.sosWhatsAppCall),
+            helpConfirm = prefs.getBoolean("helpConfirm", default.helpConfirm),
             // Saved as the signs switched off, so a sign added later starts on.
             handSigns = HandSign.entries.toSet() -
                 prefs.getStringSet("handSignsOff", emptySet()).orEmpty().mapNotNull(HandSign::fromKey).toSet(),
@@ -183,11 +195,13 @@ class TuningStore(context: Context) {
             .putBoolean("handGestures", tuning.handGestures)
             .putString("language", tuning.language.name)
             .putBoolean("autoLanguage", tuning.autoLanguage)
+            .putString("languages", tuning.languages.joinToString(",") { it.name })
             .putString("sosNumber", tuning.sosNumber)
             .putBoolean("sosText", tuning.sosText)
             .putBoolean("sosCall", tuning.sosCall)
             .putBoolean("sosWhatsApp", tuning.sosWhatsApp)
             .putBoolean("sosWhatsAppCall", tuning.sosWhatsAppCall)
+            .putBoolean("helpConfirm", tuning.helpConfirm)
             .putStringSet("handSignsOff", (HandSign.entries - tuning.handSigns).map { it.key }.toSet())
             .putFloat("lookStrength", tuning.gaze.lookStrength)
             .putFloat("downStrength", tuning.gaze.downStrength ?: NOT_SET)

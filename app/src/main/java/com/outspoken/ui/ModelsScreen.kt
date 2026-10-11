@@ -208,7 +208,7 @@ private fun VoiceSection(
         GlassCard(gap = 10) {
             Text("Natural voice", style = type(15, 500))
             Text(
-                "English cards use the voice picked here. Hindi cards use the phone voice for now; try a Hindi voice with Play.",
+                "English cards use the voice picked here. Cards in other languages use the phone voice; try a Hindi voice with Play.",
                 style = type(13, color = InkSoft, lineHeight = 1.3f),
             )
             NaturalVoices.all.forEach { v ->

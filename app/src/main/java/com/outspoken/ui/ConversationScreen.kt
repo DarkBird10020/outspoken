@@ -3,6 +3,9 @@ package com.outspoken.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.outspoken.R
@@ -237,9 +241,21 @@ private fun HeardCard(question: String, label: String) {
             Icon(painterResource(R.drawable.ic_mic), contentDescription = null, tint = InkSoft, modifier = Modifier.size(16.dp))
             Text(label, style = type(14, color = InkSoft))
         }
-        Text(question, style = type(26, 500, lineHeight = 1.15f))
+        // At most two lines, shrinking first, then only the end of what was said (the question
+        // is usually last). A long sentence filled the screen and left the four reply cards a few
+        // pixels high (owner's screenshot, 07:19); three lines still left them cramped.
+        BasicText(
+            lastWords(question, MAX_HEARD_CHARS),
+            style = type(26, 500, lineHeight = 1.15f),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            autoSize = TextAutoSize.StepBased(minFontSize = 18.sp, maxFontSize = 26.sp, stepSize = 1.sp),
+        )
     }
 }
+
+/** About two lines of the Heard card at its smallest size. */
+private const val MAX_HEARD_CHARS = 75
 
 @Composable
 private fun ReplyCard(text: String, highlighted: Boolean, onClick: () -> Unit, modifier: Modifier) {
@@ -263,13 +279,23 @@ private fun ReplyCard(text: String, highlighted: Boolean, onClick: () -> Unit, m
             autoSize = TextAutoSize.StepBased(minFontSize = 16.sp, maxFontSize = 24.sp, stepSize = 1.sp),
         )
         if (highlighted) {
+            // The design's 72 dp, or the card's height when the cards are shorter, so the badge
+            // stays a whole circle.
             Box(
                 Modifier
-                    .size(72.dp)
+                    .fillMaxHeight()
+                    .padding(vertical = 4.dp)
+                    .heightIn(max = 72.dp)
+                    .aspectRatio(1f, matchHeightConstraintsFirst = true)
                     .surface(Surfaces.BlinkBadge, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("Blink", style = type(14, 600))
+                BasicText(
+                    "Blink",
+                    style = type(14, 600),
+                    maxLines = 1,
+                    autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 14.sp, stepSize = 1.sp),
+                )
             }
         }
     }

@@ -2,8 +2,8 @@ package com.outspoken
 
 import android.graphics.Bitmap
 import android.Manifest
-import com.outspoken.suggest.mostlyLatin
-import com.outspoken.listen.mostlyDevanagari
+import com.outspoken.suggest.inWrongScript
+import com.outspoken.conversation.languageOfText
 import com.outspoken.ui.ProfileScreen
 import com.outspoken.ui.ProfileEditScreen
 import com.outspoken.profile.ProfileStore
@@ -43,7 +43,6 @@ import com.outspoken.blink.BlinkDetector
 import com.outspoken.blink.BlinkSettings
 import com.outspoken.conversation.AppLanguage
 import com.outspoken.conversation.ConversationController
-import com.outspoken.conversation.spokenLanguage
 import com.outspoken.eye.EyeReader
 import com.outspoken.eye.EyeSample
 import com.outspoken.eye.FrontCamera
@@ -54,7 +53,6 @@ import com.outspoken.help.HelpAlarm
 import com.outspoken.help.HelpStep
 import com.outspoken.help.SosAccessibility
 import com.outspoken.help.SosCaller
-import com.outspoken.help.whatsAppNumber
 import com.outspoken.help.isEmergencyNumber
 import com.outspoken.help.maskedNumber
 import com.outspoken.help.sosMessage
@@ -520,10 +518,8 @@ class MainActivity : ComponentActivity() {
                         tuning = tuning,
                         sosLine = sosLine(),
                         onSaveSos = ::saveSos,
-                        onTestSos = {
-                            AppLog.write("help", "SOS test from Settings")
-                            triggerSos()
-                        },
+                        onTestSos = ::testSos,
+                        sosTestResult = if (sosTested) sosStatus else null,
                         whatsAppHelperOn = whatsAppHelperOn,
                         onOpenAccessibility = { startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
                         listenLine = listenLine,
@@ -763,6 +759,7 @@ class MainActivity : ComponentActivity() {
                 movePractice.start(now())
             }
             Practice.Help -> {
+                helpPractice.confirm = tuning.helpConfirm
                 show(Screen.HelpPractice)
                 helpPractice.start(now())
             }
@@ -914,13 +911,16 @@ class MainActivity : ComponentActivity() {
         tuning = next
         if (::listener.isInitialized) listener.wish = speechWish(next)
         // Only a change of the choice itself moves the cards; in auto mode they follow the visitor.
-        if (next.language != before.language || next.autoLanguage != before.autoLanguage) useCardLanguage(next.language)
+        if (next.language != before.language || next.autoLanguage != before.autoLanguage || cardLanguage !in next.chosenLanguages) {
+            useCardLanguage(next.language)
+        }
         if (::handReader.isInitialized && handReader.enabled != next.handGestures) {
             handReader.enabled = next.handGestures
             AppLog.write("hand", "hand signs ${if (next.handGestures) "on" else "off"}")
         }
         blinkDetector.settings = next.blink
         checkBlink.settings = next.blink
+        controller.helpConfirm = next.helpConfirm
         scanner.intervalMs = next.scanMs
         gazeStepper.settings = next.activeGaze
         checkStepper.settings = next.activeGaze
@@ -1043,10 +1043,36 @@ class MainActivity : ComponentActivity() {
     /** Why the typed SOS number was not saved, until the next save. */
     private var sosNote by mutableStateOf<String?>(null)
 
+    /** A test from Settings ran while Settings is open: its result shows there. */
+    private var sosTested by mutableStateOf(false)
+    private var lastSosTestMs = Long.MIN_VALUE / 2
+
+    /**
+     * The Settings test, once per [SOS_TEST_GAP_MS]. It gave no sign on screen, so it was tapped
+     * 20 times in 16 s, and four tries in 2 s placed two calls (06:29:02 to 06:29:18).
+     */
+    private fun testSos() {
+        val nowMs = SystemClock.elapsedRealtime()
+        if (nowMs - lastSosTestMs < SOS_TEST_GAP_MS) {
+            AppLog.write("help", "SOS test ignored: one started ${(nowMs - lastSosTestMs) / 1_000} s ago")
+            return
+        }
+        lastSosTestMs = nowMs
+        AppLog.write("help", "SOS test from Settings")
+        sosTested = true
+        sosStatus = null
+        triggerSos(test = true)
+    }
+
     /** Owner request: the help alarm texts and then calls the SOS contact, if one is saved. */
-    private fun triggerSos() {
+    private fun triggerSos(test: Boolean = false) {
         val number = tuning.sosNumber
-        if (number.isEmpty() || (!tuning.sosText && !tuning.sosCall && !tuning.sosWhatsApp && !tuning.sosWhatsAppCall)) return
+        if (number.isEmpty() || (!tuning.sosText && !tuning.sosCall && !tuning.sosWhatsApp && !tuning.sosWhatsAppCall)) {
+            val why = if (number.isEmpty()) "No SOS number saved" else "Texting, calling and WhatsApp are all off"
+            AppLog.write("help", "SOS not sent: $why")
+            if (test) sosStatus = why
+            return
+        }
         val time = LocalTime.now().let { String.format(Locale.US, "%02d:%02d", it.hour, it.minute) }
         sos.alert(number, sosMessage(time, controller.history.lastOrNull()), tuning.sosText, tuning.sosCall, tuning.sosWhatsApp, tuning.sosWhatsAppCall)
     }
@@ -1071,10 +1097,11 @@ class MainActivity : ComponentActivity() {
         val doing = listOfNotNull("message".takeIf { tuning.sosWhatsApp }, "call".takeIf { tuning.sosWhatsAppCall })
         return when {
             doing.isEmpty() -> "This phone has no SIM, so the help alarm cannot text or call $who. WhatsApp can, below."
-            whatsAppNumber(number) == null -> "No SIM. For WhatsApp, save the number with its country code, like +91 98765 43210."
+            sos.whatsAppNumberFor(number) == null -> "No SIM. For WhatsApp, save the number with its country code, like +91 98765 43210."
             !sos.hasWhatsApp() -> "No SIM, and WhatsApp is not on this phone."
             !whatsAppHelperOn -> "No SIM. Turn on Outspoken in Accessibility, so it can press Send in WhatsApp."
-            else -> "No SIM: the help alarm sends $who a WhatsApp ${doing.joinToString(" and then a ")}."
+            // The whole number, so a carer can see the country code WhatsApp will use.
+            else -> "No SIM: the help alarm sends +${sos.whatsAppNumberFor(number)} a WhatsApp ${doing.joinToString(" and then a ")}."
         }
     }
 
@@ -1273,13 +1300,14 @@ class MainActivity : ComponentActivity() {
         return listOfNotNull("en-IN", phone, Locale.US.toLanguageTag()).distinct()
     }
 
-    /** The chosen language; with auto on, the other one too, so the recogniser can follow the visitor. */
+    /**
+     * The starting language; with auto on, the person's other languages too, so the recogniser can
+     * follow the visitor. Listening starts in the starting language (English unless changed; owner:
+     * English is the default) and moves to another only once the visitor is heard speaking it.
+     */
     private fun speechWish(t: Tuning): SpeechWish {
-        // Following the visitor, listening starts in English (owner: English is the default) and
-        // moves to another language only once the visitor is heard speaking it.
         if (!t.autoLanguage) return SpeechWish(speechLanguages(t.language))
-        val others = AppLanguage.entries.filter { it != AppLanguage.English }.map { speechLanguages(it) }
-        return SpeechWish(speechLanguages(AppLanguage.English), others)
+        return SpeechWish(speechLanguages(t.language), t.chosenLanguages.drop(1).map { speechLanguages(it) })
     }
 
     /** The language of the cards, the topics and the voice right now; in auto mode the visitor's. */
@@ -1303,12 +1331,8 @@ class MainActivity : ComponentActivity() {
      * model writes it properly first, so English shows as English (owner request); no mix.
      */
     private fun onVisitor(text: String, heardIn: String?) {
-        val spokenIn = when (heardIn) {
-            "en" -> AppLanguage.English
-            "hi" -> AppLanguage.Hindi
-            else -> null
-        }
-        val wrongScript = (spokenIn == AppLanguage.English && mostlyDevanagari(text)) || (spokenIn == AppLanguage.Hindi && mostlyLatin(text))
+        val spokenIn = AppLanguage.fromCode(heardIn)?.takeIf { it in tuning.chosenLanguages }
+        val wrongScript = spokenIn != null && inWrongScript(text, spokenIn)
         val engine = suggestionEngine
         if (!wrongScript || engine == null || spokenIn == null) {
             takeVisitor(text, heardIn)
@@ -1337,11 +1361,9 @@ class MainActivity : ComponentActivity() {
      * listening in Hindi, the recogniser wrote English questions in Hindi letters.
      */
     private fun followVisitor(text: String, heardIn: String?) {
-        val spoken = when (heardIn) {
-            "en" -> AppLanguage.English
-            "hi" -> AppLanguage.Hindi
-            else -> spokenLanguage(text)
-        } ?: return
+        val spoken = AppLanguage.fromCode(heardIn)?.takeIf { it in tuning.chosenLanguages }
+            ?: languageOfText(text, tuning.chosenLanguages)
+            ?: return
         if (spoken == cardLanguage) return
         AppLog.write("listen", "the visitor spoke ${spoken.name}, cards follow")
         useCardLanguage(spoken)
@@ -1369,6 +1391,7 @@ class MainActivity : ComponentActivity() {
         // What the stats screen showed when it opened and closed, so a report that a number did
         // not move can be checked against the logs.
         if (screen == Screen.Stats && next != Screen.Stats) AppLog.write("stats", "closed showing ${describeStats(currentStats())}")
+        if (next != Screen.Settings) sosTested = false
         AppLog.write("ui", "screen $next")
         if (next in CHECK_SCREENS && next != screen) gazeStepper.restGaze?.let { checkStepper.restAt(it, gazeStepper.restIrisDrop) }
         // Each detector gets frames only on its own page.
@@ -1684,6 +1707,9 @@ class MainActivity : ComponentActivity() {
 
         /** The camera gives a frame about every 50 ms; none in this long means it is not running. */
         const val SELFIE_WAIT_MS = 2_000L
+
+        /** Shortest gap between two SOS tests from Settings. */
+        const val SOS_TEST_GAP_MS = 15_000L
 
         const val CLOSES_MISSED_HINT = "Closes are not being read. Wearing glasses? Tap here to calibrate with them on."
         const val CUE_MS = 200
