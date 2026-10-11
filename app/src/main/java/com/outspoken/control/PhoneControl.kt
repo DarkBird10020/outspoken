@@ -269,13 +269,23 @@ object PhoneControl {
             MenuAction.ScrollDown -> scroll(service, AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
             MenuAction.ScrollUp -> scroll(service, AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)
             MenuAction.Type -> onType?.invoke()
-            MenuAction.Outspoken -> {
+            MenuAction.Stop -> {
                 backToOutspoken(service)
-                stop("back to Outspoken")
+                stop("stopped by eye from the menu")
                 return
             }
         }
         screenChanged()
+        // Back on the home screen does nothing, and the owner kept choosing it to get out.
+        if (action == MenuAction.Back) {
+            val before = screenEvents
+            main.postDelayed({
+                if (on && !typing && screenEvents == before) {
+                    AppLog.write("control", "back changed nothing")
+                    tell("Nothing to go back to. To end this: Stop, first in the menu")
+                }
+            }, CLICK_CHECK_MS)
+        }
     }
 
     /** Scrolls the largest scrolling part of the screen, a list or a page. */

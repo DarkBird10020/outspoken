@@ -16,14 +16,18 @@ data class Box(val left: Int, val top: Int, val right: Int, val bottom: Int) {
 /** Something on another app's screen that can be pressed: where it is and what it says. */
 data class Target(val box: Box, val label: String)
 
-/** What the menu of phone control offers, always reachable by eye. */
+/**
+ * What the menu of phone control offers, always reachable by eye. Stop is first: in the 09:29
+ * run the owner opened the menu three times looking for a way out and chose Back ten times
+ * (09:29:49 to 09:31:12), which only goes back a screen; Stop was the sixth entry.
+ */
 enum class MenuAction(val label: String, val does: String) {
+    Stop("Stop phone control", "stop and go back to Outspoken"),
     Back("Back", "go back one screen"),
     Home("Home", "go to the home screen"),
     ScrollDown("Scroll down", "show more below"),
     ScrollUp("Scroll up", "show more above"),
     Type("Type", "write a sentence into this app"),
-    Outspoken("Back to Outspoken", "stop phone control"),
 }
 
 /** What a select does. */
@@ -151,7 +155,7 @@ class ScreenScan(private val groupSize: Int = GROUP_SIZE) {
     fun lit(): Lit? {
         val lit = when (val at = level) {
             Level.Top -> when (val entry = topEntries().getOrNull(position)) {
-                TopEntry.Menu -> Lit(null, "Menu", "Close the eyes to open: Back, Home, Scroll, Type, Back to Outspoken")
+                TopEntry.Menu -> Lit(null, "Menu", "Close the eyes to open: Stop, Back, Home, Scroll, Type")
                 is TopEntry.Group -> {
                     val group = groups[entry.index]
                     val names = group.take(NAMES_SHOWN).joinToString(", ") { targets[it].label } + if (group.size > NAMES_SHOWN) ", …" else ""

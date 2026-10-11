@@ -84,7 +84,7 @@ class ScreenScanTest {
         scan.select()
         seen += scan.where()
         assertEquals(
-            listOf("Menu", "group 1 of 3, 4 buttons", "button 1 of 4 in group 1", "back to all groups", "Menu", "menu: Back"),
+            listOf("Menu", "group 1 of 3, 4 buttons", "button 1 of 4 in group 1", "back to all groups", "Menu", "menu: Stop phone control"),
             seen,
         )
         assertFalse(seen.any { "Meera" in it })
@@ -115,15 +115,19 @@ class ScreenScanTest {
     }
 
     @Test
-    fun `the menu offers back, home, scrolling, typing and Outspoken`() {
+    fun `the menu offers stop first, then back, home, scrolling and typing`() {
         val scan = ScreenScan()
         scan.show(listOf(button(0, 100, "A")))
         assertNull(scan.select())
+        // Stop is the first thing lit in the menu (09:29 run: Back chosen ten times to get out).
+        assertEquals("Stop phone control", scan.lit()?.label)
+        assertEquals("Close the eyes to stop and go back to Outspoken", scan.lit()?.action)
+        assertEquals(ScanAction.Menu(MenuAction.Stop), scan.select())
+        scan.next()
         assertEquals("Back", scan.lit()?.label)
         assertEquals(ScanAction.Menu(MenuAction.Back), scan.select())
-        repeat(5) { scan.next() }
-        assertEquals("Back to Outspoken", scan.lit()?.label)
-        assertEquals("Close the eyes to stop phone control", scan.lit()?.action)
+        repeat(4) { scan.next() }
+        assertEquals("Type", scan.lit()?.label)
         scan.next()
         assertEquals("Back to the app", scan.lit()?.label)
     }
@@ -158,6 +162,6 @@ class ScreenScanTest {
         scan.next()
         assertEquals("Menu", scan.lit()?.label)
         assertNull(scan.select())
-        assertEquals("Back", scan.lit()?.label)
+        assertEquals("Stop phone control", scan.lit()?.label)
     }
 }
