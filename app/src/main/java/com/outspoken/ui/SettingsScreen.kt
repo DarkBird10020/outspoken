@@ -69,6 +69,7 @@ fun SettingsScreen(
     handReading: HandReading,
     onTuningChange: (Tuning) -> Unit,
     onTuningReset: () -> Unit,
+    onEyeReset: () -> Unit = {},
     onAsk: (String) -> Unit,
     onCalibrate: () -> Unit,
     onModels: () -> Unit,
@@ -88,7 +89,7 @@ fun SettingsScreen(
         Segmented("Look up to move", "Blink only", tuning.moveByEyes) { onTuningChange(tuning.copy(moveByEyes = it)) }
         LanguageCard(tuning, missingVoice, onInstallVoice, onTuningChange)
         SosCard(tuning, sosLine, onSaveSos, onTestSos, whatsAppHelperOn, onOpenAccessibility, sosTestResult, onTuningChange)
-        TuningCard(tuning, onTuningChange)
+        TuningCard(tuning, onTuningChange, onEyeReset)
         HandCard(tuning, handReading, onTuningChange)
         // Not in the settings design (listed as a design gap): the way to the profile page.
         PillButton("Patient profile", onProfile, Modifier.fillMaxWidth())
@@ -146,7 +147,7 @@ private fun AskCard(listenLine: String, onAsk: (String) -> Unit) {
 }
 
 @Composable
-private fun TuningCard(tuning: Tuning, onChange: (Tuning) -> Unit) {
+private fun TuningCard(tuning: Tuning, onChange: (Tuning) -> Unit, onEyeReset: () -> Unit) {
     val blink = tuning.blink
     GlassCard(gap = 18) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
@@ -190,6 +191,8 @@ private fun TuningCard(tuning: Tuning, onChange: (Tuning) -> Unit) {
                 onChange(tuning.copy(scanMs = it.roundTo(100)))
             }
         }
+        // Not in the design (a design gap): undo slider changes without losing languages or SOS.
+        PillButton("Reset eye settings", onEyeReset, Modifier.fillMaxWidth())
     }
 }
 
