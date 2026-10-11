@@ -1,0 +1,57 @@
+name: Release
+
+# Every merge to main publishes its APK as the latest release, so the website's download
+# link (releases/latest/download/outspoken.apk) always gives the newest build.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publish APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      # The same shared debug key as CI, so a release installs over a CI APK and the last release.
+      - name: Use the shared debug key
+        env:
+          DEBUG_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$DEBUG_KEYSTORE_B64" ]; then
+            echo "::warning::DEBUG_KEYSTORE_B64 is not set, the APK gets a new random debug key"
+            exit 0
+          fi
+          mkdir -p ~/.android
+          base64 -d <<< "$DEBUG_KEYSTORE_B64" > ~/.android/debug.keystore
+      - run: ./gradlew assembleDebug
+      - name: Check the APK has no INTERNET permission
+        run: |
+          aapt2="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)aapt2"
+          if "$aapt2" dump permissions app/build/outputs/apk/debug/app-debug.apk | grep -q "android.permission.INTERNET"; then
+            echo "::error::The APK requests the INTERNET permission"
+            exit 1
+          fi
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk outspoken.apk
+          tag="build-${GITHUB_RUN_NUMBER}"
+          gh release create "$tag" outspoken.apk \
+            --target "$GITHUB_SHA" \
+            --title "Outspoken build ${GITHUB_RUN_NUMBER}" \
+            --generate-notes \
+            --latest

@@ -1,0 +1,48 @@
+name: Website
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  pull-requests: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Publish website
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Put the site together
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p _site/assets
+          cp -r site/. _site/
+          cp -r docs/images docs/video _site/assets/
+          cp app/src/main/res/font/urbanist.ttf _site/assets/urbanist.ttf
+          mkdir -p _site/assets/team
+          for who in DarkBird10020 Atul-Chahar; do
+            # A photo committed in site/assets/team/ wins over the GitHub profile picture.
+            [ -f "_site/assets/team/$who.png" ] || curl -fsSL "https://github.com/$who.png?size=240" -o "_site/assets/team/$who.png"
+          done
+          gh pr list --repo "$GITHUB_REPOSITORY" --state merged --limit 500 \
+            --json number,title,body,mergedAt,author,url | python3 .github/scripts/changelog.py > _site/changelog.json
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
