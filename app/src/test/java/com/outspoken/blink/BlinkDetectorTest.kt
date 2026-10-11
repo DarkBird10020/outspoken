@@ -277,6 +277,64 @@ class BlinkDetectorTest {
         assertFalse(detector.eitherEyeShut(eyesWithGaps(0.74f, 0.57f, 0.21f, 0.16f)))
     }
 
+    // The 21:07 calibration on the phone: open 0.24 / 0.21, closed 0.05 / 0.06, looking down
+    // 0.16 / 0.17.
+    private val eveningLines = BlinkSettings(
+        closedBelow = 0.54f,
+        openAbove = 0.66f,
+        minBlinkMs = 400,
+        maxBlinkMs = 1_950,
+        shapeClosedBelow = 0.104f,
+        shapeOpenAbove = 0.133f,
+        rightShapeClosedBelow = 0.117f,
+        rightShapeOpenAbove = 0.143f,
+        gapRest = 0.24f,
+        rightGapRest = 0.21f,
+    )
+
+    @Test
+    fun `the lid gap lines follow eyes that read wider open than at calibration`() {
+        // The next morning (05:46 run, calibration skipped) the eyes read open at 0.31 / 0.28 and
+        // closes came down to 0.15 / 0.11 (05:57:15), under the evening lines a half shut.
+        val lines = mutableListOf<String>()
+        val scaled = BlinkDetector(eveningLines) { _, message -> lines += message }
+        fun feed(ms: Long, sample: () -> EyeSample): List<BlinkEvent> {
+            val events = mutableListOf<BlinkEvent>()
+            val end = time + ms
+            while (time < end) {
+                scaled.onSample(sample())?.let(events::add)
+                time += 33
+            }
+            return events
+        }
+        feed(3_000) { eyesWithGaps(0.92f, 0.85f, 0.31f, 0.28f) }
+        assertTrue(lines.toString(), lines.any { it.startsWith("lid gap lines x1.29 / x1.33") })
+        val close = feed(900) { eyesWithGaps(0.45f, 0.35f, 0.15f, 0.11f) } + feed(300) { eyesWithGaps(0.92f, 0.85f, 0.31f, 0.28f) }
+        assertTrue(close.single() is BlinkEvent.Blink)
+        // Looking down at the morning's lid height (the evening's 0.16 / 0.17, 1.3 times wider) is
+        // still no close.
+        val down = feed(900) { eyesWithGaps(0.45f, 0.35f, 0.21f, 0.21f) } + feed(300) { eyesWithGaps(0.92f, 0.85f, 0.31f, 0.28f) }
+        assertEquals(emptyList<BlinkEvent>(), down)
+    }
+
+    @Test
+    fun `eyes open as wide as at calibration keep the lines as they are`() {
+        detector.settings = eveningLines
+        hold(3_000) { eyesWithGaps(0.92f, 0.85f, 0.24f, 0.21f) }
+        assertEquals(0.104f, detector.shutLine(rightEye = false)!!, 0.002f)
+        val events = hold(900) { eyesWithGaps(0.45f, 0.35f, 0.15f, 0.11f) } + hold(300) { eyesWithGaps(0.92f, 0.85f, 0.24f, 0.21f) }
+        assertEquals(emptyList<BlinkEvent>(), events)
+        assertEquals(1, detector.missedInARow)
+    }
+
+    @Test
+    fun `lines saved without the open gaps are not scaled`() {
+        detector.settings = eveningLines.copy(gapRest = null, rightGapRest = null)
+        hold(3_000) { eyesWithGaps(0.92f, 0.85f, 0.31f, 0.28f) }
+        assertEquals(0.104f, detector.shutLine(rightEye = false)!!, 0.0001f)
+        assertEquals(0.117f, detector.shutLine(rightEye = true)!!, 0.0001f)
+    }
+
     @Test
     fun `a real close passes both checks`() {
         detector.settings = gapSettings

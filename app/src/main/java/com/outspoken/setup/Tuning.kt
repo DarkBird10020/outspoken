@@ -19,7 +19,11 @@ data class Tuning(
         // times in 11 s). Quick deliberate closes are the same length, so a pick needs a longer
         // hold.
         minBlinkMs = 400,
-        maxBlinkMs = 1_500,
+        // Up to just under the 2 s help hold. At 1.5 s, closes of 1.54 to 1.91 s were ignored and
+        // chose nothing, seven times in three runs (17:35:42, 18:17:55, 18:34:09, 21:05:28,
+        // 05:57:28 to 05:57:38); each time the person was choosing a card, and no help hold
+        // ended in that gap.
+        maxBlinkMs = LONGEST_PICK_MS,
         // A pick waits for the eyes to open. Choosing while shut said the lit card 0.4 s into
         // every help hold (PRD F8: eyes shut 2 s, then a confirm blink), before the alarm.
         chooseWhileShut = false,
@@ -74,6 +78,18 @@ const val MAX_PRACTICE_BLINK_MS = 400L
 /** No pick hold below this: unprompted blinks on the phone reached 242 ms. */
 const val MIN_PICK_HOLD_MS = 350L
 
+/** The longest close that picks: just under the 2 s help hold, so every shorter close does something. */
+const val LONGEST_PICK_MS = 1_950L
+
+/**
+ * The longest blink saved on the phone. Builds before version 3 saved the old 1.5 s default with
+ * every calibration, so that value is read as the new default; one set by hand is kept.
+ */
+fun savedLongestBlink(saved: Long, version: Int): Long =
+    if (version < 3 && saved == OLD_LONGEST_PICK_MS) LONGEST_PICK_MS else saved
+
+private const val OLD_LONGEST_PICK_MS = 1_500L
+
 /** Keeps [Tuning] across app restarts. */
 class TuningStore(context: Context) {
 
@@ -87,7 +103,7 @@ class TuningStore(context: Context) {
         // Guard against stale early settings saved on device that caused hyper-sensitive triggers
         // Builds before version 2 let the practice round save up to 600 ms, which then threw away
         // deliberate closes (phone log 01:30:06 "blink ignored 595 ms, shorter than 600 ms").
-        val oldPractice = prefs.getInt("version", 1) < VERSION && rawMinBlink > MAX_PRACTICE_BLINK_MS
+        val oldPractice = prefs.getInt("version", 1) < 2 && rawMinBlink > MAX_PRACTICE_BLINK_MS
         val safeMinBlink = if (rawMinBlink < MIN_PICK_HOLD_MS || oldPractice) blink.minBlinkMs else rawMinBlink
         val safeLookStrength = if (rawLookStrength < 0.35f) default.gaze.lookStrength else rawLookStrength
         return Tuning(
@@ -95,11 +111,13 @@ class TuningStore(context: Context) {
                 closedBelow = prefs.getFloat("closedBelow", blink.closedBelow),
                 openAbove = prefs.getFloat("openAbove", blink.openAbove),
                 minBlinkMs = safeMinBlink,
-                maxBlinkMs = prefs.getLong("maxBlinkMs", blink.maxBlinkMs),
+                maxBlinkMs = savedLongestBlink(prefs.getLong("maxBlinkMs", blink.maxBlinkMs), prefs.getInt("version", 1)),
                 shapeClosedBelow = prefs.getFloat("shapeClosedBelow", NOT_SET).takeIf { it != NOT_SET },
                 shapeOpenAbove = prefs.getFloat("shapeOpenAbove", NOT_SET).takeIf { it != NOT_SET },
                 rightShapeClosedBelow = prefs.getFloat("rightShapeClosedBelow", NOT_SET).takeIf { it != NOT_SET },
                 rightShapeOpenAbove = prefs.getFloat("rightShapeOpenAbove", NOT_SET).takeIf { it != NOT_SET },
+                gapRest = prefs.getFloat("gapRest", NOT_SET).takeIf { it != NOT_SET },
+                rightGapRest = prefs.getFloat("rightGapRest", NOT_SET).takeIf { it != NOT_SET },
             ),
             scanMs = prefs.getLong("scanMs", default.scanMs),
             moveByEyes = prefs.getBoolean("moveByEyes", default.moveByEyes),
@@ -148,6 +166,8 @@ class TuningStore(context: Context) {
             .putFloat("shapeOpenAbove", tuning.blink.shapeOpenAbove ?: NOT_SET)
             .putFloat("rightShapeClosedBelow", tuning.blink.rightShapeClosedBelow ?: NOT_SET)
             .putFloat("rightShapeOpenAbove", tuning.blink.rightShapeOpenAbove ?: NOT_SET)
+            .putFloat("gapRest", tuning.blink.gapRest ?: NOT_SET)
+            .putFloat("rightGapRest", tuning.blink.rightGapRest ?: NOT_SET)
             .putLong("scanMs", tuning.scanMs)
             .putBoolean("moveByEyes", tuning.moveByEyes)
             .putBoolean("lookDown", tuning.lookDown)
@@ -172,6 +192,6 @@ class TuningStore(context: Context) {
 
     private companion object {
         const val NOT_SET = -1f
-        const val VERSION = 2
+        const val VERSION = 3
     }
 }
