@@ -96,8 +96,9 @@ class TuningDefaultsTest {
     }
 
     @Test
-    fun `phone control shows its tips until they are done, and stays on in the app opened`() {
-        assertEquals(true, Tuning().controlTips)
+    fun `phone control shows no tips unless turned on, and stays on in the app opened`() {
+        // The owner wants no tutorial over other apps (9:57).
+        assertEquals(false, Tuning().controlTips)
         // Ending it in the app would leave the person with no way back by eye and no help hold.
         assertEquals(false, Tuning().controlEndsInApp)
     }

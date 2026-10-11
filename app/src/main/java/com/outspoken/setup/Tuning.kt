@@ -85,10 +85,11 @@ data class Tuning(
      */
     val phoneControl: Boolean = false,
     /**
-     * Phone control's tips: the grey screen and the big card over other apps. On until Skip tips
-     * is tapped or an app is first opened by eye (owner: the "tutorial" never ended).
+     * Phone control's tips: the grey screen and the big card over other apps. Off: the owner
+     * wants no tutorial over other apps ("don't give the tutorial", 9:57). Settings turns them
+     * on; they end again with Skip tips or the first app opened by eye.
      */
-    val controlTips: Boolean = true,
+    val controlTips: Boolean = false,
     /**
      * Phone control ends once an app is opened by eye (owner request). Off by default: the
      * person could then neither come back by eye nor call for help from that app.

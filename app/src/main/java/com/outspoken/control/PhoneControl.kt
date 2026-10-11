@@ -53,7 +53,7 @@ object PhoneControl {
      * never ended (screenshot and logs-89, 09:41); it ends with Skip tips, or once an app has been
      * opened by eye, and Settings can bring it back.
      */
-    var tips = true
+    var tips = false
         set(value) {
             field = value
             overlay?.showTips(value)
@@ -192,8 +192,8 @@ object PhoneControl {
         val lit = scan.lit()
         val waiting = notice
         val shown = when {
-            eyesLost -> (lit ?: Lit(null, "")).copy(label = "Eyes not read", action = "The camera has stopped: open Outspoken")
-            waiting != null -> (lit ?: Lit(null, "")).copy(action = waiting)
+            eyesLost -> (lit ?: Lit(null, "")).copy(notice = "Eyes not read: the camera has stopped, open Outspoken")
+            waiting != null -> (lit ?: Lit(null, "")).copy(notice = waiting)
             else -> lit
         }
         overlay?.light(shown?.copy(moves = moveHint))
@@ -550,7 +550,7 @@ object PhoneControl {
             val textWidth = width - 4 * margin
             val lines = listOf(
                 title to now.label.take(MAX_LABEL),
-                body to now.action,
+                body to now.notice.ifEmpty { now.action },
                 small to listOfNotNull(
                     "${now.step} of ${now.of}".takeIf { now.of > 0 },
                     now.moves.ifEmpty { null },
@@ -578,25 +578,26 @@ object PhoneControl {
         }
 
         /**
-         * Without the tips: no grey screen, the green box, and one small line with what is lit
-         * and what a close does, at the end of the screen away from the lit part.
+         * Without the tips: no grey screen and no words over the app, only the green box round
+         * what is lit. The owner took even one line of instructions for a tutorial (screenshot,
+         * 9:57). A menu entry has no place on screen, so its name alone shows in a small chip; a
+         * short notice ("Nothing to scroll here", "Eyes not read") shows the same way.
          */
         private fun drawSmall(canvas: Canvas, now: Lit, litRect: RectF?, local: (Box) -> RectF) {
             now.parts.forEach { canvas.drawRoundRect(local(it), 8 * density, 8 * density, part) }
             litRect?.let { canvas.drawRoundRect(it, 14 * density, 14 * density, box) }
+            val words = now.notice.ifEmpty { if (litRect == null) now.label else "" }
+            if (words.isEmpty()) return
             val margin = 16 * density
-            val textWidth = width - 4 * margin
-            val label = fit(now.label, smallTitle, textWidth)
-            val action = fit(now.action, small, textWidth)
-            val pillHeight = smallTitle.textSize + small.textSize + 8 * density + 2 * margin
-            val top = if (litRect != null && litRect.centerY() > height / 2) CARD_TOP_DP * density else height - pillHeight - 56 * density
-            val area = RectF(margin, top, width - margin, top + pillHeight)
+            val text = fit(words, smallTitle, width - 4 * margin)
+            val chipWidth = smallTitle.measureText(text) + 2 * margin
+            val chipHeight = smallTitle.textSize + 2 * margin
+            val top = if (litRect != null && litRect.centerY() > height / 2) CARD_TOP_DP * density else height - chipHeight - 56 * density
+            val left = (width - chipWidth) / 2
+            val area = RectF(left, top, left + chipWidth, top + chipHeight)
             canvas.drawRoundRect(area, 20 * density, 20 * density, card)
             canvas.drawRoundRect(area, 20 * density, 20 * density, part)
-            var y = area.top + margin + smallTitle.textSize
-            canvas.drawText(label, area.left + margin, y, smallTitle)
-            y += 8 * density + small.textSize
-            canvas.drawText(action, area.left + margin, y, small)
+            canvas.drawText(text, area.left + margin, area.top + margin + smallTitle.textSize * 0.8f, smallTitle)
         }
 
         /** [text] cut with "…" to fit one line of [width]. */

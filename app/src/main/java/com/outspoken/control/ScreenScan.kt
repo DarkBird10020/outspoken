@@ -50,6 +50,8 @@ data class Lit(
     val of: Int = 0,
     val parts: List<Box> = emptyList(),
     val moves: String = "",
+    /** Why the last choice did nothing, or that the eyes are not read; shown for a moment. */
+    val notice: String = "",
 )
 
 /**
