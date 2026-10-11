@@ -114,7 +114,10 @@ object WhatsAppRun {
                 AppLog.write("help", "WhatsApp SOS to $who: no \"Start voice call?\" question in ${waited / 1_000} s; buttons on screen: ${lastSeen.joinToString()}")
                 next()
             } else {
-                val screen = if (buttons == null) "WhatsApp not on screen" else "buttons on screen: ${lastSeen.joinToString()}"
+                // The buttons last seen in WhatsApp, also when it has left the screen: at 07:22:01 the
+                // call button was missed with WhatsApp gone, and the log could not say what it showed.
+                val seen = "buttons last seen in WhatsApp: ${lastSeen.joinToString().ifEmpty { "none" }}"
+                val screen = if (buttons == null) "WhatsApp not on screen now; $seen" else seen
                 AppLog.write("help", "WhatsApp SOS to $who: ${step.what} not found in ${waited / 1_000} s; $screen")
                 steps.clear()
             }
