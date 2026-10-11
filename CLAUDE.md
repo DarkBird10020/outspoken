@@ -34,6 +34,7 @@ Do not create visual design. A teammate makes it and sends it as design files.
 - Open-source libraries are allowed. Every library added must also be listed in the README attribution section in the same commit.
 - No keys, tokens or secrets in the repo.
 - No `INTERNET` permission in the manifest, ever. No cloud features, accounts or sync.
+- Owner exception (2026-10-11): on a phone with no SIM, the SOS may hand its message and call to WhatsApp (`help/WhatsAppSos.kt`), which the carer switches on. The app itself still has no `INTERNET` permission.
 - The model must run through a runtime HackTracker can see. Keep it behind the suggestion engine interface so it can be swapped.
 
 ## 4. Build order

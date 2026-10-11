@@ -26,4 +26,18 @@ fun sosMessage(time: String, lastSaid: String?): String =
     "Outspoken: help needed now. Eyes were held shut to call for help at $time." +
         (lastSaid?.takeIf { it.isNotBlank() }?.let { " Last said: \"$it\"." } ?: "")
 
+/** The SIM an SOS text goes out on, and why that one, for the log. */
+data class SimChoice(val subId: Int?, val why: String)
+
+/**
+ * The SIM for the SOS text: the phone's SIM for texts, else its default SIM (the one for calls,
+ * else the first SIM). Picked here, as with none set for texts Android would ask, and nobody in
+ * bed can answer. [setFor] and [phoneDefault] below 0 mean none.
+ */
+fun sosSim(setFor: Int, phoneDefault: Int, use: String): SimChoice = when {
+    setFor >= 0 -> SimChoice(setFor, "the phone's SIM for $use")
+    phoneDefault >= 0 -> SimChoice(phoneDefault, "no SIM set for $use, so the phone's default SIM")
+    else -> SimChoice(null, "no SIM found")
+}
+
 private val EMERGENCY = setOf("100", "101", "102", "108", "112", "911")

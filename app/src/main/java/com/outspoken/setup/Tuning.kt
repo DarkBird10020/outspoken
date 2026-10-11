@@ -66,6 +66,12 @@ data class Tuning(
     val sosNumber: String = "",
     val sosText: Boolean = true,
     val sosCall: Boolean = true,
+    /**
+     * With no SIM, a WhatsApp message and a WhatsApp call instead (owner request; the owner's
+     * phone has no SIM). Off until the carer turns them on for the person.
+     */
+    val sosWhatsApp: Boolean = false,
+    val sosWhatsAppCall: Boolean = false,
 ) {
     /** The gaze settings the stepper uses: the look down lines only when looking down is on. */
     val activeGaze: GazeSettings
@@ -129,6 +135,8 @@ class TuningStore(context: Context) {
             sosNumber = prefs.getString("sosNumber", default.sosNumber).orEmpty(),
             sosText = prefs.getBoolean("sosText", default.sosText),
             sosCall = prefs.getBoolean("sosCall", default.sosCall),
+            sosWhatsApp = prefs.getBoolean("sosWhatsApp", default.sosWhatsApp),
+            sosWhatsAppCall = prefs.getBoolean("sosWhatsAppCall", default.sosWhatsAppCall),
             // Saved as the signs switched off, so a sign added later starts on.
             handSigns = HandSign.entries.toSet() -
                 prefs.getStringSet("handSignsOff", emptySet()).orEmpty().mapNotNull(HandSign::fromKey).toSet(),
@@ -178,6 +186,8 @@ class TuningStore(context: Context) {
             .putString("sosNumber", tuning.sosNumber)
             .putBoolean("sosText", tuning.sosText)
             .putBoolean("sosCall", tuning.sosCall)
+            .putBoolean("sosWhatsApp", tuning.sosWhatsApp)
+            .putBoolean("sosWhatsAppCall", tuning.sosWhatsAppCall)
             .putStringSet("handSignsOff", (HandSign.entries - tuning.handSigns).map { it.key }.toSet())
             .putFloat("lookStrength", tuning.gaze.lookStrength)
             .putFloat("downStrength", tuning.gaze.downStrength ?: NOT_SET)

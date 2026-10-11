@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Outspoken</string>
+    <string name="sos_helper_label">Outspoken SOS over WhatsApp</string>
+    <string name="sos_helper_description">When the help alarm sounds on a phone with no SIM, Outspoken opens WhatsApp with the SOS message for the saved contact and presses Send and the call button, as the person in bed cannot. It looks only at WhatsApp, and only while an SOS is going out.</string>
 </resources>
