@@ -12,9 +12,17 @@
     <uses-feature
         android:name="android.hardware.microphone"
         android:required="false" />
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="false" />
 
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- SOS contact: the help alarm texts and calls one number saved in Settings, over the phone
+         network, not the internet. Asked for only when a number is saved. -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.CALL_PHONE" />
 
     <!-- Lets the app see Downloads, to pick up a model the browser downloaded. The app itself
          never goes online. -->

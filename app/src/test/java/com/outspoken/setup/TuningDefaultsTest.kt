@@ -52,6 +52,26 @@ class TuningDefaultsTest {
     }
 
     @Test
+    fun `closes up to just under the help hold pick`() {
+        // 05:57:28 to 05:57:38 on the phone: closes of 1544, 1604 and 1709 ms chose nothing.
+        frames(1_000, open = 0.95f)
+        listOf(1_544L, 1_604L, 1_709L, 1_906L).forEach { closedMs ->
+            val events = frames(closedMs, open = 0.05f) + frames(500, open = 0.95f)
+            assertEquals("a $closedMs ms close did not pick", 1, picks(events).size)
+        }
+        // The help hold (2 s) is never a pick.
+        val hold = frames(2_100, open = 0.05f) + frames(500, open = 0.95f)
+        assertTrue(picks(hold).isEmpty())
+    }
+
+    @Test
+    fun `the old longest blink saved with a calibration becomes the new one, a hand-set one stays`() {
+        assertEquals(LONGEST_PICK_MS, savedLongestBlink(1_500, version = 2))
+        assertEquals(1_200L, savedLongestBlink(1_200, version = 2))
+        assertEquals(1_500L, savedLongestBlink(1_500, version = 3))
+    }
+
+    @Test
     fun `the pick hold stays above every unprompted blink`() {
         assertTrue(Tuning().blink.minBlinkMs >= MIN_PICK_HOLD_MS)
         assertTrue(MIN_PICK_HOLD_MS > 242)

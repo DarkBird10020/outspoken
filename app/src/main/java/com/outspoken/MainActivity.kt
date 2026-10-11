@@ -1,11 +1,14 @@
 package com.outspoken
 
+import android.graphics.Bitmap
 import android.Manifest
 import com.outspoken.suggest.mostlyLatin
 import com.outspoken.listen.mostlyDevanagari
 import com.outspoken.ui.ProfileScreen
 import com.outspoken.ui.ProfileEditScreen
 import com.outspoken.profile.ProfileStore
+import com.outspoken.profile.FaceBox
+import com.outspoken.profile.faceCrop
 import com.outspoken.profile.PatientProfile
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
@@ -49,6 +52,11 @@ import com.outspoken.hand.HandReader
 import com.outspoken.hand.HandReading
 import com.outspoken.help.HelpAlarm
 import com.outspoken.help.HelpStep
+import com.outspoken.help.SosCaller
+import com.outspoken.help.isEmergencyNumber
+import com.outspoken.help.maskedNumber
+import com.outspoken.help.sosMessage
+import com.outspoken.help.sosNumber
 import com.outspoken.listen.HeardFilter
 import com.outspoken.listen.Listener
 import com.outspoken.listen.SpeechWish
@@ -95,9 +103,12 @@ import com.outspoken.ui.TranscriptUi
 import com.outspoken.ui.describeStats
 import com.outspoken.ui.liveStatsLine
 import com.outspoken.ui.theme.OutspokenTheme
+import kotlin.coroutines.resume
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -151,6 +162,12 @@ class MainActivity : ComponentActivity() {
     private var micGranted = false
     private var visible = false
 
+    private val sosPermissions =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+            AppLog.write("help", "SOS permissions: " + result.entries.joinToString { "${it.key.substringAfterLast('.')} ${if (it.value) "granted" else "denied"}" })
+            sosAllowed = sos.has(Manifest.permission.SEND_SMS) && sos.has(Manifest.permission.CALL_PHONE)
+        }
+
     /**
      * Set from launch until the start calibration opens. Listening began on the main page and was
      * stopped 1 s later by the calibration (17:47:05, 17:59:29), so it now waits for it.
@@ -184,6 +201,10 @@ class MainActivity : ComponentActivity() {
     /** What the person told the app about themselves; goes into every model prompt. Never logged. */
     private var profile by mutableStateOf(PatientProfile())
     private var profilePhoto by mutableStateOf<ImageBitmap?>(null)
+
+    /** Seconds left before the selfie, 0 while the camera takes it, null when none is wanted. */
+    private var selfieCountdown by mutableStateOf<Int?>(null)
+    private var selfieJob: Job? = null
 
     private val photoPicker =
         registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let(::savePhoto) }
@@ -262,6 +283,8 @@ class MainActivity : ComponentActivity() {
         }
         speaker.language = cardLanguage.voice
         alarm = HelpAlarm(this)
+        sos = SosCaller(this) { sosStatus = it }
+        sosAllowed = sos.has(Manifest.permission.SEND_SMS) && sos.has(Manifest.permission.CALL_PHONE)
         // Tells the person, eyes still shut, that the help hold is done.
         cue = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, CUE_VOLUME) }.getOrNull()
         listener = Listener(
@@ -361,6 +384,7 @@ class MainActivity : ComponentActivity() {
                         lastSaid = controller.history.lastOrNull() ?: "",
                         onSoundOff = alarm::stop,
                         onDismiss = ::stopHelp,
+                        sosLine = sosStatus,
                     )
                 }
             } else if (cameraGranted && screen == Screen.Calibrate) {
@@ -425,7 +449,9 @@ class MainActivity : ComponentActivity() {
                         onBack = { show(Screen.Conversation) },
                         onSettings = { show(Screen.Settings) },
                         onEdit = { show(Screen.ProfileEdit) },
-                        onPhoto = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        onPickPhoto = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        onTakeSelfie = ::takeSelfie,
+                        selfieCountdown = selfieCountdown,
                     )
                 }
             } else if (screen == Screen.ProfileEdit) {
@@ -443,6 +469,12 @@ class MainActivity : ComponentActivity() {
                 OutspokenTheme {
                     SettingsScreen(
                         tuning = tuning,
+                        sosLine = sosLine(),
+                        onSaveSos = ::saveSos,
+                        onTestSos = {
+                            AppLog.write("help", "SOS test from Settings")
+                            triggerSos()
+                        },
                         listenLine = listenLine,
                         missingVoice = if (voiceMissing) cardLanguage.label else null,
                         onInstallVoice = ::installVoice,
@@ -645,6 +677,7 @@ class MainActivity : ComponentActivity() {
         visible = true
         watchDownloads()
         watchTemperature()
+        if (::sos.isInitialized) sosAllowed = sos.has(Manifest.permission.SEND_SMS) && sos.has(Manifest.permission.CALL_PHONE)
         if (::speaker.isInitialized) speaker.checkVoice()
         updateListening()
     }
@@ -664,6 +697,7 @@ class MainActivity : ComponentActivity() {
         listener.release()
         alarm.stop()
         cue?.release()
+        sos.release()
         // Closed on the camera thread, after any frame already being analysed, so no frame reaches
         // a closed face tracker.
         analyzerExecutor.execute {
@@ -788,14 +822,63 @@ class MainActivity : ComponentActivity() {
             HelpStep.Alarm -> {
                 alarm.start()
                 show(Screen.Help)
+                triggerSos()
             }
         }
     }
 
     private fun stopHelp() {
         alarm.stop()
+        sosStatus = null
         AppLog.write("help", "someone came")
         show(Screen.Conversation)
+    }
+
+    private lateinit var sos: SosCaller
+
+    /** Who the help alarm reached, for the help screen; null when no SOS contact was tried. */
+    private var sosStatus by mutableStateOf<String?>(null)
+    private var sosAllowed by mutableStateOf(false)
+
+    /** Why the typed SOS number was not saved, until the next save. */
+    private var sosNote by mutableStateOf<String?>(null)
+
+    /** Owner request: the help alarm texts and then calls the SOS contact, if one is saved. */
+    private fun triggerSos() {
+        val number = tuning.sosNumber
+        if (number.isEmpty() || (!tuning.sosText && !tuning.sosCall)) return
+        val time = LocalTime.now().let { String.format(Locale.US, "%02d:%02d", it.hour, it.minute) }
+        sos.alert(number, sosMessage(time, controller.history.lastOrNull()), tuning.sosText, tuning.sosCall)
+    }
+
+    /** What the help alarm will do with the SOS contact, for Settings. */
+    private fun sosLine(): String {
+        sosNote?.let { return it }
+        val number = tuning.sosNumber.ifEmpty { return "No contact yet: the help alarm sounds on this phone only." }
+        val who = maskedNumber(number)
+        return when {
+            !tuning.sosText && !tuning.sosCall -> "Saved ($who), but texting and calling are both off."
+            !sosAllowed -> "Allow calls and texts so the help alarm can reach $who: tap Save."
+            tuning.sosCall && isEmergencyNumber(number) -> "$number cannot be called by an app, only texted. A person's number works best."
+            else -> "The help alarm " + listOfNotNull("texts".takeIf { tuning.sosText }, "calls".takeIf { tuning.sosCall }).joinToString(" and then ") + " $who."
+        }
+    }
+
+    private fun saveSos(typed: String) {
+        val number = if (typed.isBlank()) "" else sosNumber(typed) ?: run {
+            sosNote = "\"$typed\" is not a phone number."
+            return
+        }
+        sosNote = null
+        val next = tuning.copy(sosNumber = number)
+        applyTuning(next)
+        tuningStore.save(next)
+        if (number.isEmpty()) {
+            AppLog.write("help", "SOS contact removed")
+            return
+        }
+        AppLog.write("help", "SOS contact saved: ${maskedNumber(number)}")
+        sosPermissions.launch(arrayOf(Manifest.permission.SEND_SMS, Manifest.permission.CALL_PHONE))
     }
 
     /** Everything the phone says goes through here, so the microphone does not take it for a question. */
@@ -977,12 +1060,62 @@ class MainActivity : ComponentActivity() {
     private fun savePhoto(uri: Uri) {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                profileStore.savePhoto(uri)
+                val saved = profileStore.savePhoto(uri)
                 val photo = profileStore.photo()?.asImageBitmap()
                 launch(Dispatchers.Main) { profilePhoto = photo }
-                AppLog.write("profile", "photo saved")
+                AppLog.write("profile", "photo saved, $saved")
             } catch (e: Exception) {
                 AppLog.write("profile", "could not save the photo: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Counts down so the person can look at the phone, then keeps the eye camera's next frame,
+     * cut around the face, as the profile photo (owner request: no way to take a selfie).
+     */
+    private fun takeSelfie() {
+        if (!cameraGranted) {
+            AppLog.write("profile", "selfie not taken: no camera permission")
+            return
+        }
+        if (selfieJob?.isActive == true) return
+        selfieJob = lifecycleScope.launch {
+            try {
+                for (left in SELFIE_COUNTDOWN downTo 1) {
+                    selfieCountdown = left
+                    delay(1_000)
+                }
+                selfieCountdown = 0
+                val shot = withTimeoutOrNull(SELFIE_WAIT_MS) {
+                    suspendCancellableCoroutine<Pair<Bitmap, FaceBox?>> { waiting ->
+                        eyeReader.captureSelfie { frame, face -> if (waiting.isActive) waiting.resume(frame to face) }
+                        waiting.invokeOnCancellation { eyeReader.cancelSelfie() }
+                    }
+                }
+                if (shot == null) {
+                    AppLog.write("profile", "selfie not taken: no camera frame in $SELFIE_WAIT_MS ms")
+                    return@launch
+                }
+                val (frame, face) = shot
+                val photo = withContext(Dispatchers.IO) {
+                    try {
+                        val crop = faceCrop(frame.width, frame.height, face)
+                        val saved = profileStore.savePhoto(Bitmap.createBitmap(frame, crop.left, crop.top, crop.width, crop.height))
+                        AppLog.write(
+                            "profile",
+                            "selfie saved, ${if (face == null) "no face found so the middle was kept" else "cut around the face"}, " +
+                                "camera picture ${frame.width}x${frame.height}, kept ${crop.width}x${crop.height}, saved $saved",
+                        )
+                        profileStore.photo()?.asImageBitmap()
+                    } catch (e: Exception) {
+                        AppLog.write("profile", "could not save the selfie: ${e.message}")
+                        null
+                    }
+                }
+                photo?.let { profilePhoto = it }
+            } finally {
+                selfieCountdown = null
             }
         }
     }
@@ -1187,6 +1320,11 @@ class MainActivity : ComponentActivity() {
         val LISTENING_SCREENS = setOf(Screen.Conversation, Screen.Transcript, Screen.Stats)
         const val DOWNLOAD_CHECK_MS = 3_000L
         const val TTS_SETTINGS = "com.android.settings.TTS_SETTINGS"
+        const val SELFIE_COUNTDOWN = 3
+
+        /** The camera gives a frame about every 50 ms; none in this long means it is not running. */
+        const val SELFIE_WAIT_MS = 2_000L
+
         const val CLOSES_MISSED_HINT = "Closes are not being read. Wearing glasses? Tap here to calibrate with them on."
         const val CUE_MS = 200
         const val CUE_VOLUME = 80

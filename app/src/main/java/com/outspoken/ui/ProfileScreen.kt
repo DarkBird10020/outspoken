@@ -30,7 +30,10 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.outspoken.R
+import com.outspoken.profile.Gender
 import com.outspoken.profile.PatientProfile
+import com.outspoken.profile.genderOf
+import com.outspoken.profile.languagesText
 import com.outspoken.ui.theme.InkFaint
 import com.outspoken.ui.theme.InkOnHelp
 import com.outspoken.ui.theme.InkOnModel
@@ -54,7 +57,9 @@ fun ProfileScreen(
     onBack: () -> Unit,
     onSettings: () -> Unit,
     onEdit: () -> Unit,
-    onPhoto: () -> Unit,
+    onPickPhoto: () -> Unit,
+    onTakeSelfie: () -> Unit,
+    selfieCountdown: Int?,
 ) {
     DesignScreen(Modifier.dottedCanvas(), gap = 16.dp, scrolls = true) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -89,7 +94,7 @@ fun ProfileScreen(
                     Text(if (profile.detailCount == 1) "detail\nsaved" else "details\nsaved", style = type(13, color = InkFaint), modifier = Modifier.padding(top = 4.dp))
                 }
             }
-            PhotoFrame(photo, onPhoto)
+            PhotoFrame(photo, selfieCountdown, onPickPhoto, onTakeSelfie)
         }
         AboutCard(profile, onEdit)
         HealthCard(profile)
@@ -98,21 +103,25 @@ fun ProfileScreen(
 }
 
 /** "he", "she" or "they", from what the profile says. */
-internal fun pronoun(gender: String): String = when (gender.trim().lowercase()) {
-    "male", "man", "m" -> "he"
-    "female", "woman", "f" -> "she"
-    else -> "they"
+internal fun pronoun(gender: String): String = when (genderOf(gender)) {
+    Gender.Male -> "he"
+    Gender.Female -> "she"
+    Gender.Unknown -> "they"
 }
 
+/**
+ * The photo, with a chip to take a selfie with the front camera and one to pick a picture. While
+ * a selfie counts down, the count shows instead. Two chips and the count are not in the design,
+ * which has one "Add photo" chip (listed as a design gap).
+ */
 @Composable
-private fun PhotoFrame(photo: ImageBitmap?, onPhoto: () -> Unit) {
+private fun PhotoFrame(photo: ImageBitmap?, selfieCountdown: Int?, onPickPhoto: () -> Unit, onTakeSelfie: () -> Unit) {
     val shape = RoundedCornerShape(66.dp)
     Box(
         Modifier
             .size(width = 132.dp, height = 176.dp)
             .surface(Surfaces.ProfilePhoto, shape)
-            .clip(shape)
-            .clickable(role = Role.Button, onClickLabel = "Add photo", onClick = onPhoto),
+            .clip(shape),
         contentAlignment = Alignment.BottomCenter,
     ) {
         if (photo != null) {
@@ -136,15 +145,39 @@ private fun PhotoFrame(photo: ImageBitmap?, onPhoto: () -> Unit) {
                 drawPath(body, Color.White)
             }
         }
-        Text(
-            if (photo == null) "Add photo" else "Change photo",
-            style = type(12, 600),
-            modifier = Modifier
-                .padding(bottom = 12.dp)
-                .surface(PhotoChip, RoundedCornerShape(14.dp))
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-        )
+        if (selfieCountdown != null) {
+            Text(
+                if (selfieCountdown > 0) "Look here\n$selfieCountdown" else "Hold still",
+                style = type(14, 600, align = TextAlign.Center),
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .surface(PhotoChip, RoundedCornerShape(14.dp))
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            )
+        } else {
+            Column(
+                Modifier.padding(bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                PhotoAction("Take selfie", onTakeSelfie)
+                PhotoAction(if (photo == null) "Add photo" else "Change photo", onPickPhoto)
+            }
+        }
     }
+}
+
+@Composable
+private fun PhotoAction(label: String, onClick: () -> Unit) {
+    Text(
+        label,
+        style = type(12, 600),
+        modifier = Modifier
+            .surface(PhotoChip, RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    )
 }
 
 private val PhotoChip = SurfaceStyle(
@@ -159,7 +192,7 @@ private fun AboutCard(profile: PatientProfile, onEdit: () -> Unit) {
         profile.calledName.fact("Called"),
         profile.gender.fact("Gender"),
         profile.age.fact("Age"),
-        profile.languages.fact("Speaks"),
+        languagesText(profile.languages).fact("Speaks"),
         profile.livesIn.fact("Lives in"),
         profile.work.fact("Used to work as"),
     )

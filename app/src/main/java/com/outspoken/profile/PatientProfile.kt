@@ -72,14 +72,16 @@ fun profilePrompt(profile: PatientProfile?): String? {
         if (p.gender.isNotBlank()) add(p.gender.trim().lowercase())
         if (p.livesIn.isNotBlank()) add("lives in ${p.livesIn.trim()}")
         if (p.work.isNotBlank()) add("used to work as ${p.work.trim().lowercase()}")
-        if (p.languages.isNotBlank()) add("speaks ${p.languages.trim()}")
+        if (p.languages.isNotBlank()) add("speaks ${languagesText(p.languages)}")
     }
     return buildString {
         appendLine("About the Person (use these names and facts when they fit; never invent others):")
         // Name and nickname on one line ("Ramesh Iyer (called Ramu)") gave "My name is Ramu" to
         // "What is your name", and never the full name (phone 19:18).
         if (name.isNotEmpty()) appendLine("- Full name: $name.")
-        if (called.isNotEmpty() && !called.equals(name, ignoreCase = true)) appendLine("- Family and friends call them $called.")
+        // "Family and friends call them atul", with no people listed, gave the card "Yes, I want
+        // to talk to Atul" (05:50:50 phone run): the model took the nickname for someone else.
+        if (called.isNotEmpty() && !called.equals(name, ignoreCase = true)) appendLine("- Nickname: $called. It is the Person's own name, never someone else's.")
         if (name.isNotEmpty()) appendLine("- Asked their name, one reply gives the full name: \"My name is $name\".")
         if (facts.isNotEmpty()) appendLine("- ${facts.joinToString(", ").replaceFirstChar { it.uppercase() }}.")
         if (p.people.isNotEmpty()) appendLine("- People close to them: ${p.people.joinToString(", ") { "${it.relation.trim().lowercase()} ${it.name.trim()}".trim() }}.")
@@ -130,14 +132,14 @@ fun decodeProfile(text: String): PatientProfile {
             "languages" -> p.copy(languages = value)
             "livesIn" -> p.copy(livesIn = value)
             "work" -> p.copy(work = value)
-            "like" -> p.copy(likes = p.likes + value)
-            "dislike" -> p.copy(dislikes = p.dislikes + value)
+            "like" -> p.copy(likes = p.likes + listItem(value))
+            "dislike" -> p.copy(dislikes = p.dislikes + listItem(value))
             "person" -> {
                 val (relation, name) = splitBar(value)
                 p.copy(people = p.people + Person(relation, name))
             }
-            "condition" -> p.copy(conditions = p.conditions + value)
-            "allergy" -> p.copy(allergies = p.allergies + value)
+            "condition" -> p.copy(conditions = p.conditions + listItem(value))
+            "allergy" -> p.copy(allergies = p.allergies + listItem(value))
             "notes" -> p.copy(notes = value)
             else -> p
         }
@@ -169,7 +171,27 @@ private fun splitBar(value: String): Pair<String, String> =
     if ('|' in value) value.substringBefore('|') to value.substringAfter('|') else "" to value
 
 /** One item per line, as typed in the editor, without blanks. Items may hold commas ("Chai, no sugar"). */
-fun splitList(text: String): List<String> = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+fun splitList(text: String): List<String> = text.lines().map(::listItem).filter { it.isNotEmpty() }
+
+/**
+ * An item without the comma or semicolon typed after it: "North Indian foods ," was saved and
+ * shown on its chip like that (05:49 phone run), from a list typed with commas and line breaks.
+ * Profiles saved before this are cleaned when read.
+ */
+private fun listItem(text: String) = text.trim().trimEnd(',', ';', ' ').trim()
+
+/** "hindi,english" as "hindi, english", for the profile page and the prompt. */
+fun languagesText(text: String): String =
+    text.split(',', ';', '/').map { it.trim() }.filter { it.isNotEmpty() }.joinToString(", ")
+
+enum class Gender { Male, Female, Unknown }
+
+/** The profile's gender field, as typed, in English or Hindi. */
+fun genderOf(text: String): Gender = when (text.trim().lowercase()) {
+    "male", "man", "m", "boy", "पुरुष", "आदमी", "लड़का" -> Gender.Male
+    "female", "woman", "f", "girl", "महिला", "औरत", "स्त्री", "लड़की" -> Gender.Female
+    else -> Gender.Unknown
+}
 
 /** "Wife: Meera" lines as typed in the editor; a line without a colon is a name alone. */
 fun parsePeople(text: String): List<Person> = text.lines().map { it.trim() }.filter { it.isNotEmpty() }.map { line ->

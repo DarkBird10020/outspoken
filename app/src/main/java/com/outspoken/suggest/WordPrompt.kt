@@ -47,7 +47,7 @@ fun buildWordPrompt(request: WordRequest): String = buildString {
     appendLine("Write 4 different sentences the Person may want to say, the most likely first.")
     appendLine("Each sentence: starts with exactly the words so far, then adds at most $MAX_ADDED_WORDS more words. First person, plain everyday words, said by the Person, never by the Visitor.")
     appendLine("Make the 4 sentences go on differently right after the words so far.")
-    if (request.language == AppLanguage.Hindi) appendLine(HINDI_LINE)
+    if (request.language == AppLanguage.Hindi) appendLine(hindiLine(request.profile))
     appendLine("Answer with only a JSON list of 4 strings.")
     appendLine()
     // One worked example: small models copy the shape of an example far more reliably than they

@@ -1,6 +1,7 @@
 package com.outspoken.suggest
 
 import com.outspoken.conversation.AppLanguage
+import com.outspoken.profile.PatientProfile
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -17,9 +18,24 @@ class HindiTest {
     }
 
     @Test
+    fun `Hindi cards use the person's gender when the profile has it`() {
+        fun prompt(gender: String) = buildPrompt(
+            SuggestionRequest(heardInHindi, hourOfDay = 10, language = AppLanguage.Hindi, profile = PatientProfile(gender = gender)),
+        )
+        assertTrue(prompt("male").contains("The Person is a man") && prompt("male").contains("थक गया"))
+        assertTrue(prompt("Female").contains("The Person is a woman") && prompt("Female").contains("थक गई"))
+        assertFalse(prompt("male").contains("Avoid words that show"))
+        assertTrue(prompt("").contains(HINDI_LINE))
+        val words = buildWordPrompt(WordRequest(heardInHindi, "मैं", language = AppLanguage.Hindi, profile = PatientProfile(gender = "female")))
+        assertTrue(words.contains("The Person is a woman"))
+    }
+
+    @Test
     fun `the reply prompt asks for Hindi with a Hindi example, and English does not`() {
         val hindi = buildPrompt(SuggestionRequest(heardInHindi, hourOfDay = 10, language = AppLanguage.Hindi))
         assertTrue(hindi.contains(HINDI_LINE))
+        // 18:01 on the phone: curt तुम commands and the masculine form in every card.
+        assertTrue(HINDI_LINE.contains("कृपया") && HINDI_LINE.contains("gender"))
         assertTrue(hindi.contains(EXAMPLE_ANSWER_HINDI))
         val english = buildPrompt(SuggestionRequest(listOf(Turn(true, "Are you in pain?")), hourOfDay = 10))
         assertFalse(english.contains(HINDI_LINE))

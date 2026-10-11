@@ -168,6 +168,8 @@ class Calibration(private val stepMs: Long = 2_500, private val settleMs: Long =
                 shapeOpenAbove = if (useGap) left!!.openLine else null,
                 rightShapeClosedBelow = if (useGap) right!!.shutLine else null,
                 rightShapeOpenAbove = if (useGap) right!!.openLine else null,
+                gapRest = if (useGap) left!!.rest else null,
+                rightGapRest = if (useGap) right!!.rest else null,
             ),
             gaze = current.gaze.copy(
                 lookStrength = if (upSeen) maxOf(upReach * LOOK_SHARE, MIN_UP_LINE) else current.gaze.lookStrength,
