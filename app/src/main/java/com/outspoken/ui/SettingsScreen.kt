@@ -241,7 +241,7 @@ private fun SosCard(
             PillButton("Save", { onSave(typed) }, Modifier.width(72.dp), style = Surfaces.StartButton, height = 52, size = 16, weight = 600)
         }
         // Not in the design (a design gap): the PRD's confirm close; off, sleep could call for help.
-        ToggleRow("Help: after the 2 s hold, a blink to confirm", tuning.helpConfirm) { onChange(tuning.copy(helpConfirm = it)) }
+        ToggleRow("Help: after the 2 s hold, blink twice to confirm", tuning.helpConfirm) { onChange(tuning.copy(helpConfirm = it)) }
         ToggleRow("Text them when help is called", tuning.sosText) { onChange(tuning.copy(sosText = it)) }
         ToggleRow("Then call them", tuning.sosCall) { onChange(tuning.copy(sosCall = it)) }
         // Not in the design (a design gap): WhatsApp for a phone with no SIM.

@@ -94,6 +94,13 @@ class PracticeController(
         publish()
     }
 
+    /** Settings changed elsewhere (calibration, sliders); a caught star builds on these, not old ones. */
+    fun useTuning(next: Tuning) {
+        tuning = next
+        detector.settings = next.blink
+        publish()
+    }
+
     private fun onBlink(blink: BlinkEvent.Blink) {
         if (caught < needed) {
             caught++

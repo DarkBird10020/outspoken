@@ -81,7 +81,7 @@ class HelpPractice(
         when (step) {
             HelpStep.HoldReached -> {
                 stage = HelpStage.OpenAndBlink
-                note = "Now open your eyes, then blink once."
+                note = "Now open your eyes, then blink twice quickly."
                 cue()
                 speak(note)
             }

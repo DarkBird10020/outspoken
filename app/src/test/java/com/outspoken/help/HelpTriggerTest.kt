@@ -138,4 +138,74 @@ class HelpTriggerTest {
         assertNull(blink(4_000, 4_600))
         assertFalse(trigger.isHold(600))
     }
+
+    @Test
+    fun `two quick blinks after the hold sound the alarm`() {
+        // Phone, 07:44:29: held 2.7 s, open 604 ms, then blinks of 200 and 241 ms with 74 ms open
+        // between. None counted before, and the call was cancelled.
+        shut(27_615, 30_316)
+        assertEquals(emptyList<HelpStep>(), shut(30_920, 31_120))
+        assertEquals(listOf(HelpStep.Alarm), shut(31_194, 31_435))
+        assertFalse(trigger.armed)
+    }
+
+    @Test
+    fun `quick blinks straight after a short open also confirm`() {
+        // Phone, 07:44:49: open 95 ms, blink 201 ms, open 96 ms, blink 330 ms.
+        shut(47_644, 49_979)
+        assertEquals(emptyList<HelpStep>(), shut(50_074, 50_275))
+        assertEquals(listOf(HelpStep.Alarm), shut(50_371, 50_701))
+    }
+
+    @Test
+    fun `a deliberate close soon after opening confirms`() {
+        // Phone, 07:37:53: open 142 ms, then a 567 ms close, taken for a flicker; the alarm came
+        // 6.6 s later from another close.
+        shut(51_083, 56_318)
+        assertEquals(HelpStep.Alarm, blink(56_460, 57_034))
+    }
+
+    @Test
+    fun `one quick blink after the hold is not a confirm`() {
+        shut(1_000, 3_500)
+        assertEquals(emptyList<HelpStep>(), shut(4_000, 4_200))
+        trigger.onEyes(null, 9_000)
+        assertFalse(trigger.armed)
+    }
+
+    @Test
+    fun `blinking now and then after the hold is not a confirm`() {
+        shut(1_000, 3_500)
+        // Ordinary blinks about two seconds apart, as anyone blinks with the eyes open.
+        assertEquals(emptyList<HelpStep>(), shut(4_000, 4_150))
+        assertEquals(emptyList<HelpStep>(), shut(6_000, 6_150))
+        assertEquals(emptyList<HelpStep>(), shut(7_900, 8_050))
+        assertTrue(trigger.armed)
+    }
+
+    @Test
+    fun `flickers too short to be blinks do not make a pair`() {
+        shut(1_000, 3_500)
+        // A frame or two shut, or open, as readings can jump while the eyes stay as they are.
+        assertEquals(emptyList<HelpStep>(), shut(3_600, 3_650))
+        assertEquals(emptyList<HelpStep>(), shut(3_700, 3_750))
+        assertEquals(emptyList<HelpStep>(), shut(4_000, 4_200))
+        assertEquals(emptyList<HelpStep>(), shut(4_230, 4_430))
+        assertTrue(trigger.armed)
+    }
+
+    @Test
+    fun `two quick blinks without a hold call nothing`() {
+        assertEquals(emptyList<HelpStep>(), shut(1_000, 1_200))
+        assertEquals(emptyList<HelpStep>(), shut(1_300, 1_500))
+        assertFalse(trigger.armed)
+    }
+
+    @Test
+    fun `two quick blinks after waking from sleep call nothing`() {
+        shut(1_000, 61_000)
+        assertEquals(emptyList<HelpStep>(), shut(61_300, 61_500))
+        assertEquals(emptyList<HelpStep>(), shut(61_600, 61_800))
+        assertFalse(trigger.armed)
+    }
 }

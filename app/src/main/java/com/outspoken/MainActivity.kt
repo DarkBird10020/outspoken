@@ -298,6 +298,8 @@ class MainActivity : ComponentActivity() {
         AppLog.write("app", "tuning $tuning")
         practiceController = PracticeController(
             initialTuning = tuning,
+            // Its closes are logged like the main page's, so a round that catches nothing shows why.
+            detector = BlinkDetector(tuning.blink, AppLog),
             log = AppLog,
             speak = ::say,
             onCalibrated = { calibrated ->
@@ -1066,6 +1068,7 @@ class MainActivity : ComponentActivity() {
         }
         blinkDetector.settings = next.blink
         checkBlink.settings = next.blink
+        if (::practiceController.isInitialized && practiceController.tuning != next) practiceController.useTuning(next)
         controller.helpConfirm = next.helpConfirm
         scanner.intervalMs = next.scanMs
         gazeStepper.settings = next.activeGaze
