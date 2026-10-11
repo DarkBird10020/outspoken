@@ -82,6 +82,15 @@ import com.outspoken.setup.ModelChoice
 import com.outspoken.setup.ModelShelf
 import com.outspoken.ui.ModelRow
 import com.outspoken.speech.Speaker
+import com.outspoken.speech.KokoroVoice
+import com.outspoken.speech.NaturalSpeaker
+import com.outspoken.speech.NaturalState
+import com.outspoken.speech.NaturalVoices
+import com.outspoken.setup.VoicePack
+import com.outspoken.setup.VoiceShelf
+import com.outspoken.ui.VoicePageUi
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import com.outspoken.practice.PracticeController
 import com.outspoken.stats.PitStats
 import com.outspoken.stats.ThermalSensor
@@ -108,6 +117,19 @@ import com.outspoken.ui.SettingsScreen
 import com.outspoken.ui.StatsScreen
 import com.outspoken.ui.StatsUi
 import com.outspoken.ui.TranscriptScreen
+import com.outspoken.ui.TutorialScreen
+import com.outspoken.ui.LessonScreen
+import com.outspoken.ui.MovePracticeScreen
+import com.outspoken.ui.HelpPracticeScreen
+import com.outspoken.tutorial.Destination
+import com.outspoken.tutorial.EyeControls
+import com.outspoken.tutorial.HelpPractice
+import com.outspoken.tutorial.HelpStage
+import com.outspoken.tutorial.Lesson
+import com.outspoken.tutorial.Lessons
+import com.outspoken.tutorial.MovePractice
+import com.outspoken.tutorial.Practice
+import com.outspoken.tutorial.TutorialStore
 import com.outspoken.ui.TranscriptUi
 import com.outspoken.ui.describeStats
 import com.outspoken.ui.liveStatsLine
@@ -128,7 +150,7 @@ import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
 
-    private enum class Screen { Conversation, Practice, EyeCheck, Settings, Models, Profile, ProfileEdit, Calibrate, Help, Stats, Transcript }
+    private enum class Screen { Conversation, Practice, EyeCheck, Settings, Models, Profile, ProfileEdit, Calibrate, Help, Stats, Transcript, Tutorial, Lesson, MovePractice, HelpPractice }
 
     private lateinit var speaker: Speaker
     private lateinit var camera: FrontCamera
@@ -146,8 +168,20 @@ class MainActivity : ComponentActivity() {
      */
     private val checkStepper = GazeStepper(log = AppLog)
     private val checkBlink = BlinkDetector(log = AppLog)
+
+    // The lesson practices try looks and closes on the eye check page's stepper and detector, for
+    // the same reason: practising must not move the main page's highlight or its resting point.
+    private val movePractice = MovePractice(checkBlink, checkStepper, AppLog, speak = { say(it) })
+    private val helpPractice = HelpPractice(checkBlink, AppLog, speak = { say(it) }, cue = { cue?.startTone(ToneGenerator.TONE_PROP_BEEP2, CUE_MS) })
+    private lateinit var tutorialStore: TutorialStore
+    private var finishedLessons by mutableStateOf(emptySet<String>())
+    private var lessonId by mutableStateOf<String?>(null)
+    private var lessonStep by mutableStateOf(0)
+
+    /** The blink practice was opened from its lesson, so Back returns there and not to the main page. */
+    private var practiceFromLesson = false
     private val controller = ConversationController(
-        speak = { say(it) },
+        speak = { sayCard(it) },
         detector = blinkDetector,
         scanner = scanner,
         log = AppLog,
@@ -251,6 +285,8 @@ class MainActivity : ComponentActivity() {
 
         tuningStore = TuningStore(this)
         profileStore = ProfileStore(this)
+        tutorialStore = TutorialStore(this)
+        finishedLessons = tutorialStore.finished()
         profile = profileStore.load()
         AppLog.write("profile", if (profile.isEmpty) "none yet" else "loaded, ${profile.detailCount} details")
         lifecycleScope.launch(Dispatchers.IO) {
@@ -273,6 +309,8 @@ class MainActivity : ComponentActivity() {
         eyeReader = EyeReader(this) { sample ->
             if (PhoneControl.on && !PhoneControl.typing) onControlSample(sample) else when (screen) {
                 Screen.Practice -> practiceController.onSample(sample)
+                Screen.MovePractice -> movePractice.onSample(sample)
+                Screen.HelpPractice -> helpPractice.onSample(sample)
                 Screen.Calibrate -> onCalibrationSample(sample)
                 Screen.EyeCheck -> {
                     checkBlink.onSample(sample)
@@ -294,10 +332,19 @@ class MainActivity : ComponentActivity() {
         handReader = HandReader(this, ::onHandReading)
         handReader.enabled = tuning.handGestures
         eyeReader.alsoFrame = handReader::onFrame
-        speaker = Speaker(this, onVoice = { voiceMissing = !it }) {
-            heardFilter.onSpeechDone(now())
-            listener.resume()
-            controller.onSpeechDone(now())
+        speaker = Speaker(this, onVoice = { voiceMissing = !it }) { speechDone() }
+        voiceShelf = VoiceShelf(this)
+        naturalInUse = voiceShelf.useNatural && voiceShelf.unpacked()
+        voiceChoice = NaturalVoices.byId(voiceShelf.voiceId) ?: NaturalVoices.default
+        voiceSpeed = voiceShelf.speed
+        AppLog.write("speech", "voice for the cards: ${if (naturalInUse) "natural (${voiceChoice.label}, ${voiceSpeed}x)" else "the phone's own"}")
+        if (naturalInUse) natural.load(voiceShelf.folder)
+        lifecycleScope.launch {
+            natural.state.collect { if (it is NaturalState.Ready) prepareCards() }
+        }
+        // The cards on screen are said in the natural voice ahead of time, while the person chooses.
+        lifecycleScope.launch {
+            controller.ui.map { it.replies }.distinctUntilChanged().collect { prepareCards() }
         }
         speaker.language = cardLanguage.voice
         alarm = HelpAlarm(this)
@@ -544,6 +591,8 @@ class MainActivity : ComponentActivity() {
             } else if (screen == Screen.Models) {
                 BackHandler { show(Screen.Settings) }
                 val modelState by OnDeviceModel.state.collectAsStateWithLifecycle()
+                // Read so the page redraws when the natural voice loads or fails.
+                natural.state.collectAsStateWithLifecycle().value
                 OutspokenTheme {
                     ModelsScreen(
                         ui = ModelPageUi(
@@ -563,19 +612,100 @@ class MainActivity : ComponentActivity() {
                         onShareLogs = ::shareLogs,
                         onSaveLogs = { logSaver.launch("outspoken-logs.txt") },
                         onBack = { show(Screen.Conversation) },
+                        voice = voicePageUi(),
+                        onPhoneVoice = ::usePhoneVoice,
+                        onNaturalVoice = ::useNaturalVoice,
+                        onPickVoice = { v ->
+                            voiceChoice = v
+                            voiceShelf.voiceId = v.id
+                            AppLog.write("speech", "natural voice ${v.label} picked")
+                            prepareCards()
+                        },
+                        onSample = ::sayVoiceSample,
+                        onSpeed = { speed ->
+                            if (speed != voiceSpeed) {
+                                voiceSpeed = speed
+                                voiceShelf.speed = speed
+                                prepareCards()
+                            }
+                        },
                     )
                 }
             } else if (screen == Screen.Practice) {
-                BackHandler { show(Screen.Conversation) }
+                BackHandler { leavePractice() }
                 val practiceUi by practiceController.ui.collectAsStateWithLifecycle()
+                val caughtAll = practiceUi.caught >= practiceUi.needed
+                LaunchedEffect(caughtAll) { if (caughtAll) finishLesson(BLINK_LESSON) }
                 OutspokenTheme {
                     PracticeScreen(
                         ui = practiceUi,
-                        onBack = { show(Screen.Conversation) },
+                        onBack = ::leavePractice,
                         onStart = {
                             tuningStore.markPracticeCompleted()
                             show(Screen.Conversation)
                         },
+                    )
+                }
+            } else if (screen == Screen.Tutorial) {
+                BackHandler { show(Screen.Conversation) }
+                OutspokenTheme {
+                    TutorialScreen(
+                        lessons = lessons(),
+                        finished = finishedLessons,
+                        onOpen = ::openLesson,
+                        onBack = { show(Screen.Conversation) },
+                    )
+                }
+            } else if (screen == Screen.Lesson) {
+                val all = lessons()
+                val lesson = all.firstOrNull { it.id == lessonId }
+                if (lesson == null) {
+                    LaunchedEffect(Unit) { show(Screen.Tutorial) }
+                } else {
+                    val step = lessonStep.coerceIn(0, lesson.steps.lastIndex)
+                    BackHandler { if (step > 0) lessonStep = step - 1 else show(Screen.Tutorial) }
+                    OutspokenTheme {
+                        LessonScreen(
+                            lesson = lesson,
+                            number = all.indexOf(lesson) + 1,
+                            total = all.size,
+                            step = step,
+                            onStep = { lessonStep = it },
+                            onReadAloud = { lesson.steps[step].let { say("${it.title}. ${it.body}") } },
+                            onPractice = { lesson.practice?.let(::startPractice) },
+                            onOpenPage = { lesson.opens?.let { openFromLesson(lesson, it) } },
+                            onFinish = {
+                                finishLesson(lesson.id)
+                                show(Screen.Tutorial)
+                            },
+                            onBack = { show(Screen.Tutorial) },
+                        )
+                    }
+                }
+            } else if (screen == Screen.MovePractice) {
+                BackHandler { show(Screen.Lesson) }
+                val moveUi by movePractice.ui.collectAsStateWithLifecycle()
+                LaunchedEffect(moveUi.done) { if (moveUi.done) finishLesson(MOVE_LESSON) }
+                OutspokenTheme {
+                    MovePracticeScreen(
+                        ui = moveUi,
+                        hint = eyeHint(tuning),
+                        onBack = { show(Screen.Lesson) },
+                        onAgain = { startPractice(Practice.Move) },
+                        onDone = { show(Screen.Tutorial) },
+                    )
+                }
+            } else if (screen == Screen.HelpPractice) {
+                BackHandler { show(Screen.Lesson) }
+                val helpUi by helpPractice.ui.collectAsStateWithLifecycle()
+                val helped = helpUi.stage == HelpStage.Done
+                LaunchedEffect(helped) { if (helped) finishLesson(HELP_LESSON) }
+                OutspokenTheme {
+                    HelpPracticeScreen(
+                        ui = helpUi,
+                        onBack = { show(Screen.Lesson) },
+                        onAgain = { startPractice(Practice.Help) },
+                        onDone = { show(Screen.Tutorial) },
                     )
                 }
             } else if (screen == Screen.Transcript) {
@@ -607,10 +737,7 @@ class MainActivity : ComponentActivity() {
                         topics = cardLanguage.topics,
                         fixedCards = cardLanguage.fixedCards,
                         phoneCard = if (tuning.phoneControl) "Phone" else null,
-                        onPractice = {
-                            practiceController.reset()
-                            show(Screen.Practice)
-                        },
+                        onPractice = { show(Screen.Tutorial) },
                         onStats = { show(Screen.Stats) },
                         onEyeCheck = { show(Screen.EyeCheck) },
                         onTranscript = { show(Screen.Transcript) },
@@ -689,6 +816,54 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** The lessons, written for how the eyes control the app on this phone now. */
+    private fun lessons() = Lessons.all(
+        EyeControls(
+            moveByEyes = tuning.moveByEyes,
+            lookDown = tuning.downMoves,
+            winks = tuning.winks,
+            handSigns = tuning.handGestures,
+            scanMs = tuning.scanMs,
+        )
+    )
+
+    private fun openLesson(lesson: Lesson) {
+        AppLog.write("tutorial", "lesson \"${lesson.title}\" opened")
+        lessonId = lesson.id
+        lessonStep = 0
+        show(Screen.Lesson)
+    }
+
+    private fun finishLesson(id: String) {
+        if (id in finishedLessons) return
+        tutorialStore.markFinished(id)
+        finishedLessons = finishedLessons + id
+        AppLog.write("tutorial", "lesson $id finished, ${finishedLessons.size} of ${lessons().size}")
+    }
+
+    private fun startPractice(practice: Practice) {
+        when (practice) {
+            Practice.Blink -> {
+                practiceController.reset()
+                practiceFromLesson = true
+                show(Screen.Practice)
+            }
+            Practice.Move -> {
+                movePractice.moveByEyes = tuning.moveByEyes
+                movePractice.upMovesNext = !tuning.downMoves
+                movePractice.winks = tuning.winks
+                movePractice.scanMs = tuning.scanMs
+                show(Screen.MovePractice)
+                movePractice.start(now())
+            }
+            Practice.Help -> {
+                helpPractice.confirm = tuning.helpConfirm
+                show(Screen.HelpPractice)
+                helpPractice.start(now())
+            }
+        }
+    }
+
     /**
      * "Type" in phone control: Say anything opens here, and Speak puts the sentence in the other
      * app's text box instead of saying it. Outspoken then steps back behind that app.
@@ -717,6 +892,26 @@ class MainActivity : ComponentActivity() {
         val why = if (PhoneControl.on) "phone control is on" else "Outspoken is not on screen"
         AppLog.write("calibration", "start calibration not run: $why; the last lines stay")
         updateListening()
+    }
+
+    private fun leavePractice() {
+        val back = if (practiceFromLesson) Screen.Lesson else Screen.Conversation
+        practiceFromLesson = false
+        show(back)
+    }
+
+    /** Opens the page a lesson is about; reading to the end of the lesson finishes it. */
+    private fun openFromLesson(lesson: Lesson, page: Destination) {
+        finishLesson(lesson.id)
+        when (page) {
+            Destination.Calibrate -> startCalibration()
+            Destination.EyeCheck -> show(Screen.EyeCheck)
+            Destination.Settings -> show(Screen.Settings)
+            Destination.Profile -> show(Screen.Profile)
+            Destination.Models -> show(Screen.Models)
+            Destination.Stats -> show(Screen.Stats)
+            Destination.Transcript -> show(Screen.Transcript)
+        }
     }
 
     /** Spoken steps that set the look and blink lines from this person's eyes (PRD F6). */
@@ -824,6 +1019,7 @@ class MainActivity : ComponentActivity() {
         AppLog.write("app", "closed")
         power.removeThermalStatusListener(thermalWatch)
         speaker.shutdown()
+        natural.shutdown()
         listener.release()
         alarm.stop()
         cue?.release()
@@ -1072,9 +1268,140 @@ class MainActivity : ComponentActivity() {
 
     /** Everything the phone says goes through here, so the microphone does not take it for a question. */
     private fun say(text: String) {
+        natural.stop()
         heardFilter.onSpeechStart(text)
         listener.pause()
         speaker.speak(text)
+    }
+
+    private fun speechDone() {
+        heardFilter.onSpeechDone(now())
+        listener.resume()
+        controller.onSpeechDone(now())
+    }
+
+    private val natural = NaturalSpeaker(AppLog)
+    private lateinit var voiceShelf: VoiceShelf
+    private var naturalInUse by mutableStateOf(false)
+    private var voiceChoice by mutableStateOf(NaturalVoices.default)
+    private var voiceSpeed by mutableStateOf(1f)
+
+    /** How far the natural voice's archive is unpacked, 0 to 100; null when it is not being unpacked. */
+    private var unpacking by mutableStateOf<Int?>(null)
+
+    /** The natural voice for [text], or null for the phone's own (see [NaturalVoices.voiceFor]). */
+    private fun naturalVoiceFor(text: String) =
+        NaturalVoices.voiceFor(text, cardLanguage.voice, voiceChoice, naturalInUse, natural.ready)
+
+    /**
+     * A sentence the person chose. Said in the natural voice when it is on and speaks the card's
+     * language, and in the phone's own voice otherwise, or if the natural voice cannot say it.
+     */
+    private fun sayCard(text: String) {
+        val voice = naturalVoiceFor(text) ?: return say(text)
+        heardFilter.onSpeechStart(text)
+        listener.pause()
+        natural.speak(text, voice, voiceSpeed) { spoken ->
+            mainExecutor.execute {
+                if (spoken) {
+                    speechDone()
+                } else {
+                    AppLog.write("speech", "natural voice failed, the phone's voice says it")
+                    say(text)
+                }
+            }
+        }
+    }
+
+    private fun prepareCards() {
+        val replies = controller.ui.value.replies
+        replies.groupBy { naturalVoiceFor(it) }.forEach { (voice, texts) ->
+            if (voice != null) natural.prepare(texts, voice, voiceSpeed)
+        }
+    }
+
+    private fun useNaturalVoice() {
+        when {
+            naturalInUse -> Unit
+            voiceShelf.unpacked() -> {
+                voiceShelf.useNatural = true
+                naturalInUse = true
+                AppLog.write("speech", "natural voice picked")
+                natural.load(voiceShelf.folder)
+            }
+            unpacking != null -> Unit
+            voiceShelf.archive() != null -> unpackVoice()
+            !voiceShelf.canSeeFiles() -> modelShelf.askToSeeDownloads()
+            else -> {
+                AppLog.write("speech", "natural voice: download ${VoicePack.ARCHIVE} in the browser")
+                if (!voiceShelf.download()) AppLog.write("speech", "no browser on this phone to download the natural voice with")
+            }
+        }
+    }
+
+    private fun usePhoneVoice() {
+        if (!naturalInUse) return
+        voiceShelf.useNatural = false
+        naturalInUse = false
+        AppLog.write("speech", "phone voice picked, natural voice unloaded")
+        natural.unload()
+    }
+
+    /** Unpacks the downloaded archive once, then switches the natural voice on. */
+    private fun unpackVoice() {
+        val archive = voiceShelf.archive() ?: return
+        if (unpacking != null) return
+        unpacking = 0
+        AppLog.write("speech", "unpacking the natural voice from ${archive.name}")
+        lifecycleScope.launch {
+            val started = now()
+            val files = withContext(Dispatchers.IO) {
+                try {
+                    voiceShelf.unpack(archive) { percent -> runOnUiThread { unpacking = percent } }
+                } catch (e: Exception) {
+                    AppLog.write("speech", "could not unpack the natural voice: ${e.message}")
+                    null
+                }
+            }
+            unpacking = null
+            if (files != null) {
+                AppLog.write("speech", "natural voice unpacked, $files files in ${(now() - started) / 1000} s")
+                voiceShelf.waiting = false
+                useNaturalVoice()
+            }
+        }
+    }
+
+    private fun sayVoiceSample(voice: KokoroVoice) {
+        if (!natural.ready) return
+        val text = if (voice.language == "hi") "नमस्ते, मैं आपसे बात करने के लिए तैयार हूँ।" else "Hello. I am ready to talk with you."
+        AppLog.write("speech", "sample of ${voice.label}")
+        natural.stop()
+        natural.speak(text, voice, voiceSpeed) {}
+    }
+
+    private fun voicePageUi() = VoicePageUi(
+        naturalInUse = naturalInUse,
+        naturalReady = voiceShelf.unpacked(),
+        busy = unpacking != null || natural.state.value is NaturalState.Loading,
+        naturalLine = naturalLine(),
+        voice = voiceChoice,
+        speed = voiceSpeed,
+    )
+
+    private fun naturalLine(): String {
+        unpacking?.let { return "unpacking, $it%. Keep the app open" }
+        return when (val state = natural.state.value) {
+            NaturalState.Loading -> "loading"
+            is NaturalState.Ready -> "in use, loaded in ${"%.1f".format(Locale.US, state.loadMs / 1000f)} s"
+            is NaturalState.Failed -> "could not load: ${state.reason}"
+            NaturalState.Off -> when {
+                voiceShelf.unpacked() -> "downloaded"
+                !voiceShelf.canSeeFiles() -> "tap Download, then allow access to Downloads"
+                voiceShelf.waiting -> "downloading in the browser, sets itself up when done"
+                else -> "not downloaded"
+            }
+        }
     }
 
     private fun askForMicrophone() {
@@ -1207,10 +1534,10 @@ class MainActivity : ComponentActivity() {
         if (screen == Screen.Stats && next != Screen.Stats) AppLog.write("stats", "closed showing ${describeStats(currentStats())}")
         if (next != Screen.Settings) sosTested = false
         AppLog.write("ui", "screen $next")
-        if (next == Screen.EyeCheck) gazeStepper.restGaze?.let { checkStepper.restAt(it, gazeStepper.restIrisDrop) }
+        if (next in CHECK_SCREENS && next != screen) gazeStepper.restGaze?.let { checkStepper.restAt(it, gazeStepper.restIrisDrop) }
         // Each detector gets frames only on its own page.
         if (screen == Screen.Conversation && next != Screen.Conversation) blinkDetector.reset()
-        if (screen == Screen.EyeCheck && next != Screen.EyeCheck) checkBlink.reset()
+        if (screen in CHECK_SCREENS && next != screen) checkBlink.reset()
         screen = next
         updateListening()
         if (next == Screen.Stats) AppLog.write("stats", "opened showing ${describeStats(currentStats())}")
@@ -1400,6 +1727,7 @@ class MainActivity : ComponentActivity() {
         downloadWatch = lifecycleScope.launch {
             while (visible) {
                 canSeeDownloads = modelShelf.canSeeDownloads()
+                if (unpacking == null && !voiceShelf.unpacked() && voiceShelf.archive() != null) unpackVoice()
                 val waiting = modelShelf.waitingFor
                 if (waiting != null && modelShelf.installed(waiting) != null) {
                     AppLog.write("model", "${waiting.title} downloaded")
@@ -1506,6 +1834,14 @@ class MainActivity : ComponentActivity() {
         // only the session length moved (owner's screenshot, 08:00). A question asked there now
         // brings replies, and the reply numbers change in front of the judges.
         val LISTENING_SCREENS = setOf(Screen.Conversation, Screen.Transcript, Screen.Stats)
+
+        /** Pages that read the eyes with [checkStepper] and [checkBlink]. */
+        val CHECK_SCREENS = setOf(Screen.EyeCheck, Screen.MovePractice, Screen.HelpPractice)
+
+        // Lesson ids from Lessons, each finished by its practice.
+        const val BLINK_LESSON = "blink"
+        const val MOVE_LESSON = "move"
+        const val HELP_LESSON = "help"
         const val DOWNLOAD_CHECK_MS = 3_000L
         const val TTS_SETTINGS = "com.android.settings.TTS_SETTINGS"
         const val SELFIE_COUNTDOWN = 3

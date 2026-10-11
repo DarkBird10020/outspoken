@@ -104,7 +104,7 @@ fun ConversationScreen(
                 DotPill("Looking…", InkFaint, modifier = pill)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                CircleIconButton(R.drawable.ic_star, "Practice round", onPractice)
+                CircleIconButton(R.drawable.ic_star, "Lessons", onPractice)
                 CircleIconButton(R.drawable.ic_eye, "Eye check", onEyeCheck)
                 CircleIconButton(R.drawable.ic_transcript, "Live transcript (Office Kit)", onTranscript)
                 CircleIconButton(R.drawable.ic_stats, "Session stats", onStats)
