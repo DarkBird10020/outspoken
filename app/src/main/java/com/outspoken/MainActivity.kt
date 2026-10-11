@@ -351,7 +351,7 @@ class MainActivity : ComponentActivity() {
             calibrationDue = true
             lifecycleScope.launch {
                 delay(CALIBRATION_START_DELAY_MS)
-                startCalibration()
+                startCalibrationAtLaunch()
             }
         } else {
             cameraPermission.launch(Manifest.permission.CAMERA)
@@ -705,6 +705,19 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * The start calibration, unless the person has already gone to another app. Started behind
+     * phone control it spoke its steps over the other app and its page took the camera: the Phone
+     * card at 08:28:41.664, "calibration started" at 08:28:41.893, then "no eye frames for 3 s".
+     */
+    private fun startCalibrationAtLaunch() {
+        if (visible && !PhoneControl.on) return startCalibration()
+        calibrationDue = false
+        val why = if (PhoneControl.on) "phone control is on" else "Outspoken is not on screen"
+        AppLog.write("calibration", "start calibration not run: $why; the last lines stay")
+        updateListening()
+    }
+
     /** Spoken steps that set the look and blink lines from this person's eyes (PRD F6). */
     private fun startCalibration() {
         calibrationDue = false
@@ -771,8 +784,8 @@ class MainActivity : ComponentActivity() {
 
     private fun eyeHint(tuning: Tuning) = when {
         !tuning.moveByEyes -> "Close your eyes when your choice lights up."
-        tuning.lookDown && tuning.winks -> "Look up or down, or wink, to move.  Close both eyes: choose."
-        tuning.lookDown -> "Look up or down to move.  Close both eyes: choose."
+        tuning.downMoves && tuning.winks -> "Look up or down, or wink, to move.  Close both eyes: choose."
+        tuning.downMoves -> "Look up or down to move.  Close both eyes: choose."
         tuning.winks -> "Look up or wink to move (left wink down, right wink up).  Close both eyes: choose."
         else -> "Look up to move to the next card.  Close both eyes: choose."
     }
@@ -846,13 +859,13 @@ class MainActivity : ComponentActivity() {
         scanner.intervalMs = next.scanMs
         gazeStepper.settings = next.activeGaze
         checkStepper.settings = next.activeGaze
-        controller.upMovesNext = !next.lookDown
+        controller.upMovesNext = !next.downMoves
         if (controller.moveByEyes != next.moveByEyes) controller.moveByEyes = next.moveByEyes
         controller.winks = next.winks
         controller.phoneCard = next.phoneControl
         controlBlink.settings = next.blink
         controlStepper.settings = next.activeGaze
-        controlEyes.upMovesNext = !next.lookDown
+        controlEyes.upMovesNext = !next.downMoves
         controlEyes.moveByEyes = next.moveByEyes
         controlEyes.scanMs = next.scanMs
         controlEyes.helpConfirm = next.helpConfirm

@@ -91,6 +91,14 @@ data class Tuning(
     /** The gaze settings the stepper uses: the look down lines only when looking down is on. */
     val activeGaze: GazeSettings
         get() = if (lookDown) gaze else gaze.copy(downStrength = null, irisDownStrength = null)
+
+    /**
+     * A look down can move the highlight: the switch is on and there is a look down line. A
+     * calibration that sees no look down turns both lines off and leaves the switch on (08:00:23,
+     * "look down off, iris look down off"); a look up then has to move on, or nothing goes forward.
+     */
+    val downMoves: Boolean
+        get() = activeGaze.downStrength != null || activeGaze.irisDownStrength != null
 }
 
 /** Longest shortest-blink the practice round may set. */

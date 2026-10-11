@@ -27,6 +27,9 @@ class FrontCamera(private val context: Context, private val owner: LifecycleOwne
     private var previewView: PreviewView? = null
     private var watched: CameraInfo? = null
 
+    /** The app is behind another one; a preview asked for now waits for [resumePreview]. */
+    private var hidden = false
+
     fun start(analyzer: ImageAnalysis.Analyzer, analyzerExecutor: Executor) {
         val providerFuture = ProcessCameraProvider.getInstance(context)
         providerFuture.addListener({
@@ -41,13 +44,13 @@ class FrontCamera(private val context: Context, private val owner: LifecycleOwne
             val camera = provider.bindToLifecycle(owner, CameraSelector.DEFAULT_FRONT_CAMERA, analysis)
             AppLog.write("camera", "front camera started, analysis ${analysis.resolutionInfo?.resolution}")
             watchState(camera.cameraInfo)
-            previewView?.let { bindPreview(provider, it) }
+            if (!hidden) previewView?.let { bindPreview(provider, it) }
         }, ContextCompat.getMainExecutor(context))
     }
 
     fun showPreview(view: PreviewView) {
         previewView = view
-        provider?.let { bindPreview(it, view) }
+        if (!hidden) provider?.let { bindPreview(it, view) }
     }
 
     /** Only the view that is showing the preview can stop it, so a screen switch cannot cut the new one. */
@@ -63,6 +66,7 @@ class FrontCamera(private val context: Context, private val owner: LifecycleOwne
      * The view is kept so [resumePreview] can put the preview back.
      */
     fun pausePreview() {
+        hidden = true
         val provider = provider ?: return
         if (provider.isBound(preview)) {
             provider.unbind(preview)
@@ -71,6 +75,7 @@ class FrontCamera(private val context: Context, private val owner: LifecycleOwne
     }
 
     fun resumePreview() {
+        hidden = false
         val view = previewView ?: return
         provider?.let { bindPreview(it, view) }
     }
