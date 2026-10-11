@@ -62,6 +62,8 @@ fun SettingsScreen(
     sosLine: String,
     onSaveSos: (typed: String) -> Unit,
     onTestSos: () -> Unit,
+    whatsAppHelperOn: Boolean = false,
+    onOpenAccessibility: () -> Unit = {},
     handReading: HandReading,
     onTuningChange: (Tuning) -> Unit,
     onTuningReset: () -> Unit,
@@ -83,7 +85,7 @@ fun SettingsScreen(
         AskCard(listenLine, onAsk)
         Segmented("Look up to move", "Blink only", tuning.moveByEyes) { onTuningChange(tuning.copy(moveByEyes = it)) }
         LanguageCard(tuning, missingVoice, onInstallVoice, onTuningChange)
-        SosCard(tuning, sosLine, onSaveSos, onTestSos, onTuningChange)
+        SosCard(tuning, sosLine, onSaveSos, onTestSos, whatsAppHelperOn, onOpenAccessibility, onTuningChange)
         TuningCard(tuning, onTuningChange)
         HandCard(tuning, handReading, onTuningChange)
         // Not in the settings design (listed as a design gap): the way to the profile page.
@@ -195,7 +197,15 @@ private fun TuningCard(tuning: Tuning, onChange: (Tuning) -> Unit) {
  */
 /** Not in the design (a design gap): who the help alarm texts and calls. */
 @Composable
-private fun SosCard(tuning: Tuning, sosLine: String, onSave: (String) -> Unit, onTest: () -> Unit, onChange: (Tuning) -> Unit) {
+private fun SosCard(
+    tuning: Tuning,
+    sosLine: String,
+    onSave: (String) -> Unit,
+    onTest: () -> Unit,
+    whatsAppHelperOn: Boolean,
+    onOpenAccessibility: () -> Unit,
+    onChange: (Tuning) -> Unit,
+) {
     var typed by remember(tuning.sosNumber) { mutableStateOf(tuning.sosNumber) }
     GlassCard(gap = 12) {
         Text("SOS contact", style = type(15, 500))
@@ -226,6 +236,12 @@ private fun SosCard(tuning: Tuning, sosLine: String, onSave: (String) -> Unit, o
         }
         ToggleRow("Text them when help is called", tuning.sosText) { onChange(tuning.copy(sosText = it)) }
         ToggleRow("Then call them", tuning.sosCall) { onChange(tuning.copy(sosCall = it)) }
+        // Not in the design (a design gap): WhatsApp for a phone with no SIM.
+        ToggleRow("No SIM: WhatsApp message instead", tuning.sosWhatsApp) { onChange(tuning.copy(sosWhatsApp = it)) }
+        ToggleRow("No SIM: then a WhatsApp call", tuning.sosWhatsAppCall) { onChange(tuning.copy(sosWhatsAppCall = it)) }
+        if ((tuning.sosWhatsApp || tuning.sosWhatsAppCall) && !whatsAppHelperOn) {
+            PillButton("Turn on Outspoken in Accessibility", onOpenAccessibility, Modifier.fillMaxWidth())
+        }
         if (tuning.sosNumber.isNotEmpty()) PillButton("Test: text and call now", onTest, Modifier.fillMaxWidth())
     }
 }

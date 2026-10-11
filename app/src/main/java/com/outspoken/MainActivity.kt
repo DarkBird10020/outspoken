@@ -52,7 +52,9 @@ import com.outspoken.hand.HandReader
 import com.outspoken.hand.HandReading
 import com.outspoken.help.HelpAlarm
 import com.outspoken.help.HelpStep
+import com.outspoken.help.SosAccessibility
 import com.outspoken.help.SosCaller
+import com.outspoken.help.whatsAppNumber
 import com.outspoken.help.isEmergencyNumber
 import com.outspoken.help.maskedNumber
 import com.outspoken.help.sosMessage
@@ -475,6 +477,8 @@ class MainActivity : ComponentActivity() {
                             AppLog.write("help", "SOS test from Settings")
                             triggerSos()
                         },
+                        whatsAppHelperOn = whatsAppHelperOn,
+                        onOpenAccessibility = { startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
                         listenLine = listenLine,
                         missingVoice = if (voiceMissing) cardLanguage.label else null,
                         onInstallVoice = ::installVoice,
@@ -678,6 +682,7 @@ class MainActivity : ComponentActivity() {
         watchDownloads()
         watchTemperature()
         if (::sos.isInitialized) sosAllowed = sos.allowed()
+        whatsAppHelperOn = SosAccessibility.running != null
         if (::speaker.isInitialized) speaker.checkVoice()
         updateListening()
     }
@@ -846,9 +851,9 @@ class MainActivity : ComponentActivity() {
     /** Owner request: the help alarm texts and then calls the SOS contact, if one is saved. */
     private fun triggerSos() {
         val number = tuning.sosNumber
-        if (number.isEmpty() || (!tuning.sosText && !tuning.sosCall)) return
+        if (number.isEmpty() || (!tuning.sosText && !tuning.sosCall && !tuning.sosWhatsApp && !tuning.sosWhatsAppCall)) return
         val time = LocalTime.now().let { String.format(Locale.US, "%02d:%02d", it.hour, it.minute) }
-        sos.alert(number, sosMessage(time, controller.history.lastOrNull()), tuning.sosText, tuning.sosCall)
+        sos.alert(number, sosMessage(time, controller.history.lastOrNull()), tuning.sosText, tuning.sosCall, tuning.sosWhatsApp, tuning.sosWhatsAppCall)
     }
 
     /** What the help alarm will do with the SOS contact, for Settings. */
@@ -856,14 +861,30 @@ class MainActivity : ComponentActivity() {
         sosNote?.let { return it }
         val number = tuning.sosNumber.ifEmpty { return "No contact yet: the help alarm sounds on this phone only." }
         val who = maskedNumber(number)
+        if (!sos.hasSim()) return noSimLine(number)
         return when {
             !tuning.sosText && !tuning.sosCall -> "Saved ($who), but texting and calling are both off."
-            !sos.hasSim() -> "This phone has no SIM, so the help alarm cannot text or call $who."
             !sosAllowed -> "Allow calls and texts so the help alarm can reach $who: tap Save."
             tuning.sosCall && isEmergencyNumber(number) -> "$number cannot be called by an app, only texted. A person's number works best."
             else -> "The help alarm " + listOfNotNull("texts".takeIf { tuning.sosText }, "calls".takeIf { tuning.sosCall }).joinToString(" and then ") + " $who."
         }
     }
+
+    /** What the help alarm does with no SIM: WhatsApp, when it is on and can work. */
+    private fun noSimLine(number: String): String {
+        val who = maskedNumber(number)
+        val doing = listOfNotNull("message".takeIf { tuning.sosWhatsApp }, "call".takeIf { tuning.sosWhatsAppCall })
+        return when {
+            doing.isEmpty() -> "This phone has no SIM, so the help alarm cannot text or call $who. WhatsApp can, below."
+            whatsAppNumber(number) == null -> "No SIM. For WhatsApp, save the number with its country code, like +91 98765 43210."
+            !sos.hasWhatsApp() -> "No SIM, and WhatsApp is not on this phone."
+            !whatsAppHelperOn -> "No SIM. Turn on Outspoken in Accessibility, so it can press Send in WhatsApp."
+            else -> "No SIM: the help alarm sends $who a WhatsApp ${doing.joinToString(" and then a ")}."
+        }
+    }
+
+    /** The accessibility helper that presses Send in WhatsApp is on. */
+    private var whatsAppHelperOn by mutableStateOf(false)
 
     private fun saveSos(typed: String) {
         val number = if (typed.isBlank()) "" else sosNumber(typed) ?: run {

@@ -62,14 +62,26 @@ class SosCaller(private val activity: Activity, private val onStatus: (String) -
      */
     fun hasSim(): Boolean = SubscriptionManager.isValidSubscriptionId(SubscriptionManager.getDefaultSubscriptionId())
 
-    /** Texts [message] if [text], then calls if [call]; [number] as [sosNumber] gives it. */
-    fun alert(number: String, message: String, text: Boolean, call: Boolean) {
+    /** Whether WhatsApp is on this phone (either app). */
+    fun hasWhatsApp(): Boolean = WHATSAPP_PACKAGES.any { pkg ->
+        runCatching { activity.packageManager.getPackageInfo(pkg, 0) }.isSuccess
+    }
+
+    /**
+     * Texts [message] if [text], then calls if [call]; [number] as [sosNumber] gives it. With no
+     * SIM, a WhatsApp message if [whatsAppText] and a WhatsApp call if [whatsAppCall] instead.
+     */
+    fun alert(number: String, message: String, text: Boolean, call: Boolean, whatsAppText: Boolean = false, whatsAppCall: Boolean = false) {
         handler.removeCallbacksAndMessages(null)
         pendingCall = null
         val who = maskedNumber(number)
-        if ((text || call) && !hasSim()) {
-            AppLog.write("help", "SOS to $who: no SIM in the phone, so no text or call can go out")
-            onStatus("No SIM in this phone: $who cannot be texted or called")
+        if (!hasSim()) {
+            if (whatsAppText || whatsAppCall) {
+                whatsApp(number, message, whatsAppText, whatsAppCall)
+            } else {
+                AppLog.write("help", "SOS to $who: no SIM in the phone, so no text or call can go out")
+                onStatus("No SIM in this phone: $who cannot be texted or called")
+            }
             return
         }
         val texting = text && sendText(number, message)
@@ -85,6 +97,38 @@ class SosCaller(private val activity: Activity, private val onStatus: (String) -
         // The call screen took over 11 ms after the text was handed to the phone (06:15:56), so
         // the call now waits for the text's result, which then reaches the log first.
         if (texting) handler.postDelayed(callNow, TEXT_WAIT_MS) else startPendingCall()
+    }
+
+    /** Opens the WhatsApp chat with the message typed in; the accessibility helper presses the buttons. */
+    private fun whatsApp(number: String, message: String, text: Boolean, call: Boolean) {
+        val who = maskedNumber(number)
+        val waNumber = whatsAppNumber(number) ?: run {
+            AppLog.write("help", "WhatsApp SOS to $who skipped: the number has no country code (+91 …), so WhatsApp cannot find it")
+            onStatus("No SIM, and the SOS number needs its country code for WhatsApp")
+            return
+        }
+        val link = Uri.parse(whatsAppChatLink(waNumber, if (text) message else ""))
+        val app = WHATSAPP_PACKAGES.firstOrNull { pkg ->
+            try {
+                activity.startActivity(Intent(Intent.ACTION_VIEW, link).setPackage(pkg))
+                true
+            } catch (e: ActivityNotFoundException) {
+                false
+            }
+        }
+        if (app == null) {
+            AppLog.write("help", "WhatsApp SOS to $who skipped: WhatsApp is not on this phone")
+            onStatus("No SIM, and no WhatsApp: $who cannot be reached")
+            return
+        }
+        val helped = WhatsAppRun.start(whatsAppSteps(text, call), who)
+        AppLog.write(
+            "help",
+            "WhatsApp SOS to $who: chat opened in $app" +
+                if (helped) ", the helper presses ${whatsAppSteps(text, call).joinToString(", then ") { it.what }}" else ", but the helper is off in Accessibility, so someone must press Send",
+        )
+        val doing = listOfNotNull("message".takeIf { text }, "call".takeIf { call }).joinToString(" and ")
+        onStatus(if (helped) "No SIM: WhatsApp $doing to $who" else "No SIM: WhatsApp is open for $who; press Send")
     }
 
     private fun startPendingCall() {

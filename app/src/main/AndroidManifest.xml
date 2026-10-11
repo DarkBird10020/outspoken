@@ -39,6 +39,9 @@
         tools:node="remove" />
 
     <queries>
+        <!-- WhatsApp, for the SOS on a phone with no SIM. -->
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
@@ -62,6 +65,21 @@
         <uses-native-library
             android:name="libOpenCL.so"
             android:required="false" />
+
+        <!-- Presses Send and the call button in WhatsApp for an SOS on a phone with no SIM, as the
+             person in bed cannot. Turned on by the carer in Accessibility settings. -->
+        <service
+            android:name=".help.SosAccessibility"
+            android:exported="true"
+            android:label="@string/sos_helper_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/sos_accessibility" />
+        </service>
 
         <!-- Hands the run logs to an app the owner picks ("Share logs"); the app sends nothing itself. -->
         <provider
