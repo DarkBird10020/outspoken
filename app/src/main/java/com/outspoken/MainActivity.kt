@@ -101,6 +101,19 @@ import com.outspoken.ui.SettingsScreen
 import com.outspoken.ui.StatsScreen
 import com.outspoken.ui.StatsUi
 import com.outspoken.ui.TranscriptScreen
+import com.outspoken.ui.TutorialScreen
+import com.outspoken.ui.LessonScreen
+import com.outspoken.ui.MovePracticeScreen
+import com.outspoken.ui.HelpPracticeScreen
+import com.outspoken.tutorial.Destination
+import com.outspoken.tutorial.EyeControls
+import com.outspoken.tutorial.HelpPractice
+import com.outspoken.tutorial.HelpStage
+import com.outspoken.tutorial.Lesson
+import com.outspoken.tutorial.Lessons
+import com.outspoken.tutorial.MovePractice
+import com.outspoken.tutorial.Practice
+import com.outspoken.tutorial.TutorialStore
 import com.outspoken.ui.TranscriptUi
 import com.outspoken.ui.describeStats
 import com.outspoken.ui.liveStatsLine
@@ -121,7 +134,7 @@ import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
 
-    private enum class Screen { Conversation, Practice, EyeCheck, Settings, Models, Profile, ProfileEdit, Calibrate, Help, Stats, Transcript }
+    private enum class Screen { Conversation, Practice, EyeCheck, Settings, Models, Profile, ProfileEdit, Calibrate, Help, Stats, Transcript, Tutorial, Lesson, MovePractice, HelpPractice }
 
     private lateinit var speaker: Speaker
     private lateinit var camera: FrontCamera
@@ -139,6 +152,18 @@ class MainActivity : ComponentActivity() {
      */
     private val checkStepper = GazeStepper(log = AppLog)
     private val checkBlink = BlinkDetector(log = AppLog)
+
+    // The lesson practices try looks and closes on the eye check page's stepper and detector, for
+    // the same reason: practising must not move the main page's highlight or its resting point.
+    private val movePractice = MovePractice(checkBlink, checkStepper, AppLog, speak = { say(it) })
+    private val helpPractice = HelpPractice(checkBlink, AppLog, speak = { say(it) }, cue = { cue?.startTone(ToneGenerator.TONE_PROP_BEEP2, CUE_MS) })
+    private lateinit var tutorialStore: TutorialStore
+    private var finishedLessons by mutableStateOf(emptySet<String>())
+    private var lessonId by mutableStateOf<String?>(null)
+    private var lessonStep by mutableStateOf(0)
+
+    /** The blink practice was opened from its lesson, so Back returns there and not to the main page. */
+    private var practiceFromLesson = false
     private val controller = ConversationController(
         speak = { say(it) },
         detector = blinkDetector,
@@ -235,6 +260,8 @@ class MainActivity : ComponentActivity() {
 
         tuningStore = TuningStore(this)
         profileStore = ProfileStore(this)
+        tutorialStore = TutorialStore(this)
+        finishedLessons = tutorialStore.finished()
         profile = profileStore.load()
         AppLog.write("profile", if (profile.isEmpty) "none yet" else "loaded, ${profile.detailCount} details")
         lifecycleScope.launch(Dispatchers.IO) {
@@ -257,6 +284,8 @@ class MainActivity : ComponentActivity() {
         eyeReader = EyeReader(this) { sample ->
             when (screen) {
                 Screen.Practice -> practiceController.onSample(sample)
+                Screen.MovePractice -> movePractice.onSample(sample)
+                Screen.HelpPractice -> helpPractice.onSample(sample)
                 Screen.Calibrate -> onCalibrationSample(sample)
                 Screen.EyeCheck -> {
                     checkBlink.onSample(sample)
@@ -526,16 +555,80 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             } else if (screen == Screen.Practice) {
-                BackHandler { show(Screen.Conversation) }
+                BackHandler { leavePractice() }
                 val practiceUi by practiceController.ui.collectAsStateWithLifecycle()
+                val caughtAll = practiceUi.caught >= practiceUi.needed
+                LaunchedEffect(caughtAll) { if (caughtAll) finishLesson(BLINK_LESSON) }
                 OutspokenTheme {
                     PracticeScreen(
                         ui = practiceUi,
-                        onBack = { show(Screen.Conversation) },
+                        onBack = ::leavePractice,
                         onStart = {
                             tuningStore.markPracticeCompleted()
                             show(Screen.Conversation)
                         },
+                    )
+                }
+            } else if (screen == Screen.Tutorial) {
+                BackHandler { show(Screen.Conversation) }
+                OutspokenTheme {
+                    TutorialScreen(
+                        lessons = lessons(),
+                        finished = finishedLessons,
+                        onOpen = ::openLesson,
+                        onBack = { show(Screen.Conversation) },
+                    )
+                }
+            } else if (screen == Screen.Lesson) {
+                val all = lessons()
+                val lesson = all.firstOrNull { it.id == lessonId }
+                if (lesson == null) {
+                    LaunchedEffect(Unit) { show(Screen.Tutorial) }
+                } else {
+                    val step = lessonStep.coerceIn(0, lesson.steps.lastIndex)
+                    BackHandler { if (step > 0) lessonStep = step - 1 else show(Screen.Tutorial) }
+                    OutspokenTheme {
+                        LessonScreen(
+                            lesson = lesson,
+                            number = all.indexOf(lesson) + 1,
+                            total = all.size,
+                            step = step,
+                            onStep = { lessonStep = it },
+                            onReadAloud = { lesson.steps[step].let { say("${it.title}. ${it.body}") } },
+                            onPractice = { lesson.practice?.let(::startPractice) },
+                            onOpenPage = { lesson.opens?.let { openFromLesson(lesson, it) } },
+                            onFinish = {
+                                finishLesson(lesson.id)
+                                show(Screen.Tutorial)
+                            },
+                            onBack = { show(Screen.Tutorial) },
+                        )
+                    }
+                }
+            } else if (screen == Screen.MovePractice) {
+                BackHandler { show(Screen.Lesson) }
+                val moveUi by movePractice.ui.collectAsStateWithLifecycle()
+                LaunchedEffect(moveUi.done) { if (moveUi.done) finishLesson(MOVE_LESSON) }
+                OutspokenTheme {
+                    MovePracticeScreen(
+                        ui = moveUi,
+                        hint = eyeHint(tuning),
+                        onBack = { show(Screen.Lesson) },
+                        onAgain = { startPractice(Practice.Move) },
+                        onDone = { show(Screen.Tutorial) },
+                    )
+                }
+            } else if (screen == Screen.HelpPractice) {
+                BackHandler { show(Screen.Lesson) }
+                val helpUi by helpPractice.ui.collectAsStateWithLifecycle()
+                val helped = helpUi.stage == HelpStage.Done
+                LaunchedEffect(helped) { if (helped) finishLesson(HELP_LESSON) }
+                OutspokenTheme {
+                    HelpPracticeScreen(
+                        ui = helpUi,
+                        onBack = { show(Screen.Lesson) },
+                        onAgain = { startPractice(Practice.Help) },
+                        onDone = { show(Screen.Tutorial) },
                     )
                 }
             } else if (screen == Screen.Transcript) {
@@ -566,10 +659,7 @@ class MainActivity : ComponentActivity() {
                         onMic = ::switchMic,
                         topics = cardLanguage.topics,
                         fixedCards = cardLanguage.fixedCards,
-                        onPractice = {
-                            practiceController.reset()
-                            show(Screen.Practice)
-                        },
+                        onPractice = { show(Screen.Tutorial) },
                         onStats = { show(Screen.Stats) },
                         onEyeCheck = { show(Screen.EyeCheck) },
                         onTranscript = { show(Screen.Transcript) },
@@ -592,6 +682,73 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+        }
+    }
+
+    /** The lessons, written for how the eyes control the app on this phone now. */
+    private fun lessons() = Lessons.all(
+        EyeControls(
+            moveByEyes = tuning.moveByEyes,
+            lookDown = tuning.lookDown,
+            winks = tuning.winks,
+            handSigns = tuning.handGestures,
+            scanMs = tuning.scanMs,
+        )
+    )
+
+    private fun openLesson(lesson: Lesson) {
+        AppLog.write("tutorial", "lesson \"${lesson.title}\" opened")
+        lessonId = lesson.id
+        lessonStep = 0
+        show(Screen.Lesson)
+    }
+
+    private fun finishLesson(id: String) {
+        if (id in finishedLessons) return
+        tutorialStore.markFinished(id)
+        finishedLessons = finishedLessons + id
+        AppLog.write("tutorial", "lesson $id finished, ${finishedLessons.size} of ${lessons().size}")
+    }
+
+    private fun startPractice(practice: Practice) {
+        when (practice) {
+            Practice.Blink -> {
+                practiceController.reset()
+                practiceFromLesson = true
+                show(Screen.Practice)
+            }
+            Practice.Move -> {
+                movePractice.moveByEyes = tuning.moveByEyes
+                movePractice.upMovesNext = !tuning.lookDown
+                movePractice.winks = tuning.winks
+                movePractice.scanMs = tuning.scanMs
+                show(Screen.MovePractice)
+                movePractice.start(now())
+            }
+            Practice.Help -> {
+                show(Screen.HelpPractice)
+                helpPractice.start(now())
+            }
+        }
+    }
+
+    private fun leavePractice() {
+        val back = if (practiceFromLesson) Screen.Lesson else Screen.Conversation
+        practiceFromLesson = false
+        show(back)
+    }
+
+    /** Opens the page a lesson is about; reading to the end of the lesson finishes it. */
+    private fun openFromLesson(lesson: Lesson, page: Destination) {
+        finishLesson(lesson.id)
+        when (page) {
+            Destination.Calibrate -> startCalibration()
+            Destination.EyeCheck -> show(Screen.EyeCheck)
+            Destination.Settings -> show(Screen.Settings)
+            Destination.Profile -> show(Screen.Profile)
+            Destination.Models -> show(Screen.Models)
+            Destination.Stats -> show(Screen.Stats)
+            Destination.Transcript -> show(Screen.Transcript)
         }
     }
 
@@ -1044,10 +1201,10 @@ class MainActivity : ComponentActivity() {
         // not move can be checked against the logs.
         if (screen == Screen.Stats && next != Screen.Stats) AppLog.write("stats", "closed showing ${describeStats(currentStats())}")
         AppLog.write("ui", "screen $next")
-        if (next == Screen.EyeCheck) gazeStepper.restGaze?.let { checkStepper.restAt(it, gazeStepper.restIrisDrop) }
+        if (next in CHECK_SCREENS && next != screen) gazeStepper.restGaze?.let { checkStepper.restAt(it, gazeStepper.restIrisDrop) }
         // Each detector gets frames only on its own page.
         if (screen == Screen.Conversation && next != Screen.Conversation) blinkDetector.reset()
-        if (screen == Screen.EyeCheck && next != Screen.EyeCheck) checkBlink.reset()
+        if (screen in CHECK_SCREENS && next != screen) checkBlink.reset()
         screen = next
         updateListening()
         if (next == Screen.Stats) AppLog.write("stats", "opened showing ${describeStats(currentStats())}")
@@ -1343,6 +1500,14 @@ class MainActivity : ComponentActivity() {
         // only the session length moved (owner's screenshot, 08:00). A question asked there now
         // brings replies, and the reply numbers change in front of the judges.
         val LISTENING_SCREENS = setOf(Screen.Conversation, Screen.Transcript, Screen.Stats)
+
+        /** Pages that read the eyes with [checkStepper] and [checkBlink]. */
+        val CHECK_SCREENS = setOf(Screen.EyeCheck, Screen.MovePractice, Screen.HelpPractice)
+
+        // Lesson ids from Lessons, each finished by its practice.
+        const val BLINK_LESSON = "blink"
+        const val MOVE_LESSON = "move"
+        const val HELP_LESSON = "help"
         const val DOWNLOAD_CHECK_MS = 3_000L
         const val TTS_SETTINGS = "com.android.settings.TTS_SETTINGS"
         const val SELFIE_COUNTDOWN = 3
