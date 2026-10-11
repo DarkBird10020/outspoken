@@ -129,7 +129,12 @@ object PhoneControl {
 
     private fun draw() {
         val lit = scan.lit()
-        overlay?.light(if (eyesLost) Lit(lit?.box, "Eyes not read: open Outspoken") else lit)
+        val shown = if (eyesLost) {
+            (lit ?: Lit(null, "")).copy(label = "Eyes not read", action = "The camera has stopped: open Outspoken")
+        } else {
+            lit
+        }
+        overlay?.light(shown)
     }
 
     private fun readScreen() {
@@ -308,36 +313,87 @@ object PhoneControl {
         private val green = EyesFoundDot.toArgb()
         private val box = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            strokeWidth = 5 * density
+            strokeWidth = 6 * density
             color = green
         }
-        private val fill = Paint().apply { color = green and 0x00FFFFFF or 0x33000000 }
-        private val pill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE }
-        private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        private val part = Paint(box).apply { strokeWidth = 2 * density }
+        private val dim = Paint().apply { color = 0x66000000 }
+        private val card = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE }
+        private val title = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Ink.toArgb()
-            textSize = 20 * density
-            textAlign = Paint.Align.CENTER
+            textSize = 22 * density
+            isFakeBoldText = true
         }
-        private val hint = Paint(text).apply { textSize = 14 * density }
+        private val body = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Ink.toArgb()
+            textSize = 17 * density
+        }
+        private val small = Paint(body).apply { textSize = 14 * density }
 
+        /**
+         * Everything but the lit part is dimmed, so it is plain what is lit; a group's buttons are
+         * outlined inside it. A card says what is lit, what a close does, and where it is in the
+         * list. The menu entries have no place on screen; their card sits in the middle.
+         */
         override fun onDraw(canvas: Canvas) {
             val now = lit ?: return
             val location = IntArray(2).also(::getLocationOnScreen)
-            now.box?.let { b ->
-                val r = RectF(b.left.toFloat(), b.top.toFloat(), b.right.toFloat(), b.bottom.toFloat())
-                r.offset(-location[0].toFloat(), -location[1].toFloat())
-                r.inset(-4 * density, -4 * density)
-                canvas.drawRoundRect(r, 12 * density, 12 * density, fill)
-                canvas.drawRoundRect(r, 12 * density, 12 * density, box)
+            fun local(b: Box) = RectF(b.left.toFloat(), b.top.toFloat(), b.right.toFloat(), b.bottom.toFloat()).apply {
+                offset(-location[0].toFloat(), -location[1].toFloat())
             }
-            val label = now.label.take(MAX_LABEL)
-            val pillHeight = 64 * density
-            val bottom = height - 48 * density
-            val area = RectF(24 * density, bottom - pillHeight, width - 24 * density, bottom)
-            canvas.drawRoundRect(area, pillHeight / 2, pillHeight / 2, pill)
-            canvas.drawRoundRect(area, pillHeight / 2, pillHeight / 2, box)
-            canvas.drawText(label, area.centerX(), area.top + 28 * density, text)
-            canvas.drawText("Look to move  ·  close the eyes to choose", area.centerX(), area.top + 50 * density, hint)
+            val lit = now.box?.let { local(it).apply { inset(-6 * density, -6 * density) } }
+            val dimmed = Path().apply {
+                fillType = Path.FillType.EVEN_ODD
+                addRect(0f, 0f, width.toFloat(), height.toFloat(), Path.Direction.CW)
+                lit?.let { addRoundRect(it, 14 * density, 14 * density, Path.Direction.CW) }
+            }
+            canvas.drawPath(dimmed, dim)
+            now.parts.forEach { canvas.drawRoundRect(local(it), 8 * density, 8 * density, part) }
+            lit?.let { canvas.drawRoundRect(it, 14 * density, 14 * density, box) }
+
+            val margin = 20 * density
+            val textWidth = width - 4 * margin
+            val lines = listOf(
+                title to now.label.take(MAX_LABEL),
+                body to now.action,
+                small to listOfNotNull(
+                    "${now.step} of ${now.of}".takeIf { now.of > 0 },
+                    "look down: next",
+                    "look up: back",
+                ).joinToString("  ·  "),
+            ).filter { it.second.isNotEmpty() }
+            val wrapped = lines.flatMap { (paint, text) -> wrap(text, paint, textWidth).map { paint to it } }
+            val lineGap = 8 * density
+            val height = wrapped.sumOf { (paint, _) -> (paint.textSize + lineGap).toDouble() }.toFloat() + 2 * margin
+            // The card goes in the middle for the menu, else at whichever end the lit part is not.
+            val top = when {
+                lit == null -> (this.height - height) / 2
+                lit.centerY() > this.height / 2 -> 56 * density
+                else -> this.height - height - 56 * density
+            }
+            val area = RectF(margin, top, width - margin, top + height)
+            canvas.drawRoundRect(area, 24 * density, 24 * density, card)
+            canvas.drawRoundRect(area, 24 * density, 24 * density, box)
+            var y = area.top + margin
+            wrapped.forEach { (paint, text) ->
+                y += paint.textSize
+                canvas.drawText(text, area.left + margin, y, paint)
+                y += lineGap
+            }
+        }
+
+        private fun wrap(text: String, paint: Paint, width: Float): List<String> {
+            val out = mutableListOf<String>()
+            var line = ""
+            for (word in text.split(' ')) {
+                val tried = if (line.isEmpty()) word else "$line $word"
+                if (paint.measureText(tried) <= width || line.isEmpty()) line = tried else {
+                    out += line
+                    line = word
+                }
+            }
+            if (line.isNotEmpty()) out += line
+            return out
         }
     }
 

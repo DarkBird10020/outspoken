@@ -17,6 +17,7 @@ class ScreenScanTest {
         scan.next()
         // Reading order: the top row left to right, then the next row.
         assertEquals("Back", scan.lit()?.label)
+        assertEquals("Close the eyes to press it", scan.lit()?.action)
         scan.next()
         assertEquals("Call", scan.lit()?.label)
         scan.next()
@@ -39,8 +40,13 @@ class ScreenScanTest {
         scan.show(chats)
         // Menu, then three groups of up to five.
         scan.next()
-        assertEquals("5 buttons", scan.lit()?.label)
+        // The group names its first buttons and says what a close does.
+        assertEquals("Chat 0, Chat 1, Chat 2, …", scan.lit()?.label)
+        assertEquals("Close the eyes to open these 5", scan.lit()?.action)
         assertEquals(Box(0, 100, 100, 580), scan.lit()?.box)
+        assertEquals(5, scan.lit()?.parts?.size)
+        assertEquals(2, scan.lit()?.step)
+        assertEquals(4, scan.lit()?.of)
         scan.next()
         assertNull(scan.select())
         assertEquals("Chat 5", scan.lit()?.label)
@@ -55,7 +61,7 @@ class ScreenScanTest {
         scan.next()
         scan.select()
         scan.previous()
-        assertEquals("Up", scan.lit()?.label)
+        assertEquals("Back to all groups", scan.lit()?.label)
         assertNull(scan.select())
         assertEquals("Menu", scan.lit()?.label)
     }
@@ -69,8 +75,9 @@ class ScreenScanTest {
         assertEquals(ScanAction.Menu(MenuAction.Back), scan.select())
         repeat(5) { scan.next() }
         assertEquals("Back to Outspoken", scan.lit()?.label)
+        assertEquals("Close the eyes to stop phone control", scan.lit()?.action)
         scan.next()
-        assertEquals("Up", scan.lit()?.label)
+        assertEquals("Back to the app", scan.lit()?.label)
     }
 
     @Test

@@ -17,13 +17,13 @@ data class Box(val left: Int, val top: Int, val right: Int, val bottom: Int) {
 data class Target(val box: Box, val label: String)
 
 /** What the menu of phone control offers, always reachable by eye. */
-enum class MenuAction(val label: String) {
-    Back("Back"),
-    Home("Home"),
-    ScrollDown("Scroll down"),
-    ScrollUp("Scroll up"),
-    Type("Type"),
-    Outspoken("Back to Outspoken"),
+enum class MenuAction(val label: String, val does: String) {
+    Back("Back", "go back one screen"),
+    Home("Home", "go to the home screen"),
+    ScrollDown("Scroll down", "show more below"),
+    ScrollUp("Scroll up", "show more above"),
+    Type("Type", "write a sentence into this app"),
+    Outspoken("Back to Outspoken", "stop phone control"),
 }
 
 /** What a select does. */
@@ -32,8 +32,19 @@ sealed interface ScanAction {
     data class Menu(val action: MenuAction) : ScanAction
 }
 
-/** One thing lit by the scan, to draw: its box (null for the menu entries) and a short label. */
-data class Lit(val box: Box?, val label: String)
+/**
+ * One thing lit by the scan, to draw: its box (null for the menu entries), what it is, what a
+ * close does to it, where it is in the list ([step] of [of]) and, for a group, its buttons' boxes.
+ * The owner could not tell what was being chosen from a box and "5 buttons" (08:10 run).
+ */
+data class Lit(
+    val box: Box?,
+    val label: String,
+    val action: String = "",
+    val step: Int = 0,
+    val of: Int = 0,
+    val parts: List<Box> = emptyList(),
+)
 
 /**
  * Another app's buttons, chosen by eye the way the reply cards are: look down for the next, up
@@ -106,18 +117,26 @@ class ScreenScan(private val groupSize: Int = GROUP_SIZE) {
     }
 
     /** What to draw now. */
-    fun lit(): Lit? = when (val at = level) {
-        Level.Top -> when (val entry = topEntries().getOrNull(position)) {
-            TopEntry.Menu -> Lit(null, "Menu")
-            is TopEntry.Group -> Lit(Box.around(groups[entry.index].map { targets[it].box }), "${groups[entry.index].size} buttons")
-            is TopEntry.Single -> Lit(targets[entry.target].box, targets[entry.target].label)
-            null -> null
+    fun lit(): Lit? {
+        val lit = when (val at = level) {
+            Level.Top -> when (val entry = topEntries().getOrNull(position)) {
+                TopEntry.Menu -> Lit(null, "Menu", "Close the eyes to open: Back, Home, Scroll, Type, Back to Outspoken")
+                is TopEntry.Group -> {
+                    val group = groups[entry.index]
+                    val names = group.take(NAMES_SHOWN).joinToString(", ") { targets[it].label } + if (group.size > NAMES_SHOWN) ", …" else ""
+                    Lit(Box.around(group.map { targets[it].box }), names, "Close the eyes to open these ${group.size}", parts = group.map { targets[it].box })
+                }
+                is TopEntry.Single -> Lit(targets[entry.target].box, targets[entry.target].label, PRESS)
+                null -> null
+            }
+            is Level.Group -> {
+                val group = groups[at.index]
+                if (position == group.size) Lit(null, "Back to all groups", "Close the eyes to go back") else Lit(targets[group[position]].box, targets[group[position]].label, PRESS)
+            }
+            Level.Menu -> MenuAction.entries.getOrNull(position)?.let { Lit(null, it.label, "Close the eyes to ${it.does}") }
+                ?: Lit(null, "Back to the app", "Close the eyes to leave the menu")
         }
-        is Level.Group -> {
-            val group = groups[at.index]
-            if (position == group.size) Lit(null, "Up") else Lit(targets[group[position]].box, targets[group[position]].label)
-        }
-        Level.Menu -> Lit(null, MenuAction.entries.getOrNull(position)?.label ?: "Up")
+        return lit?.copy(step = position + 1, of = size())
     }
 
     private sealed interface TopEntry {
@@ -151,6 +170,10 @@ class ScreenScan(private val groupSize: Int = GROUP_SIZE) {
 
     private companion object {
         const val GROUP_SIZE = 5
+
+        /** A group's lit label names this many of its buttons. */
+        const val NAMES_SHOWN = 3
+        const val PRESS = "Close the eyes to press it"
 
         /**
          * Top to bottom, and left to right within a row. Buttons whose middles are within half
