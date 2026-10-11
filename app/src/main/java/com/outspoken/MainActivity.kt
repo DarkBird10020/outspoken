@@ -2,8 +2,8 @@ package com.outspoken
 
 import android.graphics.Bitmap
 import android.Manifest
-import com.outspoken.suggest.mostlyLatin
-import com.outspoken.listen.mostlyDevanagari
+import com.outspoken.suggest.inWrongScript
+import com.outspoken.conversation.languageOfText
 import com.outspoken.ui.ProfileScreen
 import com.outspoken.ui.ProfileEditScreen
 import com.outspoken.profile.ProfileStore
@@ -43,7 +43,6 @@ import com.outspoken.blink.BlinkDetector
 import com.outspoken.blink.BlinkSettings
 import com.outspoken.conversation.AppLanguage
 import com.outspoken.conversation.ConversationController
-import com.outspoken.conversation.spokenLanguage
 import com.outspoken.eye.EyeReader
 import com.outspoken.eye.EyeSample
 import com.outspoken.eye.FrontCamera
@@ -719,7 +718,9 @@ class MainActivity : ComponentActivity() {
         tuning = next
         if (::listener.isInitialized) listener.wish = speechWish(next)
         // Only a change of the choice itself moves the cards; in auto mode they follow the visitor.
-        if (next.language != before.language || next.autoLanguage != before.autoLanguage) useCardLanguage(next.language)
+        if (next.language != before.language || next.autoLanguage != before.autoLanguage || cardLanguage !in next.chosenLanguages) {
+            useCardLanguage(next.language)
+        }
         if (::handReader.isInitialized && handReader.enabled != next.handGestures) {
             handReader.enabled = next.handGestures
             AppLog.write("hand", "hand signs ${if (next.handGestures) "on" else "off"}")
@@ -947,13 +948,14 @@ class MainActivity : ComponentActivity() {
         return listOfNotNull("en-IN", phone, Locale.US.toLanguageTag()).distinct()
     }
 
-    /** The chosen language; with auto on, the other one too, so the recogniser can follow the visitor. */
+    /**
+     * The starting language; with auto on, the person's other languages too, so the recogniser can
+     * follow the visitor. Listening starts in the starting language (English unless changed; owner:
+     * English is the default) and moves to another only once the visitor is heard speaking it.
+     */
     private fun speechWish(t: Tuning): SpeechWish {
-        // Following the visitor, listening starts in English (owner: English is the default) and
-        // moves to another language only once the visitor is heard speaking it.
         if (!t.autoLanguage) return SpeechWish(speechLanguages(t.language))
-        val others = AppLanguage.entries.filter { it != AppLanguage.English }.map { speechLanguages(it) }
-        return SpeechWish(speechLanguages(AppLanguage.English), others)
+        return SpeechWish(speechLanguages(t.language), t.chosenLanguages.drop(1).map { speechLanguages(it) })
     }
 
     /** The language of the cards, the topics and the voice right now; in auto mode the visitor's. */
@@ -977,12 +979,8 @@ class MainActivity : ComponentActivity() {
      * model writes it properly first, so English shows as English (owner request); no mix.
      */
     private fun onVisitor(text: String, heardIn: String?) {
-        val spokenIn = when (heardIn) {
-            "en" -> AppLanguage.English
-            "hi" -> AppLanguage.Hindi
-            else -> null
-        }
-        val wrongScript = (spokenIn == AppLanguage.English && mostlyDevanagari(text)) || (spokenIn == AppLanguage.Hindi && mostlyLatin(text))
+        val spokenIn = AppLanguage.fromCode(heardIn)?.takeIf { it in tuning.chosenLanguages }
+        val wrongScript = spokenIn != null && inWrongScript(text, spokenIn)
         val engine = suggestionEngine
         if (!wrongScript || engine == null || spokenIn == null) {
             takeVisitor(text, heardIn)
@@ -1011,11 +1009,9 @@ class MainActivity : ComponentActivity() {
      * listening in Hindi, the recogniser wrote English questions in Hindi letters.
      */
     private fun followVisitor(text: String, heardIn: String?) {
-        val spoken = when (heardIn) {
-            "en" -> AppLanguage.English
-            "hi" -> AppLanguage.Hindi
-            else -> spokenLanguage(text)
-        } ?: return
+        val spoken = AppLanguage.fromCode(heardIn)?.takeIf { it in tuning.chosenLanguages }
+            ?: languageOfText(text, tuning.chosenLanguages)
+            ?: return
         if (spoken == cardLanguage) return
         AppLog.write("listen", "the visitor spoke ${spoken.name}, cards follow")
         useCardLanguage(spoken)

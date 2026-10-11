@@ -12,7 +12,7 @@ class RewriteTest {
     @Test
     fun `the prompt asks for the sentence in the language it was spoken in`() {
         val prompt = buildRewritePrompt("व्हाट'स योर नेम", AppLanguage.English)
-        assertTrue(prompt.contains("speak English but wrote the sounds in Hindi (Devanagari) letters"))
+        assertTrue(prompt.contains("speak English but wrote the sounds in Devanagari letters"))
         assertTrue(prompt.contains("Heard: व्हाट'स योर नेम"))
         assertTrue(prompt.contains("Do not translate it or answer it"))
         assertTrue(prompt.endsWith("Sentence:"))

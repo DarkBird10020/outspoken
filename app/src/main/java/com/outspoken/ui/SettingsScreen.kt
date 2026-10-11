@@ -246,16 +246,59 @@ private fun SosCard(
     }
 }
 
-/** Not in the design (a design gap): the language of the cards, the voice and listening. */
+/**
+ * Not in the design (a design gap): the person's languages and the one the app starts in. The
+ * cards, the voice, listening and the model follow whichever of them the visitor speaks.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LanguageCard(tuning: Tuning, missingVoice: String?, onInstallVoice: () -> Unit, onChange: (Tuning) -> Unit) {
+    val chosen = tuning.chosenLanguages
     GlassCard(gap = 14) {
-        Text("Language", style = type(15, 500))
-        Segmented(AppLanguage.English.label, AppLanguage.Hindi.label, tuning.language == AppLanguage.English) { english ->
-            onChange(tuning.copy(language = if (english) AppLanguage.English else AppLanguage.Hindi))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+            Text("Languages", style = type(15, 500))
+            Text("${chosen.size} chosen", style = type(13, color = InkSoft))
         }
-        ToggleRow("Follow the visitor: cards switch to the language they speak", tuning.autoLanguage) {
-            onChange(tuning.copy(autoLanguage = it))
+        Text("Tap every language spoken around the person. Its speech pack and voice download on the phone.", style = type(13, color = InkSoft))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            AppLanguage.entries.forEach { language ->
+                val on = language in chosen
+                PillButton(
+                    if (language.label == language.englishName) language.label else "${language.label} · ${language.englishName.substringBefore(" (")}",
+                    {
+                        val next = if (on) chosen - language else chosen + language
+                        // At least one language stays; the starting one moves to the first left.
+                        if (next.isNotEmpty()) {
+                            val start = if (tuning.language in next) tuning.language else next.first()
+                            onChange(tuning.copy(language = start, languages = next))
+                        }
+                    },
+                    style = if (on) Surfaces.OfflinePill else Surfaces.Glass,
+                    height = 40,
+                    size = 14,
+                    weight = if (on) 600 else 500,
+                    sidePadding = 14,
+                )
+            }
+        }
+        if (chosen.size > 1) {
+            Text("Start in", style = type(13, color = InkSoft))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                chosen.forEach { language ->
+                    PillButton(
+                        language.label,
+                        { onChange(tuning.copy(language = language)) },
+                        style = if (language == tuning.language) Surfaces.StartButton else Surfaces.Glass,
+                        height = 40,
+                        size = 14,
+                        weight = if (language == tuning.language) 600 else 500,
+                        sidePadding = 14,
+                    )
+                }
+            }
+            ToggleRow("Follow the visitor: cards switch to the language they speak", tuning.autoLanguage) {
+                onChange(tuning.copy(autoLanguage = it))
+            }
         }
         if (missingVoice != null) {
             Text("No offline $missingVoice voice on this phone yet", style = type(13, color = InkSoft))
