@@ -165,7 +165,7 @@ class MainActivity : ComponentActivity() {
     private val sosPermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
             AppLog.write("help", "SOS permissions: " + result.entries.joinToString { "${it.key.substringAfterLast('.')} ${if (it.value) "granted" else "denied"}" })
-            sosAllowed = sos.has(Manifest.permission.SEND_SMS) && sos.has(Manifest.permission.CALL_PHONE)
+            sosAllowed = sos.allowed()
         }
 
     /**
@@ -284,7 +284,7 @@ class MainActivity : ComponentActivity() {
         speaker.language = cardLanguage.voice
         alarm = HelpAlarm(this)
         sos = SosCaller(this) { sosStatus = it }
-        sosAllowed = sos.has(Manifest.permission.SEND_SMS) && sos.has(Manifest.permission.CALL_PHONE)
+        sosAllowed = sos.allowed()
         // Tells the person, eyes still shut, that the help hold is done.
         cue = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, CUE_VOLUME) }.getOrNull()
         listener = Listener(
@@ -677,7 +677,7 @@ class MainActivity : ComponentActivity() {
         visible = true
         watchDownloads()
         watchTemperature()
-        if (::sos.isInitialized) sosAllowed = sos.has(Manifest.permission.SEND_SMS) && sos.has(Manifest.permission.CALL_PHONE)
+        if (::sos.isInitialized) sosAllowed = sos.allowed()
         if (::speaker.isInitialized) speaker.checkVoice()
         updateListening()
     }
@@ -878,7 +878,8 @@ class MainActivity : ComponentActivity() {
             return
         }
         AppLog.write("help", "SOS contact saved: ${maskedNumber(number)}")
-        sosPermissions.launch(arrayOf(Manifest.permission.SEND_SMS, Manifest.permission.CALL_PHONE))
+        // The phone state lets the alarm pick the SIM to call from when none is set for calls.
+        sosPermissions.launch(arrayOf(Manifest.permission.SEND_SMS, Manifest.permission.CALL_PHONE, Manifest.permission.READ_PHONE_STATE))
     }
 
     /** Everything the phone says goes through here, so the microphone does not take it for a question. */
