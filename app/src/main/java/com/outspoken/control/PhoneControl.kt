@@ -37,6 +37,28 @@ object PhoneControl {
     private var onType: (() -> Unit)? = null
     private val refresh = Runnable { readScreen() }
 
+    /** When the last eye frame came, to tell the person when the camera has stopped. */
+    @Volatile
+    private var lastEyesMs = 0L
+    private var eyesLost = false
+    private val eyesWatch = object : Runnable {
+        override fun run() {
+            if (!on) return
+            val lost = typing.not() && android.os.SystemClock.elapsedRealtime() - lastEyesMs > EYES_LOST_MS
+            if (lost != eyesLost) {
+                eyesLost = lost
+                AppLog.write("control", if (lost) "no eye frames for ${EYES_LOST_MS / 1000} s: the camera is not running" else "eye frames again")
+                draw()
+            }
+            main.postDelayed(this, EYES_CHECK_MS)
+        }
+    }
+
+    /** An eye frame reached phone control. */
+    fun eyesRead() {
+        lastEyesMs = android.os.SystemClock.elapsedRealtime()
+    }
+
     @Volatile
     var on = false
         private set
@@ -58,6 +80,9 @@ object PhoneControl {
         overlay = Overlay(service).also { it.show() }
         AppLog.write("control", "phone control on${if (goHome) ", home screen" else ", in the app opened"}")
         if (goHome) service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
+        lastEyesMs = android.os.SystemClock.elapsedRealtime()
+        eyesLost = false
+        main.postDelayed(eyesWatch, EYES_CHECK_MS)
         screenChanged()
         return true
     }
@@ -67,6 +92,7 @@ object PhoneControl {
         on = false
         typing = false
         main.removeCallbacks(refresh)
+        main.removeCallbacks(eyesWatch)
         overlay?.hide()
         overlay = null
         nodes = emptyList()
@@ -102,7 +128,8 @@ object PhoneControl {
     }
 
     private fun draw() {
-        overlay?.light(scan.lit())
+        val lit = scan.lit()
+        overlay?.light(if (eyesLost) Lit(lit?.box, "Eyes not read: open Outspoken") else lit)
     }
 
     private fun readScreen() {
@@ -315,6 +342,8 @@ object PhoneControl {
     }
 
     private const val SETTLE_MS = 400L
+    private const val EYES_CHECK_MS = 1_000L
+    private const val EYES_LOST_MS = 3_000L
 
     /** Time for the app below to come back in front before the sentence goes in. */
     private const val RETURN_MS = 700L

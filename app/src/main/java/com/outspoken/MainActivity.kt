@@ -329,10 +329,15 @@ class MainActivity : ComponentActivity() {
             }
 
             override fun onStop(owner: LifecycleOwner) {
+                // Phone control claims the camera before Outspoken lets it go. The other way round
+                // it stopped for a moment and could not open again from the background: no eye
+                // frame came after 08:10:39.788 while control was on, until Outspoken was back.
+                val takeOver = !PhoneControl.on && phoneControlOnLeaving()
+                if (takeOver) cameraLifecycle.controlOn(true)
                 cameraLifecycle.appShown(false)
                 when {
                     PhoneControl.on -> Unit
-                    phoneControlOnLeaving() -> startPhoneControl(goHome = false)
+                    takeOver -> startPhoneControl(goHome = false)
                     else -> ControlService.stop(this@MainActivity)
                 }
             }
@@ -667,6 +672,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun onControlSample(sample: EyeSample) {
+        PhoneControl.eyesRead()
         for (input in controlEyes.onSample(sample)) when (input) {
             ControlInput.Next -> PhoneControl.next()
             ControlInput.Previous -> PhoneControl.previous()
